@@ -396,8 +396,7 @@ void SlintGraphicsView::zoomToSceneRect(const QRectF& r,
 
 void SlintGraphicsView::applyContinuousMotion(const QPointF& panDelta,
                                               qreal zoomFactor) noexcept {
-  // A no-op (no pan, no zoom) shouldn't touch the projection at all,
-  // lest an idle spacemouse cause continuous repaints unnecessarily.
+  // Skip the refresh if a no-op motion (no pan, no zoom) is received.
   if ((panDelta == QPointF(0, 0)) && (zoomFactor == qreal(1))) {
     return;
   }
