@@ -175,15 +175,6 @@ if(BUILD_TESTS)
   find_package(GTest REQUIRED)
 endif()
 
-# Add rust-spacemouse before editor so the editor makefile can tell which
-# spacemouse backend it should build. TEMPORARY: rust-spacemouse is being
-# phased out (see librepcb_spacemouse_crate_extraction_plan project doc) -
-# its own corrosion_import_crate below is now unused by the rest of the
-# build (editor gets SpaceMouse support via rust-core instead, see below)
-# and this add_subdirectory() will be deleted once the crate is fully
-# extracted to its own repository.
-add_subdirectory(libs/librepcb/rust-spacemouse)
-
 # Add libs
 add_subdirectory(libs/librepcb/core)
 # rust-core must be added before editor: rust-core/CMakeLists.txt sets
