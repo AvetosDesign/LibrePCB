@@ -6,6 +6,7 @@
 //! concern.  See the crate-level docs for more information.
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was reviewed by a human.
 
 use spacemouse::{SpaceMouseBackend, SpaceMouseMotion};
 use std::os::raw::c_void;

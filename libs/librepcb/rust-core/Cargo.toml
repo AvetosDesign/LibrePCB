@@ -1,4 +1,5 @@
 # Claude AI assisted in the writing of this file.
+# It has been reviewed by a human.
 
 [package]
 name = "librepcb-rust-core"
@@ -11,6 +12,7 @@ crate-type = ["lib", "staticlib"]
 [features]
 fail-on-warnings = []
 ffi = ["dep:cbindgen"]
+
 # Enables the SpaceMouse HID-capture FFI (src/ffi/spacemouse_ffi.rs). Gated
 # separately from `ffi` because the `spacemouse` crate it wraps is optional
 # (its `hidapi` dependency needs libudev on Linux, which isn't guaranteed to

@@ -43,11 +43,11 @@ namespace {
 
 // These run on the Rust-owned background thread, *not* this object's own 
 // thread (see `hid.rs`). `userData` is the SpaceMouseInputRust* passed to 
-// rs::ffi_spacemouse_backend_new(), cast through `void*` since 
-// a plain C function pointer can't capture a `this`. This function does 
-// exactly one thing: post the actual work onto `self`'s own thread via a 
-// queued QMetaObject::invokeMethod() call, matching the idiom already used
-// elsewhere in the editor for cross-thread event delivery.
+// rs::ffi_spacemouse_backend_new(), cast through `void*` since a plain C 
+// function pointer can't capture a `this`. This function does exactly one 
+// thing: post the actual work onto `self`'s own thread via a  queued 
+// QMetaObject::invokeMethod() call, matching the idiom already used elsewhere
+// in the editor for cross-thread event delivery.
 
 extern "C" void spaceMouseInputRustOnMotion(
     void* userData, rs::SpaceMouseMotionFfi motion) noexcept {

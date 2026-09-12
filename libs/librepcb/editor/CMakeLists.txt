@@ -1,5 +1,5 @@
-# AI DISCLAIMER: This file was modified by Claude AI.  All modifications
-# have been reviewed by a human.
+# AI DISCLAIMER: This file was modified by Claude AI.  
+# All modifications have been reviewed by a human.
 
 # Enable Qt MOC/UIC/RCC
 set(CMAKE_AUTOMOC ON)
@@ -1014,9 +1014,7 @@ add_library(
 )
 
 # Cross-platform 3D mouse (SpaceMouse) input backend, implemented by the
-# `spacemouse` Rust crate's FFI, which lives in rust-core (moved there from
-# its own former `librepcb-rust-spacemouse` corrosion target - see the
-# librepcb_spacemouse_crate_extraction_plan project doc). Functionality will
+# `spacemouse` Rust crate's FFI, which lives in rust-core. Functionality will
 # not be available in this build if LIBREPCB_SPACEMOUSE_AVAILABLE came back
 # false (most likely because libudev is missing on a Linux build). See also
 # rust-core/CMakeLists.txt. If the SpaceMouse is not available, a no-op

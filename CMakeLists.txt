@@ -1,4 +1,5 @@
 # AI DISCLAIMER: This file was modified by Claude AI.
+# All modifications have been reviewed by a human.
 
 # CMake version configuration
 # (Note: The minimal version 3.22 is shipped with Ubuntu 22.04)
@@ -191,9 +192,7 @@ add_subdirectory(libs/librepcb/core)
 # CMakeLists.txt reads that variable to decide which SpaceMouse backend to
 # build. PARENT_SCOPE variables are only visible to add_subdirectory()
 # calls that run *after* the one that set them - getting this order wrong
-# silently builds the no-op backend on every platform with no error (this
-# exact bug already bit rust-spacemouse once, see the "Linux hardware
-# validation" section of librepcb_spacemouse_rust_crate_plan.md).
+# silently builds the no-op backend on every platform with no error.
 add_subdirectory(libs/librepcb/rust-core)
 add_subdirectory(libs/librepcb/editor)
 add_subdirectory(libs/librepcb/eagleimport)

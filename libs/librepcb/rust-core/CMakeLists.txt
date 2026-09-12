@@ -1,4 +1,5 @@
 # Claude AI assisted in the writing of this file.
+# It has been reviewed by a human.
 
 # Enable Qt MOC/UIC/RCC
 set(CMAKE_AUTOMOC OFF)
@@ -11,10 +12,7 @@ set(CMAKE_AUTORCC OFF)
 # rather than a hard build failure: if libudev isn't available, skip
 # enabling space mouse support and warn the user. Someone building
 # LibrePCB from source on such a system likely knows how to install a
-# missing library if they want the feature. (Originally this check lived
-# in rust-spacemouse/CMakeLists.txt, which skipped importing that crate
-# entirely; now that its FFI lives here in rust-core - which is always
-# built - it has to be a Cargo feature instead of a whole skipped crate.)
+# missing library if they want the feature.
 set(LIBREPCB_SPACEMOUSE_AVAILABLE TRUE)
 if(NOT WIN32 AND NOT APPLE)
   find_library(UDEV_LIBRARY udev)
