@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_EDITOR_PROJECTEDITOR_H
 #define LIBREPCB_EDITOR_PROJECTEDITOR_H
 
@@ -41,6 +43,7 @@ namespace librepcb {
 
 class Board;
 class NetSignal;
+class Panel;
 class Project;
 class RuleCheckMessage;
 class Workspace;
@@ -49,6 +52,7 @@ namespace editor {
 
 class BoardEditor;
 class GuiApplication;
+class PanelEditor;
 class ProjectCrossProbe;
 class RuleCheckMessagesModel;
 class SchematicEditor;
@@ -89,6 +93,9 @@ public:
   }
   const QVector<std::shared_ptr<BoardEditor>>& getBoards() noexcept {
     return mBoards->values();
+  }
+  const QVector<std::shared_ptr<PanelEditor>>& getPanels() noexcept {
+    return mPanels->values();
   }
   int getUiIndex() const noexcept { return mUiIndex; }
   void setUiIndex(int index) noexcept;
@@ -164,6 +171,9 @@ public:
       std::optional<int> copyFromIndex) noexcept;
   void execDeleteBoardDialog(int index) noexcept;
 
+  std::shared_ptr<PanelEditor> execNewPanelDialog() noexcept;
+  void execDeletePanelDialog(int index) noexcept;
+
   void registerActiveSchematicTab(SchematicTab* tab) noexcept;
   void unregisterActiveSchematicTab(SchematicTab* tab) noexcept;
 
@@ -229,6 +239,7 @@ private:
   std::shared_ptr<slint::VectorModel<ui::BusData>> mBuses;  // Lazy initialized
   std::shared_ptr<UiObjectList<SchematicEditor, ui::SchematicData>> mSchematics;
   std::shared_ptr<UiObjectList<BoardEditor, ui::BoardData>> mBoards;
+  std::shared_ptr<UiObjectList<PanelEditor, ui::PanelData>> mPanels;
   std::unique_ptr<UndoStack> mUndoStack;
 
   std::shared_ptr<ProjectCrossProbe> mCrossProbe;

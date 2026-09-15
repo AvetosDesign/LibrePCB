@@ -1,3 +1,5 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 import {
     Badge,
     IconButton,
@@ -15,6 +17,8 @@ import {
     EditorCommandSet as Cmd,
     LibraryData,
     LibraryElementAction,
+    PanelAction,
+    PanelData,
     OrganizationTabData,
     PackageTabData,
     PanelPage,
@@ -28,6 +32,7 @@ import {
 enum ItemType {
     schematic,
     board,
+    panel,
     library,
 }
 
@@ -41,6 +46,7 @@ component DocumentsListItem inherits Rectangle {
     callback clicked <=> ta.clicked;
     callback schematic-action-triggered(a: SchematicAction);
     callback board-action-triggered(a: BoardAction);
+    callback panel-action-triggered(a: PanelAction);
 
     height: 27px;
     background: {
@@ -151,6 +157,18 @@ component DocumentsListItem inherits Rectangle {
                     board-action-triggered(BoardAction.delete);
                 }
             }
+
+            if (ta.has-hover || selected) && (type == ItemType.panel): delete-panel-btn := ListViewItemButton {
+                y: (parent.height - self.height) / 2;
+                height: 18px;
+                icon: @image-url("../../font-awesome/svgs/solid/trash-can.svg");
+                tooltip: @tr("Remove Panel");
+
+                clicked => {
+                    Data.set-panel-page(PanelPage.documents); // Avoid auto-switching.
+                    panel-action-triggered(PanelAction.delete);
+                }
+            }
         }
     }
 }
@@ -195,6 +213,17 @@ component ProjectSection inherits Rectangle {
                     clicked => {
                         Data.set-panel-page(PanelPage.documents); // Avoid auto-switching.
                         Backend.trigger-project(project-index, ProjectAction.new-board);
+                    }
+                }
+
+                if self.max-buttons >= 6: new-panel-btn := IconButton {
+                    icon: @image-url("../../bootstrap-icons/icons/grid-3x3.svg");
+                    tooltip: @tr("New Panel");
+                    icon-scale: 60%;
+
+                    clicked => {
+                        Data.set-panel-page(PanelPage.documents); // Avoid auto-switching.
+                        Backend.trigger-project(project-index, ProjectAction.new-panel);
                     }
                 }
 
@@ -261,6 +290,22 @@ component ProjectSection inherits Rectangle {
 
             board-action-triggered(a) => {
                 Backend.trigger-board(project-index, index, a);
+            }
+        }
+
+        for panel[index] in project.panels: panel-item := DocumentsListItem {
+            type: ItemType.panel;
+            text: panel.name;
+            icon: @image-url("../../bootstrap-icons/icons/grid-3x3.svg");
+            selected: (Data.current-tab.type == TabType.panel) && (Data.current-panel-tab.project-index == project-index) && (Data.current-panel-tab.panel-index == index);
+
+            clicked => {
+                Data.set-panel-page(PanelPage.documents); // Avoid auto-switching.
+                Backend.trigger-panel(project-index, index, PanelAction.open);
+            }
+
+            panel-action-triggered(a) => {
+                Backend.trigger-panel(project-index, index, a);
             }
         }
     }
