@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
+
 #include "cmdpanelremove.h"
 
 #include <librepcb/core/project/panel/panel.h>
@@ -46,10 +49,12 @@ bool CmdPanelRemove::performExecute() {
 }
 
 void CmdPanelRemove::performUndo() {
+  // Undo a panel remove => add a panel
   mProject.addPanel(mPanel, mIndex);  // can throw
 }
 
 void CmdPanelRemove::performRedo() {
+  // Redo a panel remove => reomve a panel
   mProject.removePanel(mPanel);  // can throw
 }
 
