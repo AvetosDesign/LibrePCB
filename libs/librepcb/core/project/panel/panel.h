@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_CORE_PANEL_H
 #define LIBREPCB_CORE_PANEL_H
@@ -47,29 +48,26 @@ class Project;
  ******************************************************************************/
 
 /**
- * @brief The Panel class represents one manufacturing panel of a project
+ * @brief The Panel class
  *
  * A panel arranges one or more copies of existing ::librepcb::Board designs
- * (of the same project) for fabrication. It intentionally holds no board
+ * (from the same project) for fabrication. It intentionally holds no board
  * *content* of its own: every placed copy is a ::librepcb::PanelBoardInstance
- * which references a board by UUID plus its placement (position, rotation,
- * mirror) on the panel. There is no code path for a panel to write back into
- * a referenced board - the panel editor can place, move and remove instances,
- * and jump to a referenced board's own editor to change its design, but it
- * can never modify the board data itself.
+ * (which references a board by UUID) plus its placement (position, rotation,
+ * flip) on the panel. The panel editor can place, move and remove 
+ * instances only.  It includes a provision to open a referenced board's own 
+ * editor to change its design, but it can never modify the board data itself.
  *
  * To detect when a referenced board's content has changed since the panel
- * last looked at it, the panel additionally stores one checksum per
- * *referenced board design* (keyed by board UUID, not by placement instance
- * - multiple instances of the same board share one entry). What exactly gets
+ * last worked with it, the panel stores a checksum per referenced board 
+ * design (keyed by board UUID, not by placement instance. What exactly gets
  * hashed, when the stored checksum gets refreshed, and how a mismatch is
  * surfaced to the user are all deliberately left to later work; this class
  * only provides the storage and accessors for that dictionary.
  *
- * This class intentionally mirrors ::librepcb::Schematic's shape (own
- * directory, `addToProject()`/`removeFromProject()`/`save()`) since panels,
- * schematics and boards are siblings at the project level and are wired into
- * ::librepcb::Project and ::librepcb::ProjectLoader the same way.
+ * This class intentionally mirrors ::librepcb::Board's shape (own directory,
+ * `addToProject()`/`removeFromProject()`/`save()`) to ensure commonality in
+ * how it is wired into ::librepcb::Project/ProjectLoader.
  */
 class Panel final : public QObject {
   Q_OBJECT

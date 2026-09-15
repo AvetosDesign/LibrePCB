@@ -43,6 +43,8 @@ public:
     out.set_board_new(l2s(cmd.boardNew, out.get_board_new()));
     out.set_board_copy(l2s(cmd.boardCopy, out.get_board_copy()));
     out.set_board_remove(l2s(cmd.boardRemove, out.get_board_remove()));
+    out.set_panel_new(l2s(cmd.panelNew, out.get_panel_new()));
+    out.set_panel_remove(l2s(cmd.panelRemove, out.get_panel_remove()));
     out.set_plane_show_all(l2s(cmd.planeShowAll, out.get_plane_show_all()));
     out.set_plane_hide_all(l2s(cmd.planeHideAll, out.get_plane_hide_all()));
     out.set_plane_rebuild_all(l2s(cmd.planeRebuildAll, out.get_plane_rebuild_all()));
