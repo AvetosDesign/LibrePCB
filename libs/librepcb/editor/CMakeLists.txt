@@ -651,6 +651,10 @@ add_library(
   project/cmd/cmdnetsignaledit.h
   project/cmd/cmdnetsignalremove.cpp
   project/cmd/cmdnetsignalremove.h
+  project/cmd/cmdpaneladd.cpp
+  project/cmd/cmdpaneladd.h
+  project/cmd/cmdpanelremove.cpp
+  project/cmd/cmdpanelremove.h
   project/cmd/cmdpasteboarditems.cpp
   project/cmd/cmdpasteboarditems.h
   project/cmd/cmdpasteschematicitems.cpp
@@ -759,6 +763,10 @@ add_library(
   project/newprojectwizard/newprojectwizardpage_metadata.cpp
   project/newprojectwizard/newprojectwizardpage_metadata.h
   project/newprojectwizard/newprojectwizardpage_metadata.ui
+  project/panel/paneleditor.cpp
+  project/panel/paneleditor.h
+  project/panel/paneltab.cpp
+  project/panel/paneltab.h
   project/outputjobsdialog/archiveoutputjobwidget.cpp
   project/outputjobsdialog/archiveoutputjobwidget.h
   project/outputjobsdialog/archiveoutputjobwidget.ui

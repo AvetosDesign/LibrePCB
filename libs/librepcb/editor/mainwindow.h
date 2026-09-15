@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_EDITOR_MAINWINDOW_H
 #define LIBREPCB_EDITOR_MAINWINDOW_H
 
@@ -140,6 +142,8 @@ public:
   void openBoard2dTab(int projectIndex, int index,
                       bool switchToTab = true) noexcept;
   void openBoard3dTab(int projectIndex, int index) noexcept;
+  void openPanelTab(int projectIndex, int index,
+                    bool switchToTab = true) noexcept;
   void openProjectLibraryTab(int projectIndex) noexcept;
   void requestDeviceTab(const FilePath& fp) noexcept;
   void requestComponentTab(const FilePath& fp) noexcept;
@@ -164,6 +168,7 @@ private:
   void triggerSchematic(int project, int schematic,
                         ui::SchematicAction a) noexcept;
   void triggerBoard(int project, int board, ui::BoardAction a) noexcept;
+  void triggerPanel(int project, int panel, ui::PanelAction a) noexcept;
   void updateHomeTabSection() noexcept;
   template <typename Element, typename Tab>
   void openLibraryElementTab(LibraryEditor& editor,

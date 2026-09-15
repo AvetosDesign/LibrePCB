@@ -20,6 +20,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #include "mainwindow.h"
 
 #include "dialogs/directorylockhandlerdialog.h"
@@ -42,8 +44,10 @@
 #include "mainwindowtestadapter.h"
 #include "notificationsmodel.h"
 #include "project/board/board2dtab.h"
+#include "project/panel/paneltab.h"
 #include "project/board/board3dtab.h"
 #include "project/board/boardeditor.h"
+#include "project/panel/paneleditor.h"
 #include "project/library/projectlibrarytab.h"
 #include "project/projecteditor.h"
 #include "project/projectreadmerenderer.h"
@@ -262,6 +266,12 @@ MainWindow::MainWindow(GuiApplication& app,
     // if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0): Remove lambda.
     QMetaObject::invokeMethod(
         this, [this, project, board, a]() { triggerBoard(project, board, a); },
+        Qt::QueuedConnection);
+  });
+  b.on_trigger_panel([this](int project, int panel, ui::PanelAction a) {
+    // if QT_VERSION >= QT_VERSION_CHECK(6, 7, 0): Remove lambda.
+    QMetaObject::invokeMethod(
+        this, [this, project, panel, a]() { triggerPanel(project, panel, a); },
         Qt::QueuedConnection);
   });
   b.on_render_scene([this](int sectionIndex, float width, float height,
@@ -736,6 +746,18 @@ void MainWindow::openBoard3dTab(int projectIndex, int index) noexcept {
   }
 }
 
+void MainWindow::openPanelTab(int projectIndex, int index,
+                              bool switchToTab) noexcept {
+  if (!switchToProjectTab<PanelTab>(projectIndex, index)) {
+    if (auto prjEditor = mApp.getProjects().value(projectIndex)) {
+      if (auto pnlEditor = prjEditor->getPanels().value(index)) {
+        addTab(std::make_shared<PanelTab>(mApp, *pnlEditor), -1, -1,
+               switchToTab, switchToTab);
+      }
+    }
+  }
+}
+
 void MainWindow::openProjectLibraryTab(int projectIndex) noexcept {
   if (!switchToProjectTab<ProjectLibraryTab>(projectIndex, 0)) {
     if (auto prjEditor = mApp.getProjects().value(projectIndex)) {
@@ -1115,6 +1137,12 @@ void MainWindow::triggerProject(int index, ui::ProjectAction a) noexcept {
       }
       break;
     }
+    case ui::ProjectAction::NewPanel: {
+      if (auto pnlEditor = editor->execNewPanelDialog()) {
+        openPanelTab(index, pnlEditor->getUiIndex());
+      }
+      break;
+    }
     default: {
       editor->trigger(a);
       break;
@@ -1217,6 +1245,28 @@ void MainWindow::triggerBoard(int project, int board,
     }
     default: {
       qWarning() << "Unhandled action in MainWindow::triggerBoard():"
+                 << static_cast<int>(a);
+      break;
+    }
+  }
+}
+
+void MainWindow::triggerPanel(int project, int panel,
+                              ui::PanelAction a) noexcept {
+  std::shared_ptr<ProjectEditor> prjEditor = mApp.getProjects().value(project);
+  if (!prjEditor) return;
+
+  switch (a) {
+    case ui::PanelAction::Open: {
+      openPanelTab(project, panel);
+      break;
+    }
+    case ui::PanelAction::Delete: {
+      prjEditor->execDeletePanelDialog(panel);
+      break;
+    }
+    default: {
+      qWarning() << "Unhandled action in MainWindow::triggerPanel():"
                  << static_cast<int>(a);
       break;
     }

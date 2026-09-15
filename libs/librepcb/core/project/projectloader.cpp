@@ -17,11 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "projectloader.h"
 
+#include "panel/panel.h"
 #include "../application.h"
 #include "../fileio/versionfile.h"
 #include "../library/cmp/component.h"
@@ -316,6 +319,7 @@ std::unique_ptr<Project> ProjectLoader::open(
   loadErc(*p);
   loadSchematics(*p);
   loadBoards(*p);
+  loadPanels(*p);
   loadProjectUserSettings(*p);
 
   // If the file format was migrated, clean up obsolete ERC messages.
@@ -824,6 +828,51 @@ void ProjectLoader::loadBoards(Project& p) {
     loadBoard(p, node->getChild("@0").getValue());
   }
   qDebug() << "Successfully loaded" << p.getBoards().count() << "boards.";
+}
+
+void ProjectLoader::loadPanels(Project& p) {
+  qDebug() << "Load panels...";
+  const QString fp = "panels/panels.lp";
+  if (!p.getDirectory().fileExists(fp)) {
+    // Projects created before the panels feature existed simply have no
+    // "panels/" directory at all - that's equivalent to zero panels, so
+    // there's nothing to load (see claude/librepcb_file_format_panel_extension.md
+    // for why this doesn't need a file format migration).
+    qDebug() << "No panels.lp found, skipping (project has no panels).";
+    return;
+  }
+  const std::unique_ptr<const SExpression> indexRoot = SExpression::parse(
+      p.getDirectory().read(fp), p.getDirectory().getAbsPath(fp));
+  foreach (const SExpression* node, indexRoot->getChildren("panel")) {
+    loadPanel(p, node->getChild("@0").getValue());
+  }
+  qDebug() << "Successfully loaded" << p.getPanels().count() << "panels.";
+}
+
+void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
+  const FilePath fp = FilePath::fromRelative(p.getPath(), relativeFilePath);
+  std::unique_ptr<TransactionalDirectory> dir(new TransactionalDirectory(
+      p.getDirectory(), fp.getParentDir().toRelative(p.getPath())));
+  const std::unique_ptr<const SExpression> root =
+      SExpression::parse(dir->read(fp.getFilename()), fp);
+
+  Panel* panel =
+      new Panel(p, std::move(dir), fp.getParentDir().getFilename(),
+               deserialize<Uuid>(root->getChild("@0")),
+               deserialize<ElementName>(root->getChild("name/@0")));
+  p.addPanel(*panel);
+
+  // Board instances (references to other boards of the same project, plus
+  // their placement - never any board content, see panel.h for why).
+  panel->getBoardInstances().loadFromSExpression(*root);
+
+  // Board checksums, keyed by referenced board UUID (not by instance).
+  if (const SExpression* checksums = root->tryGetChild("checksums")) {
+    foreach (const SExpression* node, checksums->getChildren("board_checksum")) {
+      panel->setBoardChecksum(deserialize<Uuid>(node->getChild("@0")),
+                              node->getChild("value/@0").getValue());
+    }
+  }
 }
 
 void ProjectLoader::loadBoard(Project& p, const QString& relativeFilePath) {

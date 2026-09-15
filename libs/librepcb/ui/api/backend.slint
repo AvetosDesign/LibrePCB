@@ -1,3 +1,5 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 import {
     Action,
     AngleEditParseResult,
@@ -10,6 +12,7 @@ import {
     LibraryAction,
     LibraryElementAction,
     OrganizationDbData,
+    PanelAction,
     ProjectAction,
     RatioEditParseResult,
     SchematicAction,
@@ -188,6 +191,16 @@ export global Backend {
     pure callback trigger-board(project-index: int, board-index: int, action: BoardAction);
     trigger-board(project-index, board-index, action) => {
         debug("Trigger board action:", project-index, board-index, action);
+    }
+
+    // Trigger some project panel action
+    //
+    // Note: This callback is executed asynchronously in the backend to
+    // guarantee there are no side effects changing the UI from within the
+    // callback. Otherwise we couldn't declare it as 'pure'.
+    pure callback trigger-panel(project-index: int, panel-index: int, action: PanelAction);
+    trigger-panel(project-index, panel-index, action) => {
+        debug("Trigger panel action:", project-index, panel-index, action);
     }
 
     // Create a drag&drop data-transfer for a given tab
