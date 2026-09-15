@@ -17,10 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was reviewed by a human.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
 
 #include "paneltab.h"
 
@@ -45,6 +47,7 @@
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
+ 
 namespace librepcb {
 namespace editor {
 
@@ -66,9 +69,10 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
                                 this)) {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
-  // Setup graphics view (no event handler needed - there is no FSM/tool yet
-  // to intercept keys or mouse events, so SlintGraphicsView handles
-  // pan/zoom/key events fully on its own).
+  // Setup graphics view
+  // No event handler is needed yet.  There is no FSM/tool to intercept keys
+  // or mouse events, so SlintGraphicsView handles pan/zoom/key events fully
+  // on its own.
   mView->setUseOpenGl(mApp.getWorkspace().getSettings().useOpenGl.get());
   connect(&mApp.getWorkspace().getSettings().useOpenGl,
           &WorkspaceSettingsItem::edited, this, [this]() {
@@ -96,8 +100,7 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
           [this]() { onUiDataChanged.notify(); });
 
   // Apply workspace settings whenever they have been modified. Panels reuse
-  // the board color scheme for now (see class docs - no dedicated panel
-  // scene content yet, so there's nothing panel-specific to theme).
+  // the board color scheme for now.
   connect(&mApp.getWorkspace().getSettings().boardColorSchemes,
           &WorkspaceSettingsItem_ColorSchemes::edited, this,
           &PanelTab::applyWorkspaceSettings);

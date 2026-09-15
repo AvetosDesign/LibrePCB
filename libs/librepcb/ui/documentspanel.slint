@@ -1,4 +1,5 @@
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// All modifications have been reviewed by a human.
 
 import {
     Badge,
@@ -162,7 +163,7 @@ component DocumentsListItem inherits Rectangle {
                 y: (parent.height - self.height) / 2;
                 height: 18px;
                 icon: @image-url("../../font-awesome/svgs/solid/trash-can.svg");
-                tooltip: @tr("Remove Panel");
+                tooltip: Cmd.panel-remove.text;
 
                 clicked => {
                     Data.set-panel-page(PanelPage.documents); // Avoid auto-switching.
@@ -217,8 +218,8 @@ component ProjectSection inherits Rectangle {
                 }
 
                 if self.max-buttons >= 6: new-panel-btn := IconButton {
+                    cmd: Cmd.panel-new;
                     icon: @image-url("../../bootstrap-icons/icons/grid-3x3.svg");
-                    tooltip: @tr("New Panel");
                     icon-scale: 60%;
 
                     clicked => {
