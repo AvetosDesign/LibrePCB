@@ -274,6 +274,26 @@ export global EditorCommandSet {
         key: Key.Delete,
     };
 
+    in property <EditorCommand> panel-new: {
+        id: "panel_new",
+        icon: @image-url("../../../font-awesome/svgs/solid/file-circle-plus.svg"),
+        text: "New Panel...",
+        status-tip: "Add a new panel to the project",
+        shortcut: "Ctrl+N",
+        modifiers: { alt: false, control: true, shift: false, meta: false },
+        key: "n",
+    };
+
+    in property <EditorCommand> panel-remove: {
+        id: "panel_remove",
+        icon: @image-url("../../../font-awesome/svgs/solid/trash-can.svg"),
+        text: "Remove Panel",
+        status-tip: "Remove the current panel from the project",
+        shortcut: "Ctrl+Delete",
+        modifiers: { alt: false, control: true, shift: false, meta: false },
+        key: Key.Delete,
+    };
+
     in property <EditorCommand> plane-show-all: {
         id: "plane_show_all",
         icon: @image-url("../../../font-awesome/svgs/solid/eye.svg"),

@@ -17,11 +17,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// All modifications were reviewed by a human.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #include "windowsection.h"
 
 #include "hometab.h"

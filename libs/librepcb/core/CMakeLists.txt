@@ -1,4 +1,5 @@
 # AI DISCLAIMER: Claude AI assisted in adding the panel/ source files below.
+# All modifications were reviewed by a human.
 
 # Enable Qt MOC/UIC/RCC
 set(CMAKE_AUTOMOC ON)

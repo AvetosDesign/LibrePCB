@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_PANELEDITOR_H
 #define LIBREPCB_EDITOR_PANELEDITOR_H
@@ -52,9 +53,8 @@ class ProjectEditor;
  * Non-UI editor-side counterpart of ::librepcb::Panel, analogous to
  * ::librepcb::editor::SchematicEditor and ::librepcb::editor::BoardEditor.
  * This first version intentionally has none of BoardEditor's DRC/planes/
- * order-PCB machinery yet - those only make sense once the panel has real
- * manufacturing content (see `claude/librepcb_panel_design_decisions.md`,
- * decision 3 onwards). It exists mainly to give ::librepcb::editor::PanelTab
+ * order-PCB machinery yet.  Those only make sense once the panel has real
+ * manufacturing content. It exists mainly to give ::librepcb::editor::PanelTab
  * something to be constructed from, the same way every other tab type is.
  */
 class PanelEditor final : public QObject {
