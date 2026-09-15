@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_CORE_PROJECT_H
 #define LIBREPCB_CORE_PROJECT_H
 
@@ -43,6 +45,7 @@ namespace librepcb {
 
 class Board;
 class Circuit;
+class Panel;
 class ProjectLibrary;
 class Schematic;
 class StrokeFontPool;
@@ -504,6 +507,73 @@ public:
    */
   void removeBoard(Board& board, bool deleteBoard = false);
 
+  // Panel Methods
+
+  /**
+   * @brief Get the index of a specific panel
+   *
+   * @return the panel index (-1 if the panel does not exist)
+   */
+  int getPanelIndex(const Panel& panel) const noexcept;
+
+  /**
+   * @brief Get all panels
+   *
+   * @return A QList with all panels
+   */
+  const QList<Panel*>& getPanels() const noexcept { return mPanels; }
+
+  /**
+   * @brief Get the panel at a specific index
+   *
+   * @param index     The panel index (zero is the first)
+   *
+   * @return A pointer to the specified panel, or nullptr if index is invalid
+   */
+  Panel* getPanelByIndex(int index) const noexcept {
+    return mPanels.value(index, nullptr);
+  }
+
+  /**
+   * @brief Get the panel with a specific UUID
+   *
+   * @param uuid      The panel UUID
+   *
+   * @return A pointer to the specified panel, or nullptr if uuid is invalid
+   */
+  Panel* getPanelByUuid(const Uuid& uuid) const noexcept;
+
+  /**
+   * @brief Get the panel with a specific name
+   *
+   * @param name      The panel name
+   *
+   * @return A pointer to the specified panel, or nullptr if name is invalid
+   */
+  Panel* getPanelByName(const QString& name) const noexcept;
+
+  /**
+   * @brief Add an existing panel to this project
+   *
+   * @param panel         The panel to add
+   * @param newIndex      The desired index in the list (after inserting it)
+   *
+   * @throw Exception     On error
+   */
+  void addPanel(Panel& panel, int newIndex = -1);
+
+  /**
+   * @brief Remove a panel from this project
+   *
+   * @param panel             The panel to remove
+   * @param deletePanel       If true, the panel object will be deleted
+   *                          (Set this to true only when called from ctor or
+   * dtor!!)
+   *
+   * @throw Exception     On error
+   */
+  void removePanel(Panel& panel, bool deletePanel = false);
+
   // General Methods
 
   /**
@@ -571,6 +641,20 @@ signals:
    * @param oldIndex  The index of the removed board
    */
   void boardRemoved(int oldIndex);
+
+  /**
+   * @brief This signal is emitted after a panel was added to the project
+   *
+   * @param newIndex  The index of the added panel
+   */
+  void panelAdded(int newIndex);
+
+  /**
+   * @brief This signal is emitted after a panel was removed from the project
+   *
+   * @param oldIndex  The index of the removed panel
+   */
+  void panelRemoved(int oldIndex);
 
   /**
    * @brief A different board has become the primary board
@@ -657,6 +741,12 @@ private:  // Data
 
   /// All removed boards of this project
   QList<Board*> mRemovedBoards;
+
+  /// All panels of this project
+  QList<Panel*> mPanels;
+
+  /// All removed panels of this project
+  QList<Panel*> mRemovedPanels;
 
   /// All approved ERC messages
   QSet<SExpression> mErcMessageApprovals;

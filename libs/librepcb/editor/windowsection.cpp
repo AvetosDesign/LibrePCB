@@ -20,6 +20,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #include "windowsection.h"
 
 #include "hometab.h"
@@ -36,6 +38,7 @@
 #include "project/board/board2dtab.h"
 #include "project/board/board3dtab.h"
 #include "project/library/projectlibrarytab.h"
+#include "project/panel/paneltab.h"
 #include "project/schematic/schematictab.h"
 #include "utils/deriveduiobjectlist.h"
 #include "windowtab.h"
@@ -93,6 +96,9 @@ WindowSection::WindowSection(GuiApplication& app, MainWindow& win,
             mTabs),
         std::make_shared<
             DerivedUiObjectList<TabList, Board3dTab, ui::Board3dTabData>>(
+            mTabs),
+        std::make_shared<
+            DerivedUiObjectList<TabList, PanelTab, ui::PanelTabData>>(
             mTabs),
         std::make_shared<DerivedUiObjectList<TabList, ProjectLibraryTab,
                                              ui::ProjectLibraryTabData>>(mTabs),
