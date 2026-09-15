@@ -20,6 +20,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #include "projecteditor.h"
 
 #include "../dialogs/filedialog.h"
@@ -37,10 +39,13 @@
 #include "bomreviewdialog.h"
 #include "cmd/cmdboardadd.h"
 #include "cmd/cmdboardremove.h"
+#include "cmd/cmdpaneladd.h"
+#include "cmd/cmdpanelremove.h"
 #include "cmd/cmdschematicadd.h"
 #include "cmd/cmdschematicedit.h"
 #include "cmd/cmdschematicremove.h"
 #include "outputjobsdialog/outputjobsdialog.h"
+#include "panel/paneleditor.h"
 #include "projectcrossprobe.h"
 #include "projectsetupdialog.h"
 #include "schematic/schematiceditor.h"
@@ -50,6 +55,7 @@
 #include <librepcb/core/fileio/fileutils.h>
 #include <librepcb/core/fileio/transactionalfilesystem.h>
 #include <librepcb/core/project/board/board.h>
+#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/circuit/bus.h>
 #include <librepcb/core/project/circuit/circuit.h>
 #include <librepcb/core/project/circuit/componentinstance.h>
@@ -92,6 +98,7 @@ ProjectEditor::ProjectEditor(
     mBuses(new slint::VectorModel<ui::BusData>()),
     mSchematics(new UiObjectList<SchematicEditor, ui::SchematicData>()),
     mBoards(new UiObjectList<BoardEditor, ui::BoardData>()),
+    mPanels(new UiObjectList<PanelEditor, ui::PanelData>()),
     mUndoStack(new UndoStack()),
     mCrossProbe(new ProjectCrossProbe()),
     mActiveSchematicTabs(),
@@ -161,6 +168,33 @@ ProjectEditor::ProjectEditor(
             if (mBoards) {
               mBoards->remove(index);
               updateBoardIndices();
+            }
+          });
+
+  // Populate panels.
+  auto updatePanelIndices = [this]() {
+    for (int i = 0; i < mPanels->count(); ++i) {
+      mPanels->at(i)->setUiIndex(i);
+    }
+  };
+  auto addPanel = [this, updatePanelIndices](int index) {
+    auto pnl = mProject->getPanelByIndex(index);
+    if (mPanels && pnl) {
+      mPanels->insert(index, std::make_shared<PanelEditor>(*this, *pnl, index));
+      updatePanelIndices();
+    } else {
+      qCritical() << "ProjectEditor: Invalid panel index!";
+    }
+  };
+  for (int i = 0; i < mProject->getPanels().count(); ++i) {
+    addPanel(i);
+  }
+  connect(mProject.get(), &Project::panelAdded, this, addPanel);
+  connect(mProject.get(), &Project::panelRemoved, this,
+          [this, updatePanelIndices](int index) {
+            if (mPanels) {
+              mPanels->remove(index);
+              updatePanelIndices();
             }
           });
 
@@ -293,6 +327,7 @@ ui::ProjectData ProjectEditor::getUiData() const noexcept {
       q2s(*mProject->getName()),  // Name
       mSchematics,  // Schematics
       mBoards,  // Boards
+      mPanels,  // Panels
       mProject->getDirectory().isWritable(),  // Writable
       mUseIeee315Symbols,  // Use IEEE315 symbols
       mManualModificationsMade || (!mUndoStack->isClean()),  // Unsaved changes
@@ -692,6 +727,58 @@ void ProjectEditor::execDeleteBoardDialog(int index) noexcept {
 
   try {
     mUndoStack->execCmd(new CmdBoardRemove(*board));
+  } catch (const Exception& e) {
+    QMessageBox::critical(qApp->activeWindow(), tr("Error"), e.getMsg());
+  }
+}
+
+std::shared_ptr<PanelEditor> ProjectEditor::execNewPanelDialog() noexcept {
+  QString name = tr("Panel %1").arg(mProject->getPanels().count() + 1);
+  if (!ElementNameConstraint()(name)) {
+    name = QString("Panel %1").arg(mProject->getPanels().count() + 1);
+  }
+
+  bool ok = false;
+  name = QInputDialog::getText(qApp->activeWindow(), tr("Add New Panel"),
+                               tr("Choose a name:"), QLineEdit::Normal, name,
+                               &ok);
+  if (!ok) return nullptr;
+
+  emit abortBlockingToolsInOtherEditors(nullptr);  // Release undo stack.
+
+  try {
+    const QString dirName = FilePath::cleanFileName(
+        name, FilePath::ReplaceSpaces | FilePath::ToLowerCase);
+    if (dirName.isEmpty()) {
+      throw RuntimeError(__FILE__, __LINE__,
+                         tr("Invalid name: '%1'").arg(name));
+    }
+
+    const int index = mProject->getPanels().count();
+    CmdPanelAdd* cmd =
+        new CmdPanelAdd(*mProject, dirName, ElementName(name));  // can throw
+    mUndoStack->execCmd(cmd);
+    return mPanels->value(index);
+  } catch (const Exception& e) {
+    QMessageBox::critical(qApp->activeWindow(), tr("Error"), e.getMsg());
+    return nullptr;
+  }
+}
+
+void ProjectEditor::execDeletePanelDialog(int index) noexcept {
+  Panel* panel = mProject->getPanelByIndex(index);
+  if (!panel) return;
+
+  QMessageBox::StandardButton btn = QMessageBox::question(
+      qApp->activeWindow(), tr("Remove panel"),
+      tr("Are you really sure to remove the panel \"%1\"?")
+          .arg(*panel->getName()));
+  if (btn != QMessageBox::Yes) return;
+
+  emit abortBlockingToolsInOtherEditors(nullptr);  // Release undo stack.
+
+  try {
+    mUndoStack->execCmd(new CmdPanelRemove(*panel));
   } catch (const Exception& e) {
     QMessageBox::critical(qApp->activeWindow(), tr("Error"), e.getMsg());
   }

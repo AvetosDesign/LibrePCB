@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_CORE_PROJECTLOADER_H
 #define LIBREPCB_CORE_PROJECTLOADER_H
 
@@ -36,6 +38,7 @@
 namespace librepcb {
 
 class Board;
+class Panel;
 class Project;
 class ProjectLibrary;
 class SExpression;
@@ -109,6 +112,8 @@ private:  // Methods
   void loadBoardNetSegment(Board& b, const SExpression& node);
   void loadBoardPlane(Board& b, const SExpression& node);
   void loadBoardUserSettings(Board& b);
+  void loadPanels(Project& p);
+  void loadPanel(Project& p, const QString& relativeFilePath);
   void loadProjectUserSettings(Project& p);
 
 private:  // Data

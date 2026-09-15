@@ -1,6 +1,9 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 import {
     Board2dTabData,
     Board3dTabData,
+    PanelTabData,
     CategoryTabData,
     ComponentPinoutDisplayMode,
     ComponentTabData,
@@ -1680,6 +1683,7 @@ export global Data {
     out property <SchematicTabData> current-schematic-tab: current-section.schematic-tabs[current-section.current-tab-index];
     out property <Board2dTabData> current-board-2d-tab: current-section.board-2d-tabs[current-section.current-tab-index];
     out property <Board3dTabData> current-board-3d-tab: current-section.board-3d-tabs[current-section.current-tab-index];
+    out property <PanelTabData> current-panel-tab: current-section.panel-tabs[current-section.current-tab-index];
     out property <ProjectLibraryTabData> current-project-library-tab: current-section.project-library-tabs[current-section.current-tab-index];
     in-out property <int> current-rule-check-project-index: 0;
     in-out property <int> current-rule-check-board-index: 0;
