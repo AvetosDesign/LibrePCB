@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -33,6 +35,7 @@
 #include "board/items/bi_polygon.h"
 #include "circuit/circuit.h"
 #include "circuit/netclass.h"
+#include "panel/panel.h"
 #include "projectlibrary.h"
 #include "schematic/schematic.h"
 
@@ -103,6 +106,14 @@ Project::~Project() noexcept {
   }
   qDeleteAll(mRemovedSchematics);
   mRemovedSchematics.clear();
+  foreach (Panel* panel, mPanels) {
+    try {
+      removePanel(*panel, true);
+    } catch (...) {
+    }
+  }
+  qDeleteAll(mRemovedPanels);
+  mRemovedPanels.clear();
 
   qDebug().nospace() << "Closed project " << getFilepath().toNative() << ".";
 }
@@ -380,6 +391,87 @@ void Project::removeBoard(Board& board, bool deleteBoard) {
 }
 
 /*******************************************************************************
+ *  Panel Methods
+ ******************************************************************************/
+
+int Project::getPanelIndex(const Panel& panel) const noexcept {
+  return mPanels.indexOf(const_cast<Panel*>(&panel));
+}
+
+Panel* Project::getPanelByUuid(const Uuid& uuid) const noexcept {
+  foreach (Panel* panel, mPanels) {
+    if (panel->getUuid() == uuid) return panel;
+  }
+  return nullptr;
+}
+
+Panel* Project::getPanelByName(const QString& name) const noexcept {
+  foreach (Panel* panel, mPanels) {
+    if (panel->getName() == name) return panel;
+  }
+  return nullptr;
+}
+
+void Project::addPanel(Panel& panel, int newIndex) {
+  if ((mPanels.contains(&panel)) || (&panel.getProject() != this)) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (getPanelByUuid(panel.getUuid())) {
+    throw RuntimeError(__FILE__, __LINE__,
+                       QString("There is already a panel with the UUID \"%1\"!")
+                           .arg(panel.getUuid().toStr()));
+  }
+  if (getPanelByName(*panel.getName())) {
+    throw RuntimeError(__FILE__, __LINE__,
+                       tr("There is already a panel with the name \"%1\"!")
+                           .arg(*panel.getName()));
+  }
+  foreach (const Panel* p, mPanels) {
+    if (p->getDirectoryName() == panel.getDirectoryName()) {
+      throw RuntimeError(
+          __FILE__, __LINE__,
+          tr("There is already a panel with the directory name \"%1\"!")
+              .arg(panel.getDirectoryName()));
+    }
+  }
+
+  if ((newIndex < 0) || (newIndex > mPanels.count())) {
+    newIndex = mPanels.count();
+  }
+
+  panel.addToProject();  // can throw
+  mPanels.insert(newIndex, &panel);
+
+  if (mRemovedPanels.contains(&panel)) {
+    mRemovedPanels.removeOne(&panel);
+  }
+
+  emit panelAdded(newIndex);
+  emit attributesChanged();
+}
+
+void Project::removePanel(Panel& panel, bool deletePanel) {
+  if ((!mPanels.contains(&panel)) || (mRemovedPanels.contains(&panel))) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+
+  int index = getPanelIndex(panel);
+  Q_ASSERT(index >= 0);
+
+  panel.removeFromProject();  // can throw
+  mPanels.removeAt(index);
+
+  emit panelRemoved(index);
+  emit attributesChanged();
+
+  if (deletePanel) {
+    delete &panel;
+  } else {
+    mRemovedPanels.append(&panel);
+  }
+}
+
+/*******************************************************************************
  *  General Methods
  ******************************************************************************/
 
@@ -516,6 +608,20 @@ void Project::save() {
     }
     root->ensureLineBreak();
     mDirectory->write("boards/boards.lp", root->toByteArray());
+  }
+
+  // Panels.
+  {
+    std::unique_ptr<SExpression> root =
+        SExpression::createList("librepcb_panels");
+    foreach (Panel* panel, mPanels) {
+      root->ensureLineBreak();
+      root->appendChild("panel",
+                        "panels/" + panel->getDirectoryName() + "/panel.lp");
+      panel->save();
+    }
+    root->ensureLineBreak();
+    mDirectory->write("panels/panels.lp", root->toByteArray());
   }
 
   // Update the datetime attribute of the project.
