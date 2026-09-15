@@ -17,7 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// All modifications were reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_MAINWINDOW_H
 #define LIBREPCB_EDITOR_MAINWINDOW_H

@@ -17,14 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// AI DISCLAIMER: Claude AI assisted in modifications to this file.
+// All modifications have been reviewed by a human.
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "projectloader.h"
 
-#include "panel/panel.h"
 #include "../application.h"
 #include "../fileio/versionfile.h"
 #include "../library/cmp/component.h"
@@ -57,6 +57,7 @@
 #include "circuit/netclass.h"
 #include "circuit/netsignal.h"
 #include "erc/electricalrulecheck.h"
+#include "panel/panel.h"
 #include "project.h"
 #include "projectlibrary.h"
 #include "schematic/items/si_busjunction.h"
@@ -836,8 +837,7 @@ void ProjectLoader::loadPanels(Project& p) {
   if (!p.getDirectory().fileExists(fp)) {
     // Projects created before the panels feature existed simply have no
     // "panels/" directory at all - that's equivalent to zero panels, so
-    // there's nothing to load (see claude/librepcb_file_format_panel_extension.md
-    // for why this doesn't need a file format migration).
+    // there's nothing to load.
     qDebug() << "No panels.lp found, skipping (project has no panels).";
     return;
   }
@@ -862,8 +862,8 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
                deserialize<ElementName>(root->getChild("name/@0")));
   p.addPanel(*panel);
 
-  // Board instances (references to other boards of the same project, plus
-  // their placement - never any board content, see panel.h for why).
+  // Board instances (references to boards in the same project, plus
+  // their placement).
   panel->getBoardInstances().loadFromSExpression(*root);
 
   // Board checksums, keyed by referenced board UUID (not by instance).

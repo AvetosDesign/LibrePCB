@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_CORE_PANELBOARDINSTANCE_H
 #define LIBREPCB_CORE_PANELBOARDINSTANCE_H
@@ -48,10 +49,10 @@ class SExpression;
  * @brief The PanelBoardInstance class represents one placed copy of a board
  *        design on a panel
  *
- * A panel never contains board content itself (see ::librepcb::Panel) -
- * instead, each ::librepcb::PanelBoardInstance is just a lightweight
+ * A panel never contains board content itself (see ::librepcb::Panel).
+ * Instead, each ::librepcb::PanelBoardInstance is just a lightweight
  * reference to a ::librepcb::Board of the same project (by UUID), plus the
- * placement (position/rotation/mirror) of that particular copy on the panel.
+ * placement (position/rotation/flip) of that particular copy on the panel.
  * Multiple instances may reference the same board UUID (e.g. an "array" of
  * the same design), and a panel may reference more than one distinct board
  * design.
@@ -69,7 +70,7 @@ public:
     BoardChanged,
     PositionChanged,
     RotationChanged,
-    MirroredChanged,
+    FlippedChanged,
   };
   Signal<PanelBoardInstance, Event> onEdited;
   typedef Slot<PanelBoardInstance, Event> OnEditedSlot;
@@ -80,7 +81,7 @@ public:
   explicit PanelBoardInstance(const SExpression& node);
   PanelBoardInstance(const Uuid& uuid, const Uuid& board,
                      const Point& position, const Angle& rotation,
-                     bool mirrored) noexcept;
+                     bool flipped) noexcept;
   ~PanelBoardInstance() noexcept;
 
   // Getters
@@ -88,13 +89,13 @@ public:
   const Uuid& getBoard() const noexcept { return mBoard; }
   const Point& getPosition() const noexcept { return mPosition; }
   const Angle& getRotation() const noexcept { return mRotation; }
-  bool getMirrored() const noexcept { return mMirrored; }
+  bool getFlipped() const noexcept { return mFlipped; }
 
   // Setters
   void setBoard(const Uuid& board) noexcept;
   void setPosition(const Point& position) noexcept;
   void setRotation(const Angle& rotation) noexcept;
-  void setMirrored(bool mirrored) noexcept;
+  void setFlipped(bool flipped) noexcept;
 
   /**
    * @brief Serialize into ::librepcb::SExpression node
@@ -122,7 +123,7 @@ private:  // Data
 
   Point mPosition;
   Angle mRotation;
-  bool mMirrored;
+  bool mFlipped;
 };
 
 /*******************************************************************************

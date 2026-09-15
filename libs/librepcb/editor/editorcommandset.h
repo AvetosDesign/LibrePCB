@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// All modifications were reviewed by a human.
+
 #ifndef LIBREPCB_EDITOR_EDITORCOMMANDSET_H
 #define LIBREPCB_EDITOR_EDITORCOMMANDSET_H
 
@@ -375,6 +378,24 @@ public:
       "board_remove",  // clang-format break
       QT_TR_NOOP("Remove Board"),
       QT_TR_NOOP("Remove the current board from the project"),
+      ":/fa/solid/trash-can.svg",
+      EditorCommand::Flags(),
+      {QKeySequence(Qt::CTRL | Qt::Key_Delete)},
+      &categoryEditor,
+  };
+  EditorCommand panelNew{
+      "panel_new",  // clang-format break
+      QT_TR_NOOP("New Panel"),
+      QT_TR_NOOP("Add a new panel to the project"),
+      ":/fa/solid/file-circle-plus.svg",
+      EditorCommand::Flag::OpensPopup,
+      {QKeySequence(Qt::CTRL | Qt::Key_N)},
+      &categoryEditor,
+  };
+  EditorCommand panelRemove{
+      "panel_remove",  // clang-format break
+      QT_TR_NOOP("Remove Panel"),
+      QT_TR_NOOP("Remove the current panel from the project"),
       ":/fa/solid/trash-can.svg",
       EditorCommand::Flags(),
       {QKeySequence(Qt::CTRL | Qt::Key_Delete)},

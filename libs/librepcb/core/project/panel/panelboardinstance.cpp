@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
+
 #include "panelboardinstance.h"
 
 #include "../../serialization/sexpression.h"
@@ -31,7 +34,7 @@ PanelBoardInstance::PanelBoardInstance(const PanelBoardInstance& other) noexcept
     mBoard(other.mBoard),
     mPosition(other.mPosition),
     mRotation(other.mRotation),
-    mMirrored(other.mMirrored) {
+    mFlipped(other.mFlipped) {
 }
 
 PanelBoardInstance::PanelBoardInstance(const SExpression& node)
@@ -40,19 +43,19 @@ PanelBoardInstance::PanelBoardInstance(const SExpression& node)
     mBoard(deserialize<Uuid>(node.getChild("board/@0"))),
     mPosition(node.getChild("position")),
     mRotation(deserialize<Angle>(node.getChild("rotation/@0"))),
-    mMirrored(deserialize<bool>(node.getChild("mirror/@0"))) {
+    mFlipped(deserialize<bool>(node.getChild("flip/@0"))) {
 }
 
 PanelBoardInstance::PanelBoardInstance(const Uuid& uuid, const Uuid& board,
                                        const Point& position,
                                        const Angle& rotation,
-                                       bool mirrored) noexcept
+                                       bool flipped) noexcept
   : onEdited(*this),
     mUuid(uuid),
     mBoard(board),
     mPosition(position),
     mRotation(rotation),
-    mMirrored(mirrored) {
+    mFlipped(flipped) {
 }
 
 PanelBoardInstance::~PanelBoardInstance() noexcept {
@@ -79,10 +82,10 @@ void PanelBoardInstance::setRotation(const Angle& rotation) noexcept {
   }
 }
 
-void PanelBoardInstance::setMirrored(bool mirrored) noexcept {
-  if (mirrored != mMirrored) {
-    mMirrored = mirrored;
-    onEdited.notify(Event::MirroredChanged);
+void PanelBoardInstance::setFlipped(bool flipped) noexcept {
+  if (flipped != mFlipped) {
+    mFlipped = flipped;
+    onEdited.notify(Event::FlippedChanged);
   }
 }
 
@@ -93,7 +96,7 @@ void PanelBoardInstance::serialize(SExpression& root) const {
   root.ensureLineBreak();
   mPosition.serialize(root.appendList("position"));
   root.appendChild("rotation", mRotation);
-  root.appendChild("mirror", mMirrored);
+  root.appendChild("flip", mFlipped);
   root.ensureLineBreak();
 }
 
@@ -102,7 +105,7 @@ bool PanelBoardInstance::operator==(const PanelBoardInstance& rhs) const noexcep
   if (mBoard != rhs.mBoard) return false;
   if (mPosition != rhs.mPosition) return false;
   if (mRotation != rhs.mRotation) return false;
-  if (mMirrored != rhs.mMirrored) return false;
+  if (mFlipped != rhs.mFlipped) return false;
   return true;
 }
 

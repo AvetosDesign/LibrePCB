@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_PANELTAB_H
 #define LIBREPCB_EDITOR_PANELTAB_H

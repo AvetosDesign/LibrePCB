@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// This file has been reviewed by a human.
+
 #include "cmdpaneladd.h"
 
 #include <librepcb/core/project/panel/panel.h>

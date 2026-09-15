@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_CMDPANELREMOVE_H
 #define LIBREPCB_EDITOR_CMDPANELREMOVE_H
