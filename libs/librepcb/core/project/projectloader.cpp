@@ -862,6 +862,16 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
                deserialize<ElementName>(root->getChild("name/@0")));
   p.addPanel(*panel);
 
+  // Rectangular outline size. Older panel.lp files (from before this
+  // feature existed) have no "size" node at all - Panel's constructor
+  // already defaulted mWidth/mHeight to Panel::defaultWidth/defaultHeight,
+  // so there's nothing more to do for those.
+  if (const SExpression* size = root->tryGetChild("size")) {
+    panel->setWidth(deserialize<PositiveLength>(size->getChild("width/@0")));
+    panel->setHeight(
+        deserialize<PositiveLength>(size->getChild("height/@0")));
+  }
+
   // Board instances (references to boards in the same project, plus
   // their placement).
   panel->getBoardInstances().loadFromSExpression(*root);

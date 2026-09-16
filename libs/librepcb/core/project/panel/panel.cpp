@@ -53,6 +53,8 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mIsAddedToProject(false),
     mUuid(uuid),
     mName(name),
+    mWidth(defaultWidth),
+    mHeight(defaultHeight),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited) {
   if (mDirectoryName.isEmpty()) {
     throw LogicError(__FILE__, __LINE__);
@@ -85,6 +87,22 @@ void Panel::setName(const ElementName& name) noexcept {
   if (name != mName) {
     mName = name;
     emit nameChanged(mName);
+    emit mProject.attributesChanged();
+  }
+}
+
+void Panel::setWidth(const PositiveLength& width) noexcept {
+  if (width != mWidth) {
+    mWidth = width;
+    emit outlineChanged();
+    emit mProject.attributesChanged();
+  }
+}
+
+void Panel::setHeight(const PositiveLength& height) noexcept {
+  if (height != mHeight) {
+    mHeight = height;
+    emit outlineChanged();
     emit mProject.attributesChanged();
   }
 }
@@ -175,6 +193,10 @@ void Panel::save() {
   root->appendChild(mUuid);
   root->ensureLineBreak();
   root->appendChild("name", mName);
+  root->ensureLineBreak();
+  SExpression& sizeNode = root->appendList("size");
+  sizeNode.appendChild("width", mWidth);
+  sizeNode.appendChild("height", mHeight);
   root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();

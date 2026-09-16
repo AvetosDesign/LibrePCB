@@ -159,6 +159,17 @@ component DocumentsListItem inherits Rectangle {
                 }
             }
 
+            if (ta.has-hover || selected) && (type == ItemType.panel): setup-panel-btn := ListViewItemButton {
+                y: (parent.height - self.height) / 2;
+                height: 18px;
+                icon: @image-url("../../font-awesome/svgs/solid/sliders.svg");
+                tooltip: Cmd.panel-setup.text;
+
+                clicked => {
+                    panel-action-triggered(PanelAction.open-setup-dialog);
+                }
+            }
+
             if (ta.has-hover || selected) && (type == ItemType.panel): delete-panel-btn := ListViewItemButton {
                 y: (parent.height - self.height) / 2;
                 height: 18px;
