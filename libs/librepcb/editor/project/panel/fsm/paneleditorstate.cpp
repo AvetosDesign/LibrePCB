@@ -18,27 +18,20 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "paneleditorstate.h"
 
-#include "paneleditor.h"
-
-#include "../../utils/slinthelpers.h"
-#include "../projecteditor.h"
-#include "panelsetupdialog.h"
-
-#include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/project.h>
+#include "../../../undostack.h"
+#include "../panelgraphicsscene.h"
 
 #include <QtCore>
 
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
-
 namespace librepcb {
 namespace editor {
 
@@ -46,53 +39,43 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-PanelEditor::PanelEditor(ProjectEditor& prjEditor, Panel& panel, int uiIndex,
-                         QObject* parent) noexcept
-  : QObject(parent),
-    onUiDataChanged(*this),
-    mProjectEditor(prjEditor),
-    mPanel(panel),
-    mUiIndex(uiIndex) {
-  connect(&mPanel, &Panel::nameChanged, this,
-          [this]() { onUiDataChanged.notify(); });
+PanelEditorState::PanelEditorState(const Context& context,
+                                   QObject* parent) noexcept
+  : QObject(parent), mContext(context), mAdapter(context.adapter) {
 }
 
-PanelEditor::~PanelEditor() noexcept {
-  emit aboutToBeDestroyed();
+PanelEditorState::~PanelEditorState() noexcept {
 }
 
 /*******************************************************************************
- *  General Methods
+ *  Protected Methods
  ******************************************************************************/
 
-QString PanelEditor::getDisplayName() const noexcept {
-  return *mPanel.getName();
+PanelGraphicsScene* PanelEditorState::getActivePanelScene() noexcept {
+  return mAdapter.fsmGetGraphicsScene();
 }
 
-void PanelEditor::setUiIndex(int index) noexcept {
-  if (index != mUiIndex) {
-    mUiIndex = index;
-    emit uiIndexChanged();
+PositiveLength PanelEditorState::getGridInterval() const noexcept {
+  if (PanelGraphicsScene* scene = mAdapter.fsmGetGraphicsScene()) {
+    return scene->getGridInterval();
   }
+  return PositiveLength(1000000);  // Fallback, should never happen.
 }
 
-ui::PanelData PanelEditor::getUiData() const noexcept {
-  return ui::PanelData{
-      q2s(getDisplayName()),  // Name
-  };
+void PanelEditorState::abortBlockingToolsInOtherEditors() noexcept {
+  mAdapter.fsmAbortBlockingToolsInOtherEditors();
 }
 
-void PanelEditor::setUiData(const ui::PanelData& data) noexcept {
-  Q_UNUSED(data);
+void PanelEditorState::openBoardEditor(const Uuid& boardUuid) noexcept {
+  mAdapter.fsmOpenBoardEditor(boardUuid);
 }
 
-void PanelEditor::execPanelSetupDialog() noexcept {
-  // Release undo stack.
-  emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
+bool PanelEditorState::execCmd(UndoCommand* cmd) {
+  return mContext.undoStack.execCmd(cmd);
+}
 
-  PanelSetupDialog dialog(mProjectEditor.getApp(), mPanel,
-                          mProjectEditor.getUndoStack(), qApp->activeWindow());
-  dialog.exec();
+QWidget* PanelEditorState::parentWidget() noexcept {
+  return mAdapter.fsmGetParentWidget();
 }
 
 /*******************************************************************************

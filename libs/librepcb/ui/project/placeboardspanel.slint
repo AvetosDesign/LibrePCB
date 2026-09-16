@@ -1,0 +1,125 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
+import {
+    ListScrollView,
+    PanelHeader,
+} from "../widgets.slint";
+import {
+    BoardData,
+    Data,
+    PanelTabData,
+} from "../api.slint";
+
+component BoardListItem inherits Rectangle {
+    in property <string> name;
+    in property <bool> selected: false;
+
+    callback clicked <=> ta.clicked;
+    callback double-clicked <=> ta.double-clicked;
+
+    background: {
+        if selected {
+            Data.theme.control-checked
+        } else if ta.has-hover {
+            Data.theme.control-hovered
+        } else {
+            transparent
+        }
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+
+        HorizontalLayout {
+            padding-left: 8px;
+            padding-right: 8px;
+            spacing: 4px;
+
+            Text {
+                horizontal-stretch: 1;
+                overflow: elide;
+                color: Data.theme.control-text;
+                text: name;
+            }
+        }
+    }
+}
+
+// Lets the user place a copy of one of the project's boards onto the
+// currently open panel. Deliberately much simpler than PlaceDevicesPanel
+// (no footprint/soldering/density settings - a panel never duplicates or
+// edits a board's content, only places a reference to it, see
+// claude/librepcb_panel_design_decisions.md). A double click on a board
+// triggers PanelTab::setDerivedUiData()'s self-resetting place-board-index
+// field, which starts PanelEditorState_AddBoard.
+export component PlaceBoardsPanel inherits FocusScope {
+    in property <length> window-height;
+    property <length> item-height: 22px;
+    property <PanelTabData> tab: Data.current-section.panel-tabs[Data.current-section.current-tab-index];
+    property <[BoardData]> model: Data.projects[tab.project-index].boards;
+    property <int> selected-index: -1;
+    property <bool> item-selected: (selected-index >= 0) && (selected-index < model.length);
+
+    function set-current-index(index: int) {
+        if ((index + 1) * item-height) > (view.height - view.content-y) {
+            view.content-y = -(index + 1) * item-height + view.height;
+        } else if (index * item-height) < -(view.content-y) {
+            view.content-y = -(index * item-height);
+        }
+        selected-index = index;
+    }
+
+    function place-current-index(index: int) {
+        Data.current-section.panel-tabs[Data.current-section.current-tab-index].place-board-index = index;
+    }
+
+    // Set focus when panel is shown. Not sure if it's always desired(?).
+    init => {
+        root.focus();
+    }
+
+    VerticalLayout {
+        header := PanelHeader {
+            z: 10;  // For the tooltip.
+            title: @tr("Place Boards").to-uppercase();
+            highlight: root.has-focus;
+        }
+
+        if model.length == 0: VerticalLayout {
+            padding: 8px;
+
+            Text {
+                width: 100%;
+                font-size: 12px;
+                font-italic: true;
+                color: Data.theme.control-text-muted;
+                wrap: word-wrap;
+                text: @tr("This project has no boards yet.");
+            }
+        }
+
+        view := ListScrollView {
+            vertical-stretch: 1;
+            preferred-height: model.length * item-height;
+            content-height: model.length * item-height;
+            force-show-scrollbars: root.has-focus;
+            visible: model.length > 0;
+
+            for board[index] in model: item := BoardListItem {
+                height: item-height;
+                name: board.name;
+                selected: (index == selected-index);
+
+                clicked => {
+                    set-current-index(index);
+                    root.focus();
+                }
+
+                double-clicked => {
+                    set-current-index(index);
+                    place-current-index(index);
+                }
+            }
+        }
+    }
+}

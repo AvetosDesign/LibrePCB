@@ -18,27 +18,20 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-
-#include "paneleditor.h"
-
-#include "../../utils/slinthelpers.h"
-#include "../projecteditor.h"
-#include "panelsetupdialog.h"
+#include "cmdpanelboardinstanceremove.h"
 
 #include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/project.h>
+#include <librepcb/core/project/panel/panelboardinstance.h>
 
 #include <QtCore>
 
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
-
 namespace librepcb {
 namespace editor {
 
@@ -46,53 +39,32 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-PanelEditor::PanelEditor(ProjectEditor& prjEditor, Panel& panel, int uiIndex,
-                         QObject* parent) noexcept
-  : QObject(parent),
-    onUiDataChanged(*this),
-    mProjectEditor(prjEditor),
+CmdPanelBoardInstanceRemove::CmdPanelBoardInstanceRemove(
+    Panel& panel, std::shared_ptr<PanelBoardInstance> instance) noexcept
+  : UndoCommand(tr("Remove board from panel")),
     mPanel(panel),
-    mUiIndex(uiIndex) {
-  connect(&mPanel, &Panel::nameChanged, this,
-          [this]() { onUiDataChanged.notify(); });
+    mInstance(instance) {
 }
 
-PanelEditor::~PanelEditor() noexcept {
-  emit aboutToBeDestroyed();
+CmdPanelBoardInstanceRemove::~CmdPanelBoardInstanceRemove() noexcept {
 }
 
 /*******************************************************************************
- *  General Methods
+ *  Inherited from UndoCommand
  ******************************************************************************/
 
-QString PanelEditor::getDisplayName() const noexcept {
-  return *mPanel.getName();
+bool CmdPanelBoardInstanceRemove::performExecute() {
+  performRedo();  // can throw
+
+  return true;
 }
 
-void PanelEditor::setUiIndex(int index) noexcept {
-  if (index != mUiIndex) {
-    mUiIndex = index;
-    emit uiIndexChanged();
-  }
+void CmdPanelBoardInstanceRemove::performUndo() {
+  mPanel.addBoardInstance(mInstance);  // can throw
 }
 
-ui::PanelData PanelEditor::getUiData() const noexcept {
-  return ui::PanelData{
-      q2s(getDisplayName()),  // Name
-  };
-}
-
-void PanelEditor::setUiData(const ui::PanelData& data) noexcept {
-  Q_UNUSED(data);
-}
-
-void PanelEditor::execPanelSetupDialog() noexcept {
-  // Release undo stack.
-  emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
-
-  PanelSetupDialog dialog(mProjectEditor.getApp(), mPanel,
-                          mProjectEditor.getUndoStack(), qApp->activeWindow());
-  dialog.exec();
+void CmdPanelBoardInstanceRemove::performRedo() {
+  mPanel.removeBoardInstance(mInstance);  // can throw
 }
 
 /*******************************************************************************

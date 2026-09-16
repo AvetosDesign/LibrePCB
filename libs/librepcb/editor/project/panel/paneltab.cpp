@@ -18,7 +18,6 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was reviewed by a human.
 
 /*******************************************************************************
  *  Includes
@@ -29,15 +28,24 @@
 #include "../../graphics/graphicsscene.h"
 #include "../../graphics/slintgraphicsview.h"
 #include "../../guiapplication.h"
+#include "../../mainwindow.h"
 #include "../../spacemouse/spacemousemotionmapper.h"
 #include "../../undostack.h"
 #include "../../utils/slinthelpers.h"
 #include "../../utils/uihelpers.h"
+#include "../board/boardeditor.h"
 #include "../projecteditor.h"
+#include "fsm/paneleditorfsm.h"
+#include "fsm/paneleditorstate_addboard.h"
+#include "fsm/paneleditorstate_select.h"
 #include "paneleditor.h"
+#include "panelgraphicsscene.h"
 
+#include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
+#include <librepcb/core/types/angle.h>
+#include <librepcb/core/types/uuid.h>
 #include <librepcb/core/workspace/colorrole.h>
 #include <librepcb/core/workspace/workspace.h>
 #include <librepcb/core/workspace/workspacesettings.h>
@@ -63,16 +71,19 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mProject(mProjectEditor.getProject()),
     mPanelEditor(editor),
     mPanel(editor.getPanel()),
-    mFrameIndex(0),
     mView(new SlintGraphicsView(SlintGraphicsView::defaultBoardSceneRect(),
                                 SlintGraphicsView::defaultEditorMargins(),
-                                this)) {
+                                this)),
+    mFrameIndex(0),
+    mToolFeatures(),
+    mToolCursorShape(Qt::ArrowCursor) {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
-  // Setup graphics view
-  // No event handler is needed yet.  There is no FSM/tool to intercept keys
-  // or mouse events, so SlintGraphicsView handles pan/zoom/key events fully
-  // on its own.
+  // Setup graphics view. Installing the event handler here is sufficient
+  // for the FSM built below to start receiving mouse/key events -
+  // SlintGraphicsView dispatches them transparently once an event handler
+  // is set (same mechanism as ::librepcb::editor::Board2dTab).
+  mView->setEventHandler(this);
   mView->setUseOpenGl(mApp.getWorkspace().getSettings().useOpenGl.get());
   connect(&mApp.getWorkspace().getSettings().useOpenGl,
           &WorkspaceSettingsItem::edited, this, [this]() {
@@ -104,11 +115,23 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   connect(&mApp.getWorkspace().getSettings().boardColorSchemes,
           &WorkspaceSettingsItem_ColorSchemes::edited, this,
           &PanelTab::applyWorkspaceSettings);
+
+  // Build the panel editor finite state machine.
+  PanelEditorFsm::Context fsmContext{
+      mProject,
+      mPanel,
+      mProjectEditor.getUndoStack(),
+      *this,
+  };
+  mFsm.reset(new PanelEditorFsm(fsmContext));
 }
 
 PanelTab::~PanelTab() noexcept {
   deactivate();
   mView->setEventHandler(nullptr);
+
+  // Delete FSM as it may trigger some other methods during destruction.
+  mFsm.reset();
 }
 
 /*******************************************************************************
@@ -129,6 +152,13 @@ ui::TabData PanelTab::getUiData() const noexcept {
   features.undo = toFs(mProjectEditor.getUndoStack().canUndo());
   features.redo = toFs(mProjectEditor.getUndoStack().canRedo());
   features.zoom = toFs(true);
+  features.select = toFs(mToolFeatures.testFlag(Feature::Select));
+  features.cut = toFs(mToolFeatures.testFlag(Feature::Cut));
+  features.copy = toFs(mToolFeatures.testFlag(Feature::Copy));
+  features.paste = toFs(mToolFeatures.testFlag(Feature::Paste));
+  features.remove = toFs(mToolFeatures.testFlag(Feature::Remove));
+  features.rotate = toFs(mToolFeatures.testFlag(Feature::Rotate));
+  features.flip = toFs(mToolFeatures.testFlag(Feature::Flip));
 
   return ui::TabData{
       ui::TabType::Panel,  // Type
@@ -161,15 +191,26 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       q2s(background.secondary),  // Foreground color
       q2s(mSceneImagePos),  // Scene image position
       mFrameIndex,  // Frame index
+      -1,  // Place board index (write-only, always reset back to -1)
   };
 }
 
 void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   mSceneImagePos = s2q(data.scene_image_pos);
+
+  if (data.place_board_index >= 0) {
+    if (Board* board = mProject.getBoardByIndex(data.place_board_index)) {
+      mFsm->processAddBoard(*board);
+    }
+    // Force Slint to re-pull getDerivedUiData() so it sees the field reset
+    // back to -1, preventing this from re-triggering on the next unrelated
+    // setDerivedUiData() round-trip.
+    onDerivedUiDataChanged.notify();
+  }
 }
 
 void PanelTab::activate() noexcept {
-  mScene = std::make_unique<GraphicsScene>(this);
+  mScene = std::make_unique<PanelGraphicsScene>(mPanel, mProject, this);
   connect(mScene.get(), &GraphicsScene::changed, this,
           &PanelTab::requestRepaint);
 
@@ -207,6 +248,49 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       if (mView && mScene) {
         mView->zoomToSceneRect(mScene->itemsBoundingRect(), true);
       }
+      break;
+    }
+    case ui::TabAction::Abort: {
+      if (mFsm) mFsm->processAbortCommand();
+      break;
+    }
+    case ui::TabAction::SelectAll: {
+      if (mFsm) mFsm->processSelectAll();
+      break;
+    }
+    case ui::TabAction::Cut: {
+      if (mFsm) mFsm->processCut();
+      break;
+    }
+    case ui::TabAction::Copy: {
+      if (mFsm) mFsm->processCopy();
+      break;
+    }
+    case ui::TabAction::Paste: {
+      if (mFsm) mFsm->processPaste();
+      break;
+    }
+    case ui::TabAction::Delete: {
+      if (mFsm) mFsm->processRemove();
+      break;
+    }
+    case ui::TabAction::RotateCcw: {
+      if (mFsm) mFsm->processRotate(Angle::deg90());
+      break;
+    }
+    case ui::TabAction::RotateCw: {
+      if (mFsm) mFsm->processRotate(-Angle::deg90());
+      break;
+    }
+    case ui::TabAction::FlipHorizontally: {
+      if (mFsm) mFsm->processFlip();
+      break;
+    }
+    case ui::TabAction::FlipVertically: {
+      // Panel board placements only support one flip operation (see
+      // CmdPanelBoardInstanceEdit::flip()'s doc comment - no mirror-axis
+      // choice, unlike Board), so both menu items perform the same flip.
+      if (mFsm) mFsm->processFlip();
       break;
     }
     default: {
@@ -257,6 +341,124 @@ void PanelTab::processSpaceMouseEvent(const SpaceMouseMotionEvent& e,
                                       qreal dtSeconds) noexcept {
   const SpaceMouseMotion2d motion = toSpaceMouseMotion2d(e, dtSeconds);
   mView->applyContinuousMotion(motion.panDelta, motion.zoomFactor);
+}
+
+/*******************************************************************************
+ *  IF_GraphicsViewEventHandler Methods
+ ******************************************************************************/
+
+bool PanelTab::graphicsSceneKeyPressed(
+    const GraphicsSceneKeyEvent& e) noexcept {
+  return mFsm->processKeyPressed(e);
+}
+
+bool PanelTab::graphicsSceneKeyReleased(
+    const GraphicsSceneKeyEvent& e) noexcept {
+  return mFsm->processKeyReleased(e);
+}
+
+bool PanelTab::graphicsSceneMouseMoved(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  return mFsm->processGraphicsSceneMouseMoved(e);
+}
+
+bool PanelTab::graphicsSceneLeftMouseButtonPressed(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  return mFsm->processGraphicsSceneLeftMouseButtonPressed(e);
+}
+
+bool PanelTab::graphicsSceneLeftMouseButtonReleased(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  return mFsm->processGraphicsSceneLeftMouseButtonReleased(e);
+}
+
+bool PanelTab::graphicsSceneLeftMouseButtonDoubleClicked(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  return mFsm->processGraphicsSceneLeftMouseButtonDoubleClicked(e);
+}
+
+bool PanelTab::graphicsSceneRightMouseButtonReleased(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  return mFsm->processGraphicsSceneRightMouseButtonReleased(e);
+}
+
+/*******************************************************************************
+ *  PanelEditorFsmAdapter Methods
+ ******************************************************************************/
+
+QWidget* PanelTab::fsmGetParentWidget() noexcept {
+  return getWindow();
+}
+
+PanelGraphicsScene* PanelTab::fsmGetGraphicsScene() noexcept {
+  return mScene.get();
+}
+
+void PanelTab::fsmSetViewCursor(
+    const std::optional<Qt::CursorShape>& shape) noexcept {
+  mToolCursorShape = shape ? *shape : Qt::ArrowCursor;
+  onDerivedUiDataChanged.notify();
+}
+
+Point PanelTab::fsmMapGlobalPosToScenePos(const QPoint& pos) const noexcept {
+  if (QWidget* win = getWindow()) {
+    return mView->mapToScenePos(win->mapFromGlobal(pos) - mSceneImagePos,
+                                win->devicePixelRatioF());
+  } else {
+    qWarning() << "Failed to map global position to scene position.";
+    return Point();
+  }
+}
+
+void PanelTab::fsmAbortBlockingToolsInOtherEditors() noexcept {
+  emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
+}
+
+void PanelTab::fsmOpenBoardEditor(const Uuid& boardUuid) noexcept {
+  // Find the BoardEditor whose Board matches the referenced UUID. Panel
+  // board placements only ever store a weak UUID reference to their board
+  // (never a live Board&, see claude/librepcb_panel_design_decisions.md
+  // decisions 1/2), so the referenced board may in principle have been
+  // deleted since the placement was created - if so, silently do nothing
+  // rather than showing an error, consistent with how a stale reference is
+  // already tolerated elsewhere in the panel code.
+  const QVector<std::shared_ptr<BoardEditor>>& boards =
+      mProjectEditor.getBoards();
+  for (int i = 0; i < boards.count(); ++i) {
+    if (boards.at(i) && (boards.at(i)->getBoard().getUuid() == boardUuid)) {
+      if (auto win = mApp.getCurrentWindow()) {
+        win->openBoard2dTab(mProjectEditor.getUiIndex(), i);
+      }
+      return;
+    }
+  }
+}
+
+void PanelTab::fsmSetStatusBarMessage(const QString& message,
+                                      int timeoutMs) noexcept {
+  emit statusBarMessageChanged(message, timeoutMs);
+}
+
+void PanelTab::fsmSetFeatures(Features features) noexcept {
+  if (features != mToolFeatures) {
+    mToolFeatures = features;
+    onUiDataChanged.notify();
+  }
+}
+
+void PanelTab::fsmToolLeave() noexcept {
+  fsmSetFeatures(Features());
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
+  Q_UNUSED(state);
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddBoard& state) noexcept {
+  Q_UNUSED(state);
+  onDerivedUiDataChanged.notify();
 }
 
 /*******************************************************************************

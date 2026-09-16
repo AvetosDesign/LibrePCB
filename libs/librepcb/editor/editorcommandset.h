@@ -401,6 +401,24 @@ public:
       {QKeySequence(Qt::CTRL | Qt::Key_Delete)},
       &categoryEditor,
   };
+  EditorCommand panelSetup{
+      "panel_setup",  // clang-format break
+      QT_TR_NOOP("Panel Setup"),
+      QT_TR_NOOP("View/modify the panel setup"),
+      ":/fa/solid/sliders.svg",
+      EditorCommand::Flag::OpensPopup,
+      {},
+      &categoryEditor,
+  };
+  EditorCommand panelBoardEdit{
+      "panel_board_edit",  // clang-format break
+      QT_TR_NOOP("Edit Board"),
+      QT_TR_NOOP("Open the board editor for the selected board placement"),
+      ":/fa/solid/up-right-from-square.svg",
+      EditorCommand::Flags(),
+      {},
+      &categoryEditor,
+  };
   EditorCommand planeShowAll{
       "plane_show_all",  // clang-format break
       QT_TR_NOOP("Show All Planes"),
@@ -1624,6 +1642,16 @@ public:
       ":/bi/cpu.svg",
       EditorCommand::Flags(),
       {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_P)},
+      &categoryDocks,
+  };
+
+  EditorCommand dockPlaceBoards{
+      "dock_place_boards",  // clang-format break
+      QT_TR_NOOP("Place Boards"),
+      QT_TR_NOOP("Go to the dock for placing boards on a panel"),
+      ":/bi/motherboard-fill.svg",
+      EditorCommand::Flags(),
+      {QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_B)},
       &categoryDocks,
   };
 
