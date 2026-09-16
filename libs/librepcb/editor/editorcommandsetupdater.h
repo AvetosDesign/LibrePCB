@@ -45,6 +45,8 @@ public:
     out.set_board_remove(l2s(cmd.boardRemove, out.get_board_remove()));
     out.set_panel_new(l2s(cmd.panelNew, out.get_panel_new()));
     out.set_panel_remove(l2s(cmd.panelRemove, out.get_panel_remove()));
+    out.set_panel_setup(l2s(cmd.panelSetup, out.get_panel_setup()));
+    out.set_panel_board_edit(l2s(cmd.panelBoardEdit, out.get_panel_board_edit()));
     out.set_plane_show_all(l2s(cmd.planeShowAll, out.get_plane_show_all()));
     out.set_plane_hide_all(l2s(cmd.planeHideAll, out.get_plane_hide_all()));
     out.set_plane_rebuild_all(l2s(cmd.planeRebuildAll, out.get_plane_rebuild_all()));
@@ -174,6 +176,7 @@ public:
     out.set_dock_drc(l2s(cmd.dockDrc, out.get_dock_drc()));
     out.set_dock_layers(l2s(cmd.dockLayers, out.get_dock_layers()));
     out.set_dock_place_devices(l2s(cmd.dockPlaceDevices, out.get_dock_place_devices()));
+    out.set_dock_place_boards(l2s(cmd.dockPlaceBoards, out.get_dock_place_boards()));
     out.set_window_new(l2s(cmd.windowNew, out.get_window_new()));
     out.set_window_close(l2s(cmd.windowClose, out.get_window_close()));
     out.set_project_close(l2s(cmd.projectClose, out.get_project_close()));

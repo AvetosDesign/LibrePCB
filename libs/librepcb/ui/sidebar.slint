@@ -1,3 +1,5 @@
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 import { ToolTip } from "widgets.slint";
 import {
     Action,
@@ -240,6 +242,22 @@ export component SideBar {
 
             clicked => {
                 button-clicked(PanelPage.place-devices);
+            }
+
+            changed enabled => {
+                button-enable-changed(self.enabled, self.checked);
+            }
+        }
+
+        place-boards-btn := SideBarButton {
+            icon: Cmd.dock-place-boards.icon;
+            tooltip: @tr("Place Boards");
+            shortcut: Cmd.dock-place-boards.shortcut;
+            enabled: Data.current-tab.type == TabType.panel;
+            checked: Data.panel-page == PanelPage.place-boards;
+
+            clicked => {
+                button-clicked(PanelPage.place-boards);
             }
 
             changed enabled => {

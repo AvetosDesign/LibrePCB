@@ -45,6 +45,7 @@ export enum PanelPage {
     documents,
     layers,
     place-devices,
+    place-boards,
     rule-check,
     order,
     about,
@@ -1410,6 +1411,10 @@ export struct PanelTabData {
     foreground-color: brush,
     scene-image-pos: Point,  // Absolute position of graphics scene
     frame: int,  // Frame index to trigger repainting
+    // Write-only: setting this to a valid index into the project's boards
+    // triggers placing that board onto the panel, then C++ resets it back
+    // to -1 (getDerivedUiData() always returns -1 for this field).
+    place-board-index: int,
 }
 
 // Additional data for board 3D viewer tabs
@@ -1577,6 +1582,7 @@ export struct BoardData {
 export enum PanelAction {
     open,
     delete,
+    open-setup-dialog,
 }
 
 // A panel is a lightweight document referencing existing boards for
