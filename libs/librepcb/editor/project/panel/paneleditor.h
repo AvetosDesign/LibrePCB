@@ -80,6 +80,19 @@ public:
   ui::PanelData getUiData() const noexcept;
   void setUiData(const ui::PanelData& data) noexcept;
 
+  /**
+   * @brief Open the modal Panel Setup dialog
+   *
+   * Mirrors ::librepcb::editor::BoardEditor::execBoardSetupDialog(): a
+   * blocking, modal `QDialog` (::librepcb::editor::PanelSetupDialog) the
+   * user can Apply/OK/Cancel out of. For now it only exposes the panel's
+   * name (applied via a new ::librepcb::editor::CmdPanelEdit undo command)
+   * plus placeholder width/height fields that display the panel's current
+   * outline size but aren't wired up to actually change it yet - see
+   * claude/librepcb_panelization_tool_addboard_slice.md.
+   */
+  void execPanelSetupDialog() noexcept;
+
   // Operator Overloadings
   PanelEditor& operator=(const PanelEditor& rhs) = delete;
 

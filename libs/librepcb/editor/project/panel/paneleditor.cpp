@@ -28,6 +28,7 @@
 
 #include "../../utils/slinthelpers.h"
 #include "../projecteditor.h"
+#include "panelsetupdialog.h"
 
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
@@ -83,6 +84,15 @@ ui::PanelData PanelEditor::getUiData() const noexcept {
 
 void PanelEditor::setUiData(const ui::PanelData& data) noexcept {
   Q_UNUSED(data);
+}
+
+void PanelEditor::execPanelSetupDialog() noexcept {
+  // Release undo stack.
+  emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
+
+  PanelSetupDialog dialog(mProjectEditor.getApp(), mPanel,
+                          mProjectEditor.getUndoStack(), qApp->activeWindow());
+  dialog.exec();
 }
 
 /*******************************************************************************

@@ -18,7 +18,6 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_PANELTAB_H
 #define LIBREPCB_EDITOR_PANELTAB_H
@@ -26,7 +25,9 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../widgets/if_graphicsvieweventhandler.h"
 #include "windowtab.h"
+#include "fsm/paneleditorfsmadapter.h"
 
 #include <QtCore>
 
@@ -39,12 +40,14 @@ namespace librepcb {
 
 class Panel;
 class Project;
+class Uuid;
 
 namespace editor {
 
-class GraphicsScene;
 class GuiApplication;
 class PanelEditor;
+class PanelEditorFsm;
+class PanelGraphicsScene;
 class ProjectEditor;
 class SlintGraphicsView;
 struct SpaceMouseMotionEvent;
@@ -56,22 +59,27 @@ struct SpaceMouseMotionEvent;
 /**
  * @brief The PanelTab class
  *
- * Minimal first skeleton of the panel editor's window tab: it opens a
- * ::librepcb::editor::PanelEditor's ::librepcb::Panel in a pannable/zoomable
- * but otherwise empty graphics scene, following the same
+ * Opens a ::librepcb::editor::PanelEditor's ::librepcb::Panel in a
+ * pannable/zoomable graphics scene, following the same
  * `WindowTab`/`SlintGraphicsView`/`GraphicsScene` mechanics as
- * ::librepcb::editor::Board2dTab and ::librepcb::editor::SchematicTab.
+ * ::librepcb::editor::Board2dTab and ::librepcb::editor::SchematicTab. The
+ * scene is a `PanelGraphicsScene`, which renders every placed board
+ * instance (see `claude/librepcb_panelization_tool_addboard_slice.md` for
+ * what this slice covers and what's still deferred).
  *
- * Deliberately not implemented yet, in contrast to Board2dTab/SchematicTab:
- * there is no finite state machine and no `*EditorFsmAdapter` interface (no
- * tools exist yet to place/select/move board instances), no
- * `IF_GraphicsViewEventHandler` implementation (not needed without an FSM -
- * `SlintGraphicsView` works standalone for pan/zoom/key handling when no
- * event handler is set), and no scene content at all (no
- * `PanelGraphicsScene` subclass yet - a plain `GraphicsScene` is used as an
- * empty canvas). This will grow once the panel placement tools are added.
+ * As of this slice, `PanelTab` also drives a `PanelEditorFsm` (via
+ * `PanelEditorFsmAdapter`) and implements `IF_GraphicsViewEventHandler`,
+ * following `Board2dTab`'s exact wiring pattern: `SlintGraphicsView`
+ * dispatches mouse/key events to whichever event handler is installed via
+ * `setEventHandler()`, so no changes were needed to the already-existing
+ * `processScenePointerEvent()`/`processSceneKeyPressed()`/etc. methods.
+ * This adds the "add board" and "select" tools (place/select/remove board
+ * placements); moving an already-placed board by dragging is not
+ * implemented yet (see PanelEditorState_Select).
  */
-class PanelTab final : public WindowTab {
+class PanelTab final : public WindowTab,
+                       public PanelEditorFsmAdapter,
+                       public IF_GraphicsViewEventHandler {
   Q_OBJECT
 
 public:
@@ -110,6 +118,37 @@ public:
   void processSpaceMouseEvent(const SpaceMouseMotionEvent& e,
                              qreal dtSeconds) noexcept override;
 
+  // IF_GraphicsViewEventHandler
+  bool graphicsSceneKeyPressed(
+      const GraphicsSceneKeyEvent& e) noexcept override;
+  bool graphicsSceneKeyReleased(
+      const GraphicsSceneKeyEvent& e) noexcept override;
+  bool graphicsSceneMouseMoved(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool graphicsSceneLeftMouseButtonPressed(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool graphicsSceneLeftMouseButtonReleased(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool graphicsSceneLeftMouseButtonDoubleClicked(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool graphicsSceneRightMouseButtonReleased(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+
+  // PanelEditorFsmAdapter
+  QWidget* fsmGetParentWidget() noexcept override;
+  PanelGraphicsScene* fsmGetGraphicsScene() noexcept override;
+  void fsmSetViewCursor(
+      const std::optional<Qt::CursorShape>& shape) noexcept override;
+  Point fsmMapGlobalPosToScenePos(const QPoint& pos) const noexcept override;
+  void fsmAbortBlockingToolsInOtherEditors() noexcept override;
+  void fsmOpenBoardEditor(const Uuid& boardUuid) noexcept override;
+  void fsmSetStatusBarMessage(const QString& message,
+                              int timeoutMs = -1) noexcept override;
+  void fsmSetFeatures(Features features) noexcept override;
+  void fsmToolLeave() noexcept override;
+  void fsmToolEnter(PanelEditorState_Select& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept override;
+
   // Operator Overloadings
   PanelTab& operator=(const PanelTab& rhs) = delete;
 
@@ -128,9 +167,12 @@ private:
   // State
   QPointF mSceneImagePos;
   int mFrameIndex;
+  Features mToolFeatures;
+  Qt::CursorShape mToolCursorShape;
 
   // Objects in active state
-  std::unique_ptr<GraphicsScene> mScene;
+  std::unique_ptr<PanelGraphicsScene> mScene;
+  QScopedPointer<PanelEditorFsm> mFsm;
 };
 
 /*******************************************************************************

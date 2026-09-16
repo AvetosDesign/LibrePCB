@@ -1,3 +1,5 @@
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 import "../../../share/librepcb/fonts/NotoSans-Light.ttf";
 import "../../../share/librepcb/fonts/NotoSans-LightItalic.ttf";
 import "../../../share/librepcb/fonts/NotoSans-Regular.ttf";
@@ -11,6 +13,7 @@ import { SideBar } from "sidebar.slint";
 import { HomePanel } from "homepanel.slint";
 import { DocumentsPanel } from "documentspanel.slint";
 import { GraphicsLayersPanel } from "graphicslayerspanel.slint";
+import { PlaceBoardsPanel } from "project/placeboardspanel.slint";
 import { PlaceDevicesPanel } from "project/placedevicespanel.slint";
 import { RuleCheckPanel } from "rulecheckpanel.slint";
 import { OrderPanel } from "project/orderpanel.slint";
@@ -158,6 +161,10 @@ export component AppWindow inherits Window {
             if Data.panel-page == PanelPage.layers: GraphicsLayersPanel { }
 
             if Data.panel-page == PanelPage.place-devices: PlaceDevicesPanel {
+                window-height: root.height;
+            }
+
+            if Data.panel-page == PanelPage.place-boards: PlaceBoardsPanel {
                 window-height: root.height;
             }
 

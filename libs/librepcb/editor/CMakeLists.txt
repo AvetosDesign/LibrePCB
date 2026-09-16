@@ -650,6 +650,14 @@ add_library(
   project/cmd/cmdnetsignalremove.h
   project/cmd/cmdpaneladd.cpp
   project/cmd/cmdpaneladd.h
+  project/cmd/cmdpanelboardinstanceadd.cpp
+  project/cmd/cmdpanelboardinstanceadd.h
+  project/cmd/cmdpanelboardinstanceedit.cpp
+  project/cmd/cmdpanelboardinstanceedit.h
+  project/cmd/cmdpanelboardinstanceremove.cpp
+  project/cmd/cmdpanelboardinstanceremove.h
+  project/cmd/cmdpaneledit.cpp
+  project/cmd/cmdpaneledit.h
   project/cmd/cmdpanelremove.cpp
   project/cmd/cmdpanelremove.h
   project/cmd/cmdpasteboarditems.cpp
@@ -760,8 +768,28 @@ add_library(
   project/newprojectwizard/newprojectwizardpage_metadata.cpp
   project/newprojectwizard/newprojectwizardpage_metadata.h
   project/newprojectwizard/newprojectwizardpage_metadata.ui
+  project/panel/bgi_panelboardinstance.cpp
+  project/panel/bgi_panelboardinstance.h
+  project/panel/bgi_paneloutline.cpp
+  project/panel/bgi_paneloutline.h
+  project/panel/fsm/paneleditorfsm.cpp
+  project/panel/fsm/paneleditorfsm.h
+  project/panel/fsm/paneleditorfsmadapter.h
+  project/panel/fsm/paneleditorstate.cpp
+  project/panel/fsm/paneleditorstate.h
+  project/panel/fsm/paneleditorstate_addboard.cpp
+  project/panel/fsm/paneleditorstate_addboard.h
+  project/panel/fsm/paneleditorstate_select.cpp
+  project/panel/fsm/paneleditorstate_select.h
+  project/panel/panelclipboarddata.cpp
+  project/panel/panelclipboarddata.h
   project/panel/paneleditor.cpp
   project/panel/paneleditor.h
+  project/panel/panelgraphicsscene.cpp
+  project/panel/panelgraphicsscene.h
+  project/panel/panelsetupdialog.cpp
+  project/panel/panelsetupdialog.h
+  project/panel/panelsetupdialog.ui
   project/panel/paneltab.cpp
   project/panel/paneltab.h
   project/outputjobsdialog/archiveoutputjobwidget.cpp
