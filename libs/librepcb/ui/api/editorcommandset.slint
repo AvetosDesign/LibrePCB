@@ -294,6 +294,26 @@ export global EditorCommandSet {
         key: Key.Delete,
     };
 
+    in property <EditorCommand> panel-setup: {
+        id: "panel_setup",
+        icon: @image-url("../../../font-awesome/svgs/solid/sliders.svg"),
+        text: "Panel Setup...",
+        status-tip: "View/modify the panel setup",
+        shortcut: "",
+        modifiers: { alt: false, control: false, shift: false, meta: false },
+        key: "",
+    };
+
+    in property <EditorCommand> panel-board-edit: {
+        id: "panel_board_edit",
+        icon: @image-url("../../../font-awesome/svgs/solid/up-right-from-square.svg"),
+        text: "Edit Board",
+        status-tip: "Open the board editor for the selected board placement",
+        shortcut: "",
+        modifiers: { alt: false, control: false, shift: false, meta: false },
+        key: "",
+    };
+
     in property <EditorCommand> plane-show-all: {
         id: "plane_show_all",
         icon: @image-url("../../../font-awesome/svgs/solid/eye.svg"),
@@ -1582,6 +1602,16 @@ export global EditorCommandSet {
         shortcut: "Ctrl+Alt+P",
         modifiers: { alt: true, control: true, shift: false, meta: false },
         key: "p",
+    };
+
+    in property <EditorCommand> dock-place-boards: {
+        id: "dock_place_boards",
+        icon: @image-url("../../../bootstrap-icons/icons/motherboard-fill.svg"),
+        text: "Place Boards",
+        status-tip: "Go to the dock for placing boards on a panel",
+        shortcut: "Ctrl+Alt+B",
+        modifiers: { alt: true, control: true, shift: false, meta: false },
+        key: "b",
     };
 
     in property <EditorCommand> window-new: {

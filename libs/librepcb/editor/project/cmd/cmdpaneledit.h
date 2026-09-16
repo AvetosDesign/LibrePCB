@@ -18,82 +18,68 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
+
+#ifndef LIBREPCB_EDITOR_CMDPANELEDIT_H
+#define LIBREPCB_EDITOR_CMDPANELEDIT_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-
-#include "paneleditor.h"
-
-#include "../../utils/slinthelpers.h"
-#include "../projecteditor.h"
-#include "panelsetupdialog.h"
+#include "../../undocommand.h"
 
 #include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/project.h>
+#include <librepcb/core/types/elementname.h>
 
 #include <QtCore>
 
 /*******************************************************************************
- *  Namespace
+ *  Namespace / Forward Declarations
  ******************************************************************************/
-
 namespace librepcb {
 namespace editor {
 
 /*******************************************************************************
- *  Constructors / Destructor
+ *  Class CmdPanelEdit
  ******************************************************************************/
 
-PanelEditor::PanelEditor(ProjectEditor& prjEditor, Panel& panel, int uiIndex,
-                         QObject* parent) noexcept
-  : QObject(parent),
-    onUiDataChanged(*this),
-    mProjectEditor(prjEditor),
-    mPanel(panel),
-    mUiIndex(uiIndex) {
-  connect(&mPanel, &Panel::nameChanged, this,
-          [this]() { onUiDataChanged.notify(); });
-}
+/**
+ * @brief The CmdPanelEdit class
+ *
+ * Undo command to modify a ::librepcb::Panel's own attributes, following
+ * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
+ * #performExecute()). Currently only the panel's name is settable - width/
+ * height (#Panel::setWidth()/#setHeight()) aren't wired up to any editor UI
+ * yet (see ::librepcb::editor::PanelSetupDialog and
+ * claude/librepcb_panelization_tool_addboard_slice.md), so there's nothing
+ * to add here for them until that happens.
+ */
+class CmdPanelEdit final : public UndoCommand {
+public:
+  // Constructors / Destructor
+  CmdPanelEdit() = delete;
+  CmdPanelEdit(const CmdPanelEdit& other) = delete;
+  explicit CmdPanelEdit(Panel& panel) noexcept;
+  ~CmdPanelEdit() noexcept override;
 
-PanelEditor::~PanelEditor() noexcept {
-  emit aboutToBeDestroyed();
-}
+  // Setters
+  void setName(const ElementName& name) noexcept;
 
-/*******************************************************************************
- *  General Methods
- ******************************************************************************/
+private:  // Methods
+  /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
+  bool performExecute() override;
 
-QString PanelEditor::getDisplayName() const noexcept {
-  return *mPanel.getName();
-}
+  /// @copydoc ::librepcb::editor::UndoCommand::performUndo()
+  void performUndo() override;
 
-void PanelEditor::setUiIndex(int index) noexcept {
-  if (index != mUiIndex) {
-    mUiIndex = index;
-    emit uiIndexChanged();
-  }
-}
+  /// @copydoc ::librepcb::editor::UndoCommand::performRedo()
+  void performRedo() override;
 
-ui::PanelData PanelEditor::getUiData() const noexcept {
-  return ui::PanelData{
-      q2s(getDisplayName()),  // Name
-  };
-}
+private:  // Data
+  Panel& mPanel;
 
-void PanelEditor::setUiData(const ui::PanelData& data) noexcept {
-  Q_UNUSED(data);
-}
-
-void PanelEditor::execPanelSetupDialog() noexcept {
-  // Release undo stack.
-  emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
-
-  PanelSetupDialog dialog(mProjectEditor.getApp(), mPanel,
-                          mProjectEditor.getUndoStack(), qApp->activeWindow());
-  dialog.exec();
-}
+  ElementName mOldName;
+  ElementName mNewName;
+};
 
 /*******************************************************************************
  *  End of File
@@ -101,3 +87,5 @@ void PanelEditor::execPanelSetupDialog() noexcept {
 
 }  // namespace editor
 }  // namespace librepcb
+
+#endif

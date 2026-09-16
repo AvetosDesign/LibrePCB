@@ -29,6 +29,7 @@
 #include "../../fileio/filepath.h"
 #include "../../fileio/transactionaldirectory.h"
 #include "../../types/elementname.h"
+#include "../../types/length.h"
 #include "../../types/uuid.h"
 #include "panelboardinstance.h"
 
@@ -73,6 +74,26 @@ class Panel final : public QObject {
   Q_OBJECT
 
 public:
+  /**
+   * @brief Default width for newly created panels
+   *
+   * Used to initialize ::librepcb::Panel::mWidth in the constructor.
+   * Panels are assumed rectangular (see #setWidth()/#setHeight()). Not yet
+   * exposed as a user-configurable setting - a named constant here (rather
+   * than a magic number in the constructor) is specifically so this is a
+   * single, easy edit point once a real setting (e.g. in a future Panel
+   * settings dialog) exists to replace it. See
+   * claude/librepcb_panel_design_decisions.md.
+   */
+  static constexpr Length defaultWidth = Length(100000000);  // 100 mm
+
+  /**
+   * @brief Default height for newly created panels
+   *
+   * @see #defaultWidth
+   */
+  static constexpr Length defaultHeight = Length(100000000);  // 100 mm
+
   // Constructors / Destructor
   Panel() = delete;
   Panel(const Panel& other) = delete;
@@ -94,8 +115,30 @@ public:
   const Uuid& getUuid() const noexcept { return mUuid; }
   const ElementName& getName() const noexcept { return mName; }
 
+  /**
+   * @brief Get the panel's rectangular outline width
+   *
+   * The panel outline is always axis-aligned, rectangular, and anchored at
+   * the origin (0,0) to (width,height) - no position/rotation of its own.
+   * Defaults to #defaultWidth for newly created panels. Editable via
+   * #setWidth(); resizing by dragging an edge on the canvas, and a Panel
+   * settings dialog, are both future work (see
+   * claude/librepcb_panel_design_decisions.md) - this only provides the
+   * model-level storage and accessors.
+   */
+  const PositiveLength& getWidth() const noexcept { return mWidth; }
+
+  /**
+   * @brief Get the panel's rectangular outline height
+   *
+   * @see #getWidth()
+   */
+  const PositiveLength& getHeight() const noexcept { return mHeight; }
+
   // Setters: Attributes
   void setName(const ElementName& name) noexcept;
+  void setWidth(const PositiveLength& width) noexcept;
+  void setHeight(const PositiveLength& height) noexcept;
 
   // Board Instance Methods
   PanelBoardInstanceList& getBoardInstances() noexcept {
@@ -151,6 +194,7 @@ public:
 
 signals:
   void nameChanged(const ElementName& name);
+  void outlineChanged();
   void boardInstanceAdded(int index);
   void boardInstanceRemoved(int index);
   void attributesChanged();
@@ -170,6 +214,8 @@ private:  // Data
   // Attributes
   Uuid mUuid;
   ElementName mName;
+  PositiveLength mWidth;
+  PositiveLength mHeight;
 
   // Content - references only, never board data (see class docs above).
   PanelBoardInstanceList mBoardInstances;

@@ -1255,6 +1255,12 @@ void MainWindow::triggerPanel(int project, int panel,
       prjEditor->execDeletePanelDialog(panel);
       break;
     }
+    case ui::PanelAction::OpenSetupDialog: {
+      if (auto pnlEditor = prjEditor->getPanels().value(panel)) {
+        pnlEditor->execPanelSetupDialog();
+      }
+      break;
+    }
     default: {
       qWarning() << "Unhandled action in MainWindow::triggerPanel():"
                  << static_cast<int>(a);
