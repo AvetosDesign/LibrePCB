@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 /*******************************************************************************
  *  Includes
@@ -35,6 +36,7 @@
 #include "../../utils/uihelpers.h"
 #include "../board/boardeditor.h"
 #include "../projecteditor.h"
+#include "bgi_paneloutline.h"
 #include "fsm/paneleditorfsm.h"
 #include "fsm/paneleditorstate_addboard.h"
 #include "fsm/paneleditorstate_select.h"
@@ -191,6 +193,7 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       q2s(background.secondary),  // Foreground color
       q2s(mSceneImagePos),  // Scene image position
       mFrameIndex,  // Frame index
+      q2s(mToolCursorShape),  // Tool cursor
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
@@ -477,6 +480,12 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     const auto selection = scheme.getColors(ColorRole::boardSelection());
     mScene->setSelectionRectColors(selection.primary, selection.secondary);
     mScene->setGridStyle(settings.boardGridStyle.get());
+    // Reuse Board's own board-outline color role, so the panel outline
+    // follows the user's active board color scheme.
+    if (auto outlineItem = mScene->getOutlineItem()) {
+      const auto outline = scheme.getColors(ColorRole::boardOutlines());
+      outlineItem->setColors(outline.primary, outline.secondary);
+    }
   }
 
   onDerivedUiDataChanged.notify();

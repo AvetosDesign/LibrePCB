@@ -63,6 +63,7 @@ export component PanelTab inherits Tab {
     ta := TouchArea {
         width: 100%;
         height: 100%;
+        mouse-cursor: tabs[index].tool-cursor;
 
         view-buttons-l := VerticalLayout {
             x: parent.width - self.preferred-width - 7px;

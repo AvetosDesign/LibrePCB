@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// All changes have been reviewed by a human.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -216,6 +219,18 @@ slint::cbindgen_private::MouseCursorInner q2s(Qt::CursorShape s) noexcept {
     case Qt::ClosedHandCursor:
       return slint::cbindgen_private::MouseCursorInner(
           slint::private_api::BuiltInMouseCursor::Grabbing);
+    case Qt::SizeHorCursor:
+      return slint::cbindgen_private::MouseCursorInner(
+          slint::private_api::BuiltInMouseCursor::EwResize);
+    case Qt::SizeVerCursor:
+      return slint::cbindgen_private::MouseCursorInner(
+          slint::private_api::BuiltInMouseCursor::NsResize);
+    case Qt::SizeFDiagCursor:
+      return slint::cbindgen_private::MouseCursorInner(
+          slint::private_api::BuiltInMouseCursor::NwseResize);
+    case Qt::SizeBDiagCursor:
+      return slint::cbindgen_private::MouseCursorInner(
+          slint::private_api::BuiltInMouseCursor::NeswResize);
     default: {
       qWarning() << "Unsupported cursor shape:" << s;
       return slint::cbindgen_private::MouseCursorInner(
