@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was last reviewed by a human on 2026-09-16.
 
 #ifndef LIBREPCB_EDITOR_CMDPANELEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELEDIT_H
@@ -47,11 +48,15 @@ namespace editor {
  *
  * Undo command to modify a ::librepcb::Panel's own attributes, following
  * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
- * #performExecute()). Currently only the panel's name is settable - width/
- * height (#Panel::setWidth()/#setHeight()) aren't wired up to any editor UI
- * yet (see ::librepcb::editor::PanelSetupDialog and
- * claude/librepcb_panelization_tool_addboard_slice.md), so there's nothing
- * to add here for them until that happens.
+ * #performExecute()). Covers the panel's name plus its outline width &
+ * height. Width & height also support "immediate" application, so a single
+ * instance of this command can be reused both for the one-shot Panel Setup
+ * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
+ * for a live edge-drag resize preview on the canvas 
+ *(::librepcb::editor::PanelEditorState_Select, immediate=true).
+ * Because width & height can be applied immediately (i.e. before this command
+ * is executed on the undo stack), the destructor reverts them back to their 
+ * original values if the command is destroyed without having been executed.
  */
 class CmdPanelEdit final : public UndoCommand {
 public:
@@ -63,6 +68,8 @@ public:
 
   // Setters
   void setName(const ElementName& name) noexcept;
+  void setWidth(const PositiveLength& width, bool immediate) noexcept;
+  void setHeight(const PositiveLength& height, bool immediate) noexcept;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
@@ -79,6 +86,11 @@ private:  // Data
 
   ElementName mOldName;
   ElementName mNewName;
+
+  PositiveLength mOldWidth;
+  PositiveLength mNewWidth;
+  PositiveLength mOldHeight;
+  PositiveLength mNewHeight;
 };
 
 /*******************************************************************************
