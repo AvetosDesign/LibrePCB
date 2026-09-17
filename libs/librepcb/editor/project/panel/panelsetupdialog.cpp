@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 /*******************************************************************************
  *  Includes
@@ -54,9 +55,8 @@ PanelSetupDialog::PanelSetupDialog(GuiApplication& app, Panel& panel,
   connect(mUi->buttonBox, &QDialogButtonBox::clicked, this,
           &PanelSetupDialog::buttonBoxClicked);
 
-  // Width/height are placeholders only for now (see class docs in
-  // panelsetupdialog.h) - just configure sensible ranges/suffixes here,
-  // no wiring to Panel::setWidth()/setHeight() yet.
+  // Sensible ranges/suffixes for the width & height fields.
+  // See apply() for where they get applied to Panel::setWidth()/setHeight().
   mUi->spbxWidth->setSuffix(" mm");
   mUi->spbxWidth->setDecimals(2);
   mUi->spbxWidth->setRange(1.0, 1000.0);
@@ -104,8 +104,12 @@ bool PanelSetupDialog::apply() noexcept {
     std::unique_ptr<CmdPanelEdit> cmd(new CmdPanelEdit(mPanel));
     cmd->setName(
         ElementName(mUi->edtPanelName->text().trimmed()));  // can throw
-    // Width/height are not applied yet - see class docs in
-    // panelsetupdialog.h.
+    cmd->setWidth(
+        PositiveLength(Length::fromMm(mUi->spbxWidth->value())),
+        false);  // can throw
+    cmd->setHeight(
+        PositiveLength(Length::fromMm(mUi->spbxHeight->value())),
+        false);  // can throw
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

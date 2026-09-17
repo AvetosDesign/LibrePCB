@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was last reviewed by a human on 2026-09-16.
 
 /*******************************************************************************
  *  Includes
@@ -27,6 +28,7 @@
 #include "../../../editorcommandset.h"
 #include "../../../undostack.h"
 #include "../../../utils/menubuilder.h"
+#include "../../cmd/cmdpaneledit.h"
 #include "../../cmd/cmdpanelboardinstanceadd.h"
 #include "../../cmd/cmdpanelboardinstanceedit.h"
 #include "../../cmd/cmdpanelboardinstanceremove.h"
@@ -53,7 +55,9 @@ namespace editor {
 
 PanelEditorState_Select::PanelEditorState_Select(
     const Context& context) noexcept
-  : PanelEditorState(context), mIsUndoCmdActive(false) {
+  : PanelEditorState(context),
+    mIsUndoCmdActive(false),
+    mResizeHandle(BGI_PanelOutline::ResizeHandle::None) {
 }
 
 PanelEditorState_Select::~PanelEditorState_Select() noexcept {
@@ -65,7 +69,21 @@ PanelEditorState_Select::~PanelEditorState_Select() noexcept {
 
 bool PanelEditorState_Select::entry() noexcept {
   mAdapter.fsmToolEnter(*this);
-  updateAvailableFeatures();
+
+  mUpdateAvailableFeaturesTimer = std::make_unique<QTimer>();
+  mUpdateAvailableFeaturesTimer->setSingleShot(true);
+  mUpdateAvailableFeaturesTimer->setInterval(50);
+  connect(mUpdateAvailableFeaturesTimer.get(), &QTimer::timeout, this,
+          [this]() { updateAvailableFeatures(); });
+  scheduleUpdateAvailableFeatures();
+
+  mConnections.append(
+      connect(&mContext.undoStack, &UndoStack::stateModified, this,
+              &PanelEditorState_Select::scheduleUpdateAvailableFeatures));
+  mConnections.append(
+      connect(qApp->clipboard(), &QClipboard::dataChanged, this,
+              &PanelEditorState_Select::scheduleUpdateAvailableFeatures));
+
   return true;
 }
 
@@ -73,6 +91,12 @@ bool PanelEditorState_Select::exit() noexcept {
   // Abort any drag still in progress.
   if (!abortCommand(true)) return false;
 
+  mUpdateAvailableFeaturesTimer.reset();
+  while (!mConnections.isEmpty()) {
+    disconnect(mConnections.takeLast());
+  }
+
+  mAdapter.fsmSetViewCursor(std::nullopt);
   mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features());
   mAdapter.fsmToolLeave();
   return true;
@@ -137,6 +161,7 @@ bool PanelEditorState_Select::processSelectAll() noexcept {
   if (!scene) return false;
 
   scene->selectAll();
+  scheduleUpdateAvailableFeatures();
   return true;
 }
 
@@ -172,15 +197,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
   if ((!data) || data->getInstances().isEmpty()) return false;
 
   const Point startPos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos());
-  // Reference point for the paste offset: the FIRST copied instance's own
-  // origin, NOT wherever the cursor happened to be at copy time. This
-  // guarantees the cursor always ends up exactly at a board's origin
-  // during placement (offset (0,0) for that first instance - the same
-  // cursor-equals-origin behavior PanelEditorState_AddBoard already has
-  // for a brand new placement), rather than carrying forward whatever
-  // arbitrary offset existed between the cursor and that board when it
-  // was copied - see claude/librepcb_panelization_tool_addboard_slice.md,
-  // slice 11.
+  // Reference point for the paste offset is the FIRST copied instance's own
+  // origin, NOT wherever the cursor happened to be at copy time.
   const Point referencePos = data->getInstances().first()->getPosition();
   const Point offset =
       (startPos - referencePos).mappedToGrid(getGridInterval());
@@ -194,9 +212,7 @@ bool PanelEditorState_Select::processPaste() noexcept {
     bool skippedUnknownBoard = false;
     for (const PanelBoardInstance& src : data->getInstances()) {
       // Pasting a board that isn't part of this project (e.g. clipboard
-      // content copied from a different project) isn't supported yet -
-      // skip it rather than creating a dangling reference. See the slice 8
-      // notes in claude/librepcb_panelization_tool_addboard_slice.md.
+      // content copied from a different project) isn't supported yet.
       if (!mContext.project.getBoardByUuid(src.getBoard())) {
         skippedUnknownBoard = true;
         continue;
@@ -210,10 +226,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
       if (auto instance = addCmd->getInstance()) {
         mDragCmds.push_back(
             std::make_unique<CmdPanelBoardInstanceEdit>(*instance));
-        // Offset from the copied reference point, independent of the
-        // (possibly off-canvas, e.g. over the Edit menu/toolbar) cursor
-        // position used for the initial placement above - see the class
-        // doc comment and processGraphicsSceneMouseMoved().
+        // Offset from the copied reference point, independent of the cursor
+        // position used for the initial placement.
         mDragPasteOffsets.push_back(src.getPosition() - referencePos);
         if (auto item = scene->getBoardInstanceItem(instance->getUuid())) {
           item->setSelected(true);
@@ -246,15 +260,14 @@ bool PanelEditorState_Select::processPaste() noexcept {
   }
 
   // Let the user interactively place the pasted board(s), reusing the same
-  // drag machinery as an ordinary move (processGraphicsSceneMouseMoved() /
-  // processGraphicsSceneLeftMouseButtonReleased() don't care how the drag
-  // started - see the class-level doc comment).
+  // drag machinery as an ordinary move.
   mDragLastPos = startPos.mappedToGrid(getGridInterval());
 
   return true;
 }
 
 bool PanelEditorState_Select::processAbortCommand() noexcept {
+  scheduleUpdateAvailableFeatures();
   if (mIsUndoCmdActive) {
     return abortCommand(true);
   }
@@ -276,19 +289,65 @@ bool PanelEditorState_Select::processKeyPressed(
 
 bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     const GraphicsSceneMouseEvent& e) noexcept {
-  if ((!mIsUndoCmdActive) || mDragCmds.empty()) return false;
+  if (!mIsUndoCmdActive) {
+    // We're not dragging (yet).  Just update the hover cursor depending on
+    // whether the mouse is over one of BGI_PanelOutline's resize handles.
+	// Reset to the default arrow cursor as soon as the mouse leaves a handle.
+	// See also exit(), which resets it when leaving this tool entirely.
+    std::optional<Qt::CursorShape> cursor;
+    if (PanelGraphicsScene* scene = getActivePanelScene()) {
+      if (auto outline = scene->getOutlineItem()) {
+        switch (outline->getResizeHandleAtPosition(e.scenePos)) {
+          case BGI_PanelOutline::ResizeHandle::Both:
+            // The corner handle sits at the outline's top-right corner
+            // (see BGI_PanelOutline::paint()), so its natural drag axis
+            // runs top-right to bottom-left.
+            cursor = Qt::SizeBDiagCursor;
+            break;
+          case BGI_PanelOutline::ResizeHandle::Width:
+            cursor = Qt::SizeHorCursor;
+            break;
+          case BGI_PanelOutline::ResizeHandle::Height:
+            cursor = Qt::SizeVerCursor;
+            break;
+          case BGI_PanelOutline::ResizeHandle::None:
+            break;
+        }
+      }
+    }
+    mAdapter.fsmSetViewCursor(cursor);
+    return false;
+  }
 
   const Point pos = e.scenePos.mappedToGrid(getGridInterval());
+
+  if (mResizeCmd) {
+    // The panel outline is always anchored at the scene origin, so resizing
+	// just recomputes width/height directly from the absolute cursor
+	// position (clamped to a 1mm minimum).
+    const PositiveLength minSize(Length::fromMm(1));
+    PositiveLength width = mContext.panel.getWidth();
+    PositiveLength height = mContext.panel.getHeight();
+    if ((mResizeHandle == BGI_PanelOutline::ResizeHandle::Width) ||
+        (mResizeHandle == BGI_PanelOutline::ResizeHandle::Both)) {
+      width = PositiveLength(qMax(*minSize, pos.getX()));
+    }
+    if ((mResizeHandle == BGI_PanelOutline::ResizeHandle::Height) ||
+        (mResizeHandle == BGI_PanelOutline::ResizeHandle::Both)) {
+      height = PositiveLength(qMax(*minSize, pos.getY()));
+    }
+    mResizeCmd->setWidth(width, true);
+    mResizeCmd->setHeight(height, true);
+    return true;
+  }
+
+  if (mDragCmds.empty()) return false;
 
   if (!mDragPasteOffsets.empty()) {
     // Paste-placement drag: always snap to an absolute position derived
     // from the current cursor position, rather than accumulating
     // incremental deltas starting from wherever the cursor was when
-    // Paste was triggered. This is what makes the pasted board(s) land
-    // exactly under the cursor on the very first mouse-move event once
-    // the cursor (re-)enters the canvas, even if Paste was triggered from
-    // the Edit menu/toolbar with the cursor nowhere near the canvas - see
-    // the class doc comment.
+    // Paste was triggered.
     Q_ASSERT(mDragPasteOffsets.size() == mDragCmds.size());
     for (std::size_t i = 0; i < mDragCmds.size(); ++i) {
       mDragCmds[i]->setPosition(pos + mDragPasteOffsets[i], true);
@@ -309,6 +368,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
 
 bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
     const GraphicsSceneMouseEvent& e) noexcept {
+  scheduleUpdateAvailableFeatures();
+
   if (mIsUndoCmdActive) {
     // A drag is already in progress (shouldn't normally happen since a
     // release always follows a press) - ignore the extra press.
@@ -329,6 +390,18 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
     }
   }
 
+  // A board instance takes priority over a panel outline resize handle if
+  // they happen to overlap.
+  if (!clickedItem) {
+    if (auto outline = scene->getOutlineItem()) {
+      const BGI_PanelOutline::ResizeHandle handle =
+          outline->getResizeHandleAtPosition(e.scenePos);
+      if (handle != BGI_PanelOutline::ResizeHandle::None) {
+        return startResizingOutline(handle, e.scenePos);
+      }
+    }
+  }
+
   if (clickedItem && (e.modifiers & Qt::ShiftModifier)) {
     // Add/toggle the clicked item in the selection.
     clickedItem->setSelected(!clickedItem->isSelected());
@@ -340,10 +413,10 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   } else if (!clickedItem) {
     scene->clearSelection();
   }
+  
   // Clicking an already-selected item without a modifier keeps the current
   // (possibly multi-item) selection intact, so the whole group can be
   // dragged together.
-
   if (clickedItem) {
     startMovingSelection(e.scenePos);
   }
@@ -354,14 +427,19 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
 bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
     const GraphicsSceneMouseEvent& e) noexcept {
   Q_UNUSED(e);
+  scheduleUpdateAvailableFeatures();
   if (!mIsUndoCmdActive) return false;
 
   try {
-    for (std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    if (mResizeCmd) {
+      mContext.undoStack.appendToCmdGroup(mResizeCmd.release());  // can throw
+    } else {
+      for (std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
+        mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+      }
+      mDragCmds.clear();
+      mDragPasteOffsets.clear();
     }
-    mDragCmds.clear();
-    mDragPasteOffsets.clear();
     mContext.undoStack.commitCmdGroup();  // can throw
     mIsUndoCmdActive = false;
   } catch (const Exception& e) {
@@ -374,6 +452,8 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
 
 bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
     const GraphicsSceneMouseEvent& e) noexcept {
+  scheduleUpdateAvailableFeatures();
+
   if (mIsUndoCmdActive && (!mDragCmds.empty())) {
     return rotateSelection(Angle::deg90());
   }
@@ -395,8 +475,7 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
   if (!clickedItem) return false;
 
   // If the right-clicked board isn't already part of the selection, replace
-  // the selection with just that board - context actions then apply to it
-  // (matching ::librepcb::editor::BoardEditorState_Select's convention).
+  // the selection with just that board.
   if (!clickedItem->isSelected()) {
     scene->clearSelection();
     clickedItem->setSelected(true);
@@ -428,6 +507,7 @@ bool PanelEditorState_Select::clearSelection() noexcept {
   if (!scene) return false;
 
   scene->clearSelection();
+  scheduleUpdateAvailableFeatures();
   return true;
 }
 
@@ -461,16 +541,33 @@ bool PanelEditorState_Select::startMovingSelection(
   return true;
 }
 
+bool PanelEditorState_Select::startResizingOutline(
+    BGI_PanelOutline::ResizeHandle handle, const Point& startPos) noexcept {
+  Q_ASSERT(!mIsUndoCmdActive);
+  Q_ASSERT(!mResizeCmd);
+  Q_UNUSED(startPos);
+
+  try {
+    mContext.undoStack.beginCmdGroup(tr("Resize panel"));  // can throw
+    mIsUndoCmdActive = true;
+  } catch (const Exception& e) {
+    QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
+    return false;
+  }
+
+  mResizeCmd = std::make_unique<CmdPanelEdit>(mContext.panel);
+  mResizeHandle = handle;
+  return true;
+}
+
 bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   if (mDragCmds.empty()) return false;
 
   // Rotate the whole dragged group as one rigid body about its combined
   // center - same behavior as
   // ::librepcb::editor::BoardEditorState_Select::rotateSelectedItems() for a
-  // multi-item selection. Since every drag position update is applied
-  // immediately, each command's current position is always live, so the
-  // center is simply recomputed fresh on every rotation rather than needing
-  // to be tracked separately.
+  // multi-item selection. The center is recomputed fresh on every rotation 
+  // rather than needing to be tracked separately.
   Point center(0, 0);
   for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
     center += cmd->getPosition();
@@ -481,8 +578,8 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
     mDragCmds[i]->rotate(angle, center, true);
     if (i < mDragPasteOffsets.size()) {
       // Paste-placement drag: keep the cursor-relative offset in sync with
-      // the now-rotated layout, so the absolute snap in
-      // processGraphicsSceneMouseMoved() reproduces this rotation on the
+      // the rotated layout, so the absolute snap in 
+	  // processGraphicsSceneMouseMoved() reproduces this rotation on the
       // next move instead of discarding it.
       mDragPasteOffsets[i] = mDragCmds[i]->getPosition() - mDragLastPos;
     }
@@ -494,11 +591,9 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
-  // Collect the currently selected board placements. Unlike rotateSelection()
-  // (which only ever runs mid-drag, operating on the live CmdPanelBoardInstanceEdit
-  // objects already created by startMovingSelection()), this is a standalone,
-  // one-shot action - there's no drag in progress, so the selected instances'
-  // current model positions are read directly.
+  // Collect the currently selected board placements. Unlike rotateSelection(),
+  // this is a standalone, one-shot action -- the selected instances' current
+  // model positions are read directly.
   QVector<std::shared_ptr<PanelBoardInstance>> selected;
   const auto& items = scene->getBoardInstanceItems();
   for (auto it = items.begin(); it != items.end(); it++) {
@@ -541,8 +636,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
 
   // Same shape as flipSelectedItems(): a standalone, one-shot action (no
   // drag in progress), so the selected instances' current model positions
-  // are read directly rather than reusing the live CmdPanelBoardInstanceEdit
-  // objects a drag would already have created.
+  // are read directly.
   QVector<std::shared_ptr<PanelBoardInstance>> selected;
   const auto& items = scene->getBoardInstanceItems();
   for (auto it = items.begin(); it != items.end(); it++) {
@@ -555,8 +649,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   if (selected.isEmpty()) return false;
 
   // Rotate the whole selection as one rigid group about its combined
-  // center - same convention as rotateSelection()/flipSelectedItems() for a
-  // multi-item selection.
+  // center.
   Point center(0, 0);
   foreach (const std::shared_ptr<PanelBoardInstance>& instance, selected) {
     center += instance->getPosition();
@@ -610,33 +703,55 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
   return true;
 }
 
+void PanelEditorState_Select::scheduleUpdateAvailableFeatures() noexcept {
+  if (mUpdateAvailableFeaturesTimer) mUpdateAvailableFeaturesTimer->start();
+}
+
 void PanelEditorState_Select::updateAvailableFeatures() noexcept {
-  // Static for now: computed once here, on tool entry, and never
-  // recomputed afterwards (unlike ::librepcb::editor::BoardEditorState_
-  // Select, which recomputes its features on every selection/clipboard
-  // change). This is a deliberate waypoint approved for slice 8 - see
-  // claude/librepcb_panelization_tool_addboard_slice.md for the plan to
-  // make it dynamic. Keeping all feature-flag logic in this single method
-  // (rather than inlined at each call site) is what makes that future
-  // change a matter of calling this method from more places, not
-  // restructuring it.
-  mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features(
-      PanelEditorFsmAdapter::Feature::Select |
-      PanelEditorFsmAdapter::Feature::Cut |
-      PanelEditorFsmAdapter::Feature::Copy |
-      PanelEditorFsmAdapter::Feature::Paste |
-      PanelEditorFsmAdapter::Feature::Remove |
-      PanelEditorFsmAdapter::Feature::Rotate |
-      PanelEditorFsmAdapter::Feature::Flip));
+  // Dynamic: Recomputed from scratch every time this is called (via the
+  // debounced mUpdateAvailableFeaturesTimer), matching 
+  // ::librepcb::editor::BoardEditorState_Select.
+  if (mUpdateAvailableFeaturesTimer) mUpdateAvailableFeaturesTimer->stop();
+
+  PanelEditorFsmAdapter::Features features;
+
+  if (!mIsUndoCmdActive) {
+    features |= PanelEditorFsmAdapter::Feature::Select;
+  }
+
+  if (PanelClipboardData::isValid(qApp->clipboard()->mimeData())) {
+    features |= PanelEditorFsmAdapter::Feature::Paste;
+  }
+
+  bool hasSelection = false;
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    const auto& items = scene->getBoardInstanceItems();
+    for (auto it = items.begin(); it != items.end(); it++) {
+      if (it.value() && it.value()->isSelected()) {
+        hasSelection = true;
+        break;
+      }
+    }
+  }
+  if (hasSelection) {
+    features |= PanelEditorFsmAdapter::Feature::Cut;
+    features |= PanelEditorFsmAdapter::Feature::Copy;
+    features |= PanelEditorFsmAdapter::Feature::Remove;
+    features |= PanelEditorFsmAdapter::Feature::Rotate;
+    features |= PanelEditorFsmAdapter::Feature::Flip;
+  }
+
+  mAdapter.fsmSetFeatures(features);
 }
 
 bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
   try {
     // Destroying the not-yet-executed edit commands reverts any live
-    // preview changes back to their original position (same mechanism as
-    // ::librepcb::editor::CmdDeviceInstanceEdit's destructor).
+    // preview changes back to their original position & size (same
+    // mechanism as ::librepcb::editor::CmdDeviceInstanceEdit's destructor).
     mDragCmds.clear();
     mDragPasteOffsets.clear();
+    mResizeCmd.reset();
 
     if (mIsUndoCmdActive) {
       mContext.undoStack.abortCmdGroup();  // can throw
