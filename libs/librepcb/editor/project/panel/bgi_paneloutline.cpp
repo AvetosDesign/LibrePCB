@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #include "bgi_paneloutline.h"
 
@@ -31,7 +32,15 @@ namespace librepcb {
 namespace editor {
 
 BGI_PanelOutline::BGI_PanelOutline(Panel& panel) noexcept
-  : QGraphicsItem(), mPanel(panel) {
+  : QGraphicsItem(),
+    mPanel(panel),
+    mHandleRadiusPx(0),
+    // Placeholder until PanelTab::applyWorkspaceSettings() calls
+    // #setColors() with the active color scheme's real
+    // ColorRole::boardOutlines() colors, which happens immediately after
+    // construction - see the class doc comment.
+    mColor(Qt::white),
+    mColorHighlighted(Qt::white) {
   setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemIsMovable, false);
   setZValue(-1);
@@ -51,8 +60,42 @@ void BGI_PanelOutline::updateOutline() noexcept {
   update();
 }
 
+void BGI_PanelOutline::setColors(const QColor& color,
+                                  const QColor& colorHighlighted) noexcept {
+  if ((color != mColor) || (colorHighlighted != mColorHighlighted)) {
+    mColor = color;
+    mColorHighlighted = colorHighlighted;
+    update();
+  }
+}
+
+BGI_PanelOutline::ResizeHandle BGI_PanelOutline::getResizeHandleAtPosition(
+    const Point& pos) const noexcept {
+  const Length width = *mPanel.getWidth();
+  const Length height = *mPanel.getHeight();
+  const Point corner(width, height);
+  const Point widthHandle(width, height / 2);
+  const Point heightHandle(width / 2, height);
+  const Length tolerance = Length::fromPx(mHandleRadiusPx);
+
+  if (*(pos - corner).getLength() <= tolerance) {
+    return ResizeHandle::Both;
+  } else if (*(pos - widthHandle).getLength() <= tolerance) {
+    return ResizeHandle::Width;
+  } else if (*(pos - heightHandle).getLength() <= tolerance) {
+    return ResizeHandle::Height;
+  }
+  return ResizeHandle::None;
+}
+
 QRectF BGI_PanelOutline::boundingRect() const noexcept {
-  return mOutlineRectPx;
+  // Padded so the resize handles (drawn centered on the outline's corner/
+  // edge-midpoints, so they extend slightly outside mOutlineRectPx itself)
+  // are always fully within the painted/dirty region, regardless of the
+  // current zoom level.  Done here because recomputing geometry from within
+  // paint() is best avoided.
+  const qreal margin = 20;
+  return mOutlineRectPx.adjusted(-margin, -margin, margin, margin);
 }
 
 QPainterPath BGI_PanelOutline::shape() const noexcept {
@@ -64,11 +107,27 @@ QPainterPath BGI_PanelOutline::shape() const noexcept {
 void BGI_PanelOutline::paint(QPainter* painter,
                              const QStyleOptionGraphicsItem* option,
                              QWidget* widget) {
-  Q_UNUSED(option);
   Q_UNUSED(widget);
-  painter->setPen(QPen(QColor(100, 149, 237), 0));  // Cornflower blue.
+  painter->setPen(QPen(mColor, 0));
   painter->setBrush(Qt::NoBrush);
   painter->drawRect(mOutlineRectPx);
+
+  // Draw the three resize handles (corner, right-edge midpoint,
+  // top-edge midpoint. Drawn in a different color than the outline itself so
+  // they read as interactive controls rather than part of the outline shape.
+  const QColor handleColor(255, 140, 0);  // Dark orange.
+  const qreal lod =
+      option->levelOfDetailFromTransform(painter->worldTransform());
+  mHandleRadiusPx = 6 / lod;
+  painter->setPen(QPen(handleColor, 0));
+  painter->setBrush(QBrush(handleColor));
+  const QPointF corner = mOutlineRectPx.topRight();
+  const QPointF widthHandle(mOutlineRectPx.right(), mOutlineRectPx.center().y());
+  const QPointF heightHandle(mOutlineRectPx.center().x(), mOutlineRectPx.top());
+  for (const QPointF& p : {corner, widthHandle, heightHandle}) {
+    painter->drawRect(QRectF(p.x() - mHandleRadiusPx, p.y() - mHandleRadiusPx,
+                             mHandleRadiusPx * 2, mHandleRadiusPx * 2));
+  }
 }
 
 }  // namespace editor

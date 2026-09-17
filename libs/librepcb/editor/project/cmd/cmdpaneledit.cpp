@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was last reviewed by a human on 2026-09-16.
 
 #include "cmdpaneledit.h"
 
@@ -30,10 +31,22 @@ CmdPanelEdit::CmdPanelEdit(Panel& panel) noexcept
   : UndoCommand(tr("Modify Panel Setup")),
     mPanel(panel),
     mOldName(mPanel.getName()),
-    mNewName(mOldName) {
+    mNewName(mOldName),
+    mOldWidth(mPanel.getWidth()),
+    mNewWidth(mOldWidth),
+    mOldHeight(mPanel.getHeight()),
+    mNewHeight(mOldHeight) {
 }
 
 CmdPanelEdit::~CmdPanelEdit() noexcept {
+  if (!wasEverExecuted()) {
+    // Revert any live ("immediate") preview changes back to their
+    // original values. This is a no-op for a command that was only used
+	// non-immediately (e.g. from ::librepcb::editor::PanelSetupDialog),
+	// since the values are already unchanged in that case.
+    mPanel.setWidth(mOldWidth);
+    mPanel.setHeight(mOldHeight);
+  }
 }
 
 void CmdPanelEdit::setName(const ElementName& name) noexcept {
@@ -41,18 +54,39 @@ void CmdPanelEdit::setName(const ElementName& name) noexcept {
   mNewName = name;
 }
 
+void CmdPanelEdit::setWidth(const PositiveLength& width,
+                            bool immediate) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewWidth = width;
+  if (immediate) mPanel.setWidth(mNewWidth);
+}
+
+void CmdPanelEdit::setHeight(const PositiveLength& height,
+                             bool immediate) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewHeight = height;
+  if (immediate) mPanel.setHeight(mNewHeight);
+}
+
 bool CmdPanelEdit::performExecute() {
   performRedo();  // can throw
 
-  return mNewName != mOldName;
+  if (mNewName != mOldName) return true;
+  if (mNewWidth != mOldWidth) return true;
+  if (mNewHeight != mOldHeight) return true;
+  return false;
 }
 
 void CmdPanelEdit::performUndo() {
   mPanel.setName(mOldName);
+  mPanel.setWidth(mOldWidth);
+  mPanel.setHeight(mOldHeight);
 }
 
 void CmdPanelEdit::performRedo() {
   mPanel.setName(mNewName);
+  mPanel.setWidth(mNewWidth);
+  mPanel.setHeight(mNewHeight);
 }
 
 }  // namespace editor

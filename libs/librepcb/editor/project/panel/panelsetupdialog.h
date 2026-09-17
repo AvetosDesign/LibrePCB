@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_PANELSETUPDIALOG_H
 #define LIBREPCB_EDITOR_PANELSETUPDIALOG_H
@@ -55,15 +56,10 @@ class PanelSetupDialog;
  * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
  * `QDialogButtonBox`, loaded from the model on construction, applied back
  * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: the panel name is the only field that's
- * actually editable and applied (via ::librepcb::editor::CmdPanelEdit).
- * The width/height fields are placeholders only - they display the
- * panel's current outline size (::librepcb::Panel::getWidth()/
- * getHeight()) but changing them does nothing yet; wiring them up to
- * ::librepcb::Panel::setWidth()/setHeight() (and deciding what should
- * happen to already-placed board instances if the panel shrinks below
- * them) is deliberately deferred, see
- * claude/librepcb_panelization_tool_addboard_slice.md.
+ * ::librepcb::Panel today: name and outline width/height, all applied
+ * together via a single ::librepcb::editor::CmdPanelEdit. The width & height
+ * fields are currently plain `QDoubleSpinBox` fields instead of a dedicated
+ * length-edit widget.  It may be desirable to revise this in the future.
  */
 class PanelSetupDialog final : public QDialog {
   Q_OBJECT
