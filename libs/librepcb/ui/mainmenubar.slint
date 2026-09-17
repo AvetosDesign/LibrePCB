@@ -1,3 +1,6 @@
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// It was reviewed by AvetosDesign
+
 import {
     Badge,
     IconButton,
@@ -18,6 +21,7 @@ import {
     LibraryAction,
     LibraryData,
     LibraryElementAction,
+    PanelAction,
     PanelPage,
     ProjectAction,
     SchematicAction,
@@ -1717,6 +1721,14 @@ export component MainMenuBar {
                             } else {
                                 Backend.trigger-board(Data.current-board-3d-tab.project-index, Data.current-board-3d-tab.board-index, BoardAction.open-setup-dialog);
                             }
+                        }
+                    }
+
+                    if Data.current-tab.type == TabType.panel: panel-setup-btn := MenuBarButton {
+                        cmd: Cmd.panel-setup;
+
+                        clicked => {
+                            Backend.trigger-panel(Data.current-panel-tab.project-index, Data.current-panel-tab.panel-index, PanelAction.open-setup-dialog);
                         }
                     }
 

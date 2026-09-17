@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It has been reviewed by a human.
 
 #ifndef LIBREPCB_EDITOR_BGI_PANELOUTLINE_H
 #define LIBREPCB_EDITOR_BGI_PANELOUTLINE_H
@@ -25,6 +26,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include <librepcb/core/types/point.h>
+
 #include <QtCore>
 #include <QtWidgets>
 
@@ -46,25 +49,51 @@ namespace editor {
  *
  * Renders the ::librepcb::Panel's rectangular outline (`Panel::getWidth()` /
  * `Panel::getHeight()`) as a plain, always-axis-aligned, always-at-the-origin
- * rectangle on the panel canvas. Not selectable or movable - the panel's
- * size is edited through `Panel::setWidth()`/`Panel::setHeight()` rather
- * than through this item directly. Click-and-drag edge resizing and an
- * explicit size field in a Panel settings dialog are both future work (see
- * claude/librepcb_panel_design_decisions.md) - this item only draws the
- * current size.
+ * rectangle on the panel canvas. It is not selectable or movable via native
+ * QGraphicsItem selection.  The panel's size may be edited via the
+ * ::librepcb::editor::PanelSetupDialog or by dragging one of the three
+ * resize handles (see #getResizeHandleAtPosition()).
+ *
+ * Because the outline is always anchored at the scene origin (0,0), it has
+ * no position of its own.  Only the two far edges (at x=width and y=height)
+ * and their shared corner can meaningfully be dragged.
  *
  * Since `Panel` is a `QObject` but this item is a plain `QGraphicsItem` (not
- * a `QObject`), it does not connect to `Panel::outlineChanged` itself -
- * `PanelGraphicsScene` (which is a `QObject`) owns that connection and calls
- * #updateOutline() when it fires, the same way it already reconciles
- * board-instance items on `Panel::boardInstanceAdded`/`Removed`.
+ * a `QObject`), it does not connect to `Panel::outlineChanged` itself.
+ * `PanelGraphicsScene` owns that connection and calls #updateOutline() when
+ * it fires, the same way it reconciles board-instance items on 
+ * `Panel::boardInstanceAdded`/`Removed`.
  *
- * Deliberately given a negative Z value so board instances (see
+ * The panel is deliberately given a negative Z value so board instances (see
  * BGI_PanelBoardInstance) always paint above it rather than depending on
  * insertion order into the scene.
+ *
+ * The three resize handles are painted in a distinct, fixed color so they 
+ * read as interactive controls rather than as part of the outline shape.  
+ * ::librepcb::editor::PanelEditorState_Select also swaps in an appropriate
+ * resize cursor (diagonal/horizontal/vertical) when the mouse hovers one of
+ * them, matching the usual desktop convention.
+ *
+ * The outline itself, unlike the handles, is NOT a fixed color: it
+ * reuses ::librepcb::ColorRole::boardOutlines() - the same color role
+ * Board's own board outline uses (see `Layer::boardOutlines()`). #setColors()
+ * is called by ::librepcb::editor::PanelTab::applyWorkspaceSettings(), both
+ * on tab activation and whenever the active color scheme is edited.
  */
 class BGI_PanelOutline final : public QGraphicsItem {
 public:
+  /**
+   * @brief Which resize handle (if any) is at a given position
+   *
+   * @see #getResizeHandleAtPosition()
+   */
+  enum class ResizeHandle {
+    None,  ///< No handle at that position.
+    Width,  ///< The right-edge midpoint handle - width only.
+    Height,  ///< The top-edge midpoint handle - height only.
+    Both,  ///< The corner handle - width and height together.
+  };
+
   // Constructors / Destructor
   BGI_PanelOutline() = delete;
   BGI_PanelOutline(const BGI_PanelOutline& other) = delete;
@@ -80,6 +109,29 @@ public:
    */
   void updateOutline() noexcept;
 
+  /**
+   * @brief Check if a resize handle is at a specific position
+   *
+   * Mimics ::librepcb::editor::ImageGraphicsItem::isResizeHandleAtPosition()'s
+   * radius-based hit test (using #mHandleRadiusPx, refreshed on every #paint()
+   * call), extended to the panel outline's three meaningful handles instead of
+   * just one corner.
+   *
+   * @param pos   The scene position to check, e.g. a mouse click.
+   * @return      Which handle (if any) is at that position.
+   */
+  ResizeHandle getResizeHandleAtPosition(const Point& pos) const noexcept;
+
+  /**
+   * @brief Set the outline's color, following the active color scheme
+   *
+   * @param color             Normal (not highlighted) outline color -
+   *                           `ColorRole::boardOutlines()`'s primary color.
+   * @param colorHighlighted  Reserved for a future highlighted/selected
+   *                           state (the outline isn't selectable yet).
+   */
+  void setColors(const QColor& color, const QColor& colorHighlighted) noexcept;
+
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
@@ -92,6 +144,9 @@ public:
 private:  // Data
   Panel& mPanel;
   QRectF mOutlineRectPx;
+  qreal mHandleRadiusPx;
+  QColor mColor;
+  QColor mColorHighlighted;
 };
 
 /*******************************************************************************
