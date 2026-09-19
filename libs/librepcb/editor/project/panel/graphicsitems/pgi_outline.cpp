@@ -20,7 +20,7 @@
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
 // It has been reviewed by a human.
 
-#include "bgi_paneloutline.h"
+#include "pgi_outline.h"
 
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/types/point.h>
@@ -31,7 +31,7 @@
 namespace librepcb {
 namespace editor {
 
-BGI_PanelOutline::BGI_PanelOutline(Panel& panel) noexcept
+PGI_Outline::PGI_Outline(Panel& panel) noexcept
   : QGraphicsItem(),
     mPanel(panel),
     mHandleRadiusPx(0),
@@ -48,10 +48,10 @@ BGI_PanelOutline::BGI_PanelOutline(Panel& panel) noexcept
   updateOutline();
 }
 
-BGI_PanelOutline::~BGI_PanelOutline() noexcept {
+PGI_Outline::~PGI_Outline() noexcept {
 }
 
-void BGI_PanelOutline::updateOutline() noexcept {
+void PGI_Outline::updateOutline() noexcept {
   prepareGeometryChange();
   mOutlineRectPx =
       QRectF(QPointF(0, 0),
@@ -60,7 +60,7 @@ void BGI_PanelOutline::updateOutline() noexcept {
   update();
 }
 
-void BGI_PanelOutline::setColors(const QColor& color,
+void PGI_Outline::setColors(const QColor& color,
                                   const QColor& colorHighlighted) noexcept {
   if ((color != mColor) || (colorHighlighted != mColorHighlighted)) {
     mColor = color;
@@ -69,7 +69,7 @@ void BGI_PanelOutline::setColors(const QColor& color,
   }
 }
 
-BGI_PanelOutline::ResizeHandle BGI_PanelOutline::getResizeHandleAtPosition(
+PGI_Outline::ResizeHandle PGI_Outline::getResizeHandleAtPosition(
     const Point& pos) const noexcept {
   const Length width = *mPanel.getWidth();
   const Length height = *mPanel.getHeight();
@@ -88,7 +88,7 @@ BGI_PanelOutline::ResizeHandle BGI_PanelOutline::getResizeHandleAtPosition(
   return ResizeHandle::None;
 }
 
-QRectF BGI_PanelOutline::boundingRect() const noexcept {
+QRectF PGI_Outline::boundingRect() const noexcept {
   // Padded so the resize handles (drawn centered on the outline's corner/
   // edge-midpoints, so they extend slightly outside mOutlineRectPx itself)
   // are always fully within the painted/dirty region, regardless of the
@@ -98,13 +98,13 @@ QRectF BGI_PanelOutline::boundingRect() const noexcept {
   return mOutlineRectPx.adjusted(-margin, -margin, margin, margin);
 }
 
-QPainterPath BGI_PanelOutline::shape() const noexcept {
+QPainterPath PGI_Outline::shape() const noexcept {
   QPainterPath p;
   p.addRect(mOutlineRectPx);
   return p;
 }
 
-void BGI_PanelOutline::paint(QPainter* painter,
+void PGI_Outline::paint(QPainter* painter,
                              const QStyleOptionGraphicsItem* option,
                              QWidget* widget) {
   Q_UNUSED(widget);

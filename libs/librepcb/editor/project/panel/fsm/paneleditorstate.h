@@ -57,8 +57,11 @@ class UndoCommand;
  * This is a deliberately trimmed-down counterpart to ::librepcb::editor::
  * BoardEditorState. Panels only contain reference-only board placements
  * (no layers, nets, pads, etc.), so this base class omits everything that
- * doesn't apply: the FindFlags-based hit testing machinery, layer helpers,
- * length unit helpers and "ignore locks" support are not needed.
+ * doesn't apply: the FindFlags-based hit testing machinery and layer/length
+ * unit helpers are not needed. "Ignore locks" support IS needed (see
+ * #getIgnoreLocks()) - locked panel items (holes/fiducials/board
+ * placements) are otherwise excluded from drag/rotate/flip/remove, per
+ * Sean's explicit request to bring Board's locking feature to Panel.
  */
 class PanelEditorState : public QObject {
   Q_OBJECT
@@ -92,6 +95,10 @@ public:
   virtual bool processCopy() noexcept { return false; }
   virtual bool processPaste() noexcept { return false; }
   virtual bool processRemove() noexcept { return false; }
+  virtual bool processSetLocked(bool locked) noexcept {
+    Q_UNUSED(locked);
+    return false;
+  }
   virtual bool processAbortCommand() noexcept { return false; }
   virtual bool processKeyPressed(const GraphicsSceneKeyEvent& e) noexcept {
     Q_UNUSED(e);
@@ -142,6 +149,7 @@ signals:
 protected:  // Methods
   PanelGraphicsScene* getActivePanelScene() noexcept;
   PositiveLength getGridInterval() const noexcept;
+  bool getIgnoreLocks() const noexcept;
   void abortBlockingToolsInOtherEditors() noexcept;
   void openBoardEditor(const Uuid& boardUuid) noexcept;
   bool execCmd(UndoCommand* cmd);

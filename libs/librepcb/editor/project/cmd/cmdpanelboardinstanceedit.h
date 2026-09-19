@@ -35,7 +35,7 @@
  ******************************************************************************/
 namespace librepcb {
 
-class PanelBoardInstance;
+class PI_BoardInstance;
 
 namespace editor {
 
@@ -47,13 +47,13 @@ namespace editor {
  * @brief The CmdPanelBoardInstanceEdit class
  *
  * Mirrors CmdDeviceInstanceEdit's position/rotation/mirror-editing shape,
- * trimmed to PanelBoardInstance's simpler field set (no locked flag, no
- * model/footprint selection) and using "flip" naming per the confirmed
- * terminology decision (see claude/librepcb_panel_core_model_implementation.md):
+ * trimmed to PI_BoardInstance's simpler field set (no model/footprint
+ * selection) and using "flip" naming per the confirmed terminology decision
+ * (see claude/librepcb_panel_core_model_implementation.md):
  * flip() hardcodes a horizontal mirror since a panel board placement has no
  * choice of mirror axis, unlike CmdDeviceInstanceEdit::mirror().
  *
- * PanelBoardInstance's setters are all noexcept (no throwing), so unlike
+ * PI_BoardInstance's setters are all noexcept (no throwing), so unlike
  * CmdDeviceInstanceEdit this doesn't need ScopeGuardList for exception
  * safety in performUndo()/performRedo().
  */
@@ -62,7 +62,7 @@ public:
   // Constructors / Destructor
   CmdPanelBoardInstanceEdit() = delete;
   CmdPanelBoardInstanceEdit(const CmdPanelBoardInstanceEdit& other) = delete;
-  explicit CmdPanelBoardInstanceEdit(PanelBoardInstance& instance) noexcept;
+  explicit CmdPanelBoardInstanceEdit(PI_BoardInstance& instance) noexcept;
   ~CmdPanelBoardInstanceEdit() noexcept override;
 
   // General Methods
@@ -73,9 +73,11 @@ public:
   void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
   void setFlipped(bool flipped, bool immediate) noexcept;
   void flip(const Point& center, bool immediate) noexcept;
+  void setLocked(bool locked, bool immediate) noexcept;
 
   // Getters
   const Point& getPosition() const noexcept { return mNewPos; }
+  const PI_BoardInstance& getInstance() const noexcept { return mInstance; }
 
   // Operator Overloadings
   CmdPanelBoardInstanceEdit& operator=(const CmdPanelBoardInstanceEdit& rhs) =
@@ -96,7 +98,7 @@ private:
   // Private Member Variables
 
   // Attributes from the constructor
-  PanelBoardInstance& mInstance;
+  PI_BoardInstance& mInstance;
 
   // General Attributes
   Point mOldPos;
@@ -105,6 +107,8 @@ private:
   Angle mNewRotation;
   bool mOldFlipped;
   bool mNewFlipped;
+  bool mOldLocked;
+  bool mNewLocked;
 };
 
 /*******************************************************************************

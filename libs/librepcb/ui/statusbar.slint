@@ -1,3 +1,6 @@
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// It was reviewed by a human on 2026-09-17
+
 import {
     IconButton,
     ProgressBar,
@@ -29,6 +32,8 @@ export component StatusBar inherits Rectangle {
             Data.current-package-tab.grid-style
         } else if Data.current-tab.type == TabType.schematic {
             Data.current-schematic-tab.grid-style
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-panel-tab.grid-style
         } else {
             Data.current-board-2d-tab.grid-style
         }
@@ -40,6 +45,8 @@ export component StatusBar inherits Rectangle {
             Data.current-package-tab.grid-interval
         } else if Data.current-tab.type == TabType.schematic {
             Data.current-schematic-tab.grid-interval
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-panel-tab.grid-interval
         } else {
             Data.current-board-2d-tab.grid-interval
         }
@@ -51,6 +58,8 @@ export component StatusBar inherits Rectangle {
             Data.current-package-tab.unit
         } else if Data.current-tab.type == TabType.schematic {
             Data.current-schematic-tab.unit
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-panel-tab.unit
         } else {
             Data.current-board-2d-tab.unit
         }
@@ -65,6 +74,8 @@ export component StatusBar inherits Rectangle {
             Data.current-section.schematic-tabs[Data.current-section.current-tab-index].grid-style = gs;
         } else if Data.current-tab.type == TabType.board-2d {
             Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].grid-style = gs;
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-section.panel-tabs[Data.current-section.current-tab-index].grid-style = gs;
         } else {
             debug("Unhandled case in set-current-grid-style().");
         }
@@ -79,6 +90,8 @@ export component StatusBar inherits Rectangle {
             Data.current-section.schematic-tabs[Data.current-section.current-tab-index].grid-interval = value;
         } else if Data.current-tab.type == TabType.board-2d {
             Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].grid-interval = value;
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-section.panel-tabs[Data.current-section.current-tab-index].grid-interval = value;
         } else {
             debug("Current tab type not handled.");
         }
@@ -93,6 +106,8 @@ export component StatusBar inherits Rectangle {
             Data.current-section.schematic-tabs[Data.current-section.current-tab-index].unit = u;
         } else if Data.current-tab.type == TabType.board-2d {
             Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].unit = u;
+        } else if Data.current-tab.type == TabType.panel {
+            Data.current-section.panel-tabs[Data.current-section.current-tab-index].unit = u;
         } else {
             debug("Unhandled case in set-current-unit().");
         }
@@ -368,17 +383,21 @@ export component StatusBar inherits Rectangle {
                     Data.current-schematic-tab.ignore-placement-locks
                 } else if Data.current-tab.type == TabType.board-2d {
                     Data.current-board-2d-tab.ignore-placement-locks
+                } else if Data.current-tab.type == TabType.panel {
+                    Data.current-panel-tab.ignore-placement-locks
                 } else {
                     false
                 }
             };
-            enabled: (Data.current-tab.type == TabType.schematic) || (Data.current-tab.type == TabType.board-2d);
+            enabled: (Data.current-tab.type == TabType.schematic) || (Data.current-tab.type == TabType.board-2d) || (Data.current-tab.type == TabType.panel);
 
             clicked => {
                 if Data.current-tab.type == TabType.schematic {
                     Data.current-section.schematic-tabs[Data.current-section.current-tab-index].ignore-placement-locks = !self.checked;
                 } else if Data.current-tab.type == TabType.board-2d {
                     Data.current-section.board-2d-tabs[Data.current-section.current-tab-index].ignore-placement-locks = !self.checked;
+                } else if Data.current-tab.type == TabType.panel {
+                    Data.current-section.panel-tabs[Data.current-section.current-tab-index].ignore-placement-locks = !self.checked;
                 } else {
                     debug("Unsupported tab type for ignoring placement locks.");
                 }

@@ -18,7 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
+// It was last reviewed by a human on 2026-09-17.
 
 /*******************************************************************************
  *  Includes
@@ -36,10 +36,12 @@
 #include "../../utils/uihelpers.h"
 #include "../board/boardeditor.h"
 #include "../projecteditor.h"
-#include "bgi_paneloutline.h"
 #include "fsm/paneleditorfsm.h"
 #include "fsm/paneleditorstate_addboard.h"
+#include "fsm/paneleditorstate_addfiducial.h"
+#include "fsm/paneleditorstate_addhole.h"
 #include "fsm/paneleditorstate_select.h"
+#include "graphicsitems/pgi_outline.h"
 #include "paneleditor.h"
 #include "panelgraphicsscene.h"
 
@@ -77,8 +79,15 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
                                 SlintGraphicsView::defaultEditorMargins(),
                                 this)),
     mFrameIndex(0),
+    mTool(ui::EditorTool::Select),
     mToolFeatures(),
-    mToolCursorShape(Qt::ArrowCursor) {
+    mToolCursorShape(Qt::ArrowCursor),
+    mToolDiameter(app.getWorkspace().getSettings()),
+    mToolClearance(app.getWorkspace().getSettings()),
+    mToolFlipped(false),
+    mSelectHole(false),
+    mSelectFiducial(false),
+    mIgnorePlacementLocks(false) {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
   // Setup graphics view. Installing the event handler here is sufficient
@@ -105,6 +114,16 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   // Connect project editor.
   connect(&mProjectEditor, &ProjectEditor::uiIndexChanged, this,
           [this]() { onDerivedUiDataChanged.notify(); });
+  connect(&mProjectEditor, &ProjectEditor::abortBlockingToolsInOtherEditors,
+          this, [this](const void* source) {
+            if (source != this) {
+              // Not so nice... (comment/pattern matches
+              // Board2dTab's identical connection exactly)
+              mFsm->processAbortCommand();
+              mFsm->processAbortCommand();
+              mFsm->processAbortCommand();
+            }
+          });
 
   // Connect undo stack.
   connect(&mProjectEditor.getUndoStack(), &UndoStack::stateModified, this,
@@ -113,7 +132,10 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
           [this]() { onUiDataChanged.notify(); });
 
   // Apply workspace settings whenever they have been modified. Panels reuse
-  // the board color scheme for now.
+  // the board color schema, as well as the grid style.
+  connect(&mApp.getWorkspace().getSettings().boardGridStyle,
+          &WorkspaceSettingsItem::edited, this,
+          &PanelTab::applyWorkspaceSettings);
   connect(&mApp.getWorkspace().getSettings().boardColorSchemes,
           &WorkspaceSettingsItem_ColorSchemes::edited, this,
           &PanelTab::applyWorkspaceSettings);
@@ -153,6 +175,7 @@ ui::TabData PanelTab::getUiData() const noexcept {
   features.save = toFs(mProject.getDirectory().isWritable());
   features.undo = toFs(mProjectEditor.getUndoStack().canUndo());
   features.redo = toFs(mProjectEditor.getUndoStack().canRedo());
+  features.grid = toFs(mProject.getDirectory().isWritable());
   features.zoom = toFs(true);
   features.select = toFs(mToolFeatures.testFlag(Feature::Select));
   features.cut = toFs(mToolFeatures.testFlag(Feature::Cut));
@@ -161,6 +184,8 @@ ui::TabData PanelTab::getUiData() const noexcept {
   features.remove = toFs(mToolFeatures.testFlag(Feature::Remove));
   features.rotate = toFs(mToolFeatures.testFlag(Feature::Rotate));
   features.flip = toFs(mToolFeatures.testFlag(Feature::Flip));
+  features.lock = toFs(mToolFeatures.testFlag(Feature::Lock));
+  features.unlock = toFs(mToolFeatures.testFlag(Feature::Unlock));
 
   return ui::TabData{
       ui::TabType::Panel,  // Type
@@ -193,13 +218,60 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       q2s(background.secondary),  // Foreground color
       q2s(mSceneImagePos),  // Scene image position
       mFrameIndex,  // Frame index
+      mTool,  // Tool
       q2s(mToolCursorShape),  // Tool cursor
+      mToolDiameter.getUiData(),  // Tool diameter
+      mToolClearance.getUiData(),  // Tool clearance
+      mToolFlipped,  // Tool bottom
+      mSelectHole,  // Select hole
+      mSelectFiducial,  // Select fiducial
+      l2s(mApp.getWorkspace().getSettings().boardGridStyle.get()),  // Grid
+      l2s(*mPanel.getGridInterval()),  // Grid interval
+      l2s(mPanel.getGridUnit()),  // Length unit
+      mIgnorePlacementLocks,  // Ignore placement locks
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
 
 void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   mSceneImagePos = s2q(data.scene_image_pos);
+  mToolDiameter.setUiData(data.tool_diameter);
+  mToolClearance.setUiData(data.tool_clearance);
+
+  // Tool board side - mirrors Board2dTab::setDerivedUiData()'s unconditional
+  // componentSideRequested emit exactly.
+  emit flippedRequested(data.tool_bottom);
+
+  // Grid style is a workspace-wide setting shared with Board (see
+  // Board2dTab::setDerivedUiData()'s identical block and its doc comment
+  // on why grid style is intentionally not per-document).
+  const GridStyle gridStyle = s2l(data.grid_style);
+  if (gridStyle != mApp.getWorkspace().getSettings().boardGridStyle.get()) {
+    mApp.getWorkspace().getSettings().boardGridStyle.set(gridStyle);
+    mApp.scheduleWorkspaceSettingsSave();
+  }
+
+  // Grid interval/unit are stored per-panel (Panel::getGridInterval()/
+  // getGridUnit()), mirroring Board2dTab's handling of Board's own grid
+  // interval/unit exactly.
+  const std::optional<PositiveLength> interval =
+      s2plength(data.grid_interval);
+  if (interval && (*interval != mPanel.getGridInterval())) {
+    mPanel.setGridInterval(*interval);
+    if (mScene) {
+      mScene->setGridInterval(mPanel.getGridInterval());
+    }
+    mProjectEditor.setManualModificationsMade();
+  }
+  const LengthUnit unit = s2l(data.unit);
+  if (unit != mPanel.getGridUnit()) {
+    mPanel.setGridUnit(unit);
+    mProjectEditor.setManualModificationsMade();
+  }
+
+  // Placement locks - not a model/project setting, just a per-tab UI
+  // override, mirroring Board2dTab::setDerivedUiData()'s identical block.
+  mIgnorePlacementLocks = data.ignore_placement_locks;
 
   if (data.place_board_index >= 0) {
     if (Board* board = mProject.getBoardByIndex(data.place_board_index)) {
@@ -251,6 +323,46 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       if (mView && mScene) {
         mView->zoomToSceneRect(mScene->itemsBoundingRect(), true);
       }
+      break;
+    }
+    case ui::TabAction::GridIntervalIncrease: {
+      // Matches Board2dTab::trigger()'s identical case exactly, including
+      // not marking the project as manually modified here.
+      mPanel.setGridInterval(PositiveLength(mPanel.getGridInterval() * 2));
+      if (mScene) {
+        mScene->setGridInterval(mPanel.getGridInterval());
+        requestRepaint();
+      }
+      break;
+    }
+    case ui::TabAction::GridIntervalDecrease: {
+      if ((*mPanel.getGridInterval() % 2) == 0) {
+        mPanel.setGridInterval(PositiveLength(mPanel.getGridInterval() / 2));
+        if (mScene) {
+          mScene->setGridInterval(mPanel.getGridInterval());
+          requestRepaint();
+        }
+      }
+      break;
+    }
+    case ui::TabAction::ToolSelect: {
+      mFsm->processSelect();
+      break;
+    }
+    case ui::TabAction::ToolHole: {
+      mFsm->processAddHole();
+      break;
+    }
+    case ui::TabAction::ToolFiducial: {
+      mFsm->processAddFiducial();
+      break;
+    }
+    case ui::TabAction::Lock: {
+      mFsm->processSetLocked(true);
+      break;
+    }
+    case ui::TabAction::Unlock: {
+      mFsm->processSetLocked(false);
       break;
     }
     case ui::TabAction::Abort: {
@@ -449,18 +561,143 @@ void PanelTab::fsmSetFeatures(Features features) noexcept {
   }
 }
 
+bool PanelTab::fsmGetIgnoreLocks() const noexcept {
+  return mIgnorePlacementLocks;
+}
+
 void PanelTab::fsmToolLeave() noexcept {
+  while (!mFsmStateConnections.isEmpty()) {
+    disconnect(mFsmStateConnections.takeLast());
+  }
+  mSelectHole = false;
+  mSelectFiducial = false;
   fsmSetFeatures(Features());
   onDerivedUiDataChanged.notify();
 }
 
 void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
-  Q_UNUSED(state);
+  mTool = ui::EditorTool::Select;
+
+  // Selection property editing - Reuses the same fields and toolbar Slint
+  // components the "Add Hole"/"Add Fiducial" tools already use, just fed
+  // from the current selection instead of the next-placed-item defaults.
+  // This is only shown when the selection is homogeneously all-holes or
+  // all-fiducials - see PanelEditorState_Select::getSelectionKind().
+  mToolDiameter.configure(state.getDiameter(),
+                          LengthEditContext::Steps::generic(),
+                          "panel_editor/select/diameter");
+  mToolClearance.configure(state.getCopperClearance(),
+                           LengthEditContext::Steps::generic(),
+                           "panel_editor/select/clearance");
+
+  // Takes the changed values directly as arguments, matching
+  // Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
+  // setComponentSide lambda convention.
+  auto syncSelectionProperties = [this](bool isHole, bool isFiducial,
+                                        const PositiveLength& diameter,
+                                        const UnsignedLength& clearance,
+                                        bool flipped) {
+    mSelectHole = isHole;
+    mSelectFiducial = isFiducial;
+    if (isHole || isFiducial) {
+      mToolDiameter.setValuePositive(diameter);
+    }
+    if (isFiducial) {
+      mToolClearance.setValueUnsigned(clearance);
+      mToolFlipped = flipped;
+    }
+    onDerivedUiDataChanged.notify();
+  };
+  syncSelectionProperties(
+      state.getSelectionKind() ==
+          PanelEditorState_Select::SelectionKind::Hole,
+      state.getSelectionKind() ==
+          PanelEditorState_Select::SelectionKind::Fiducial,
+      state.getDiameter(), state.getCopperClearance(), state.getFlipped());
+
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_Select::selectionPropertiesChanged, this,
+      syncSelectionProperties));
+  mFsmStateConnections.append(
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
+              &state, &PanelEditorState_Select::setDiameter));
+  mFsmStateConnections.append(
+      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned,
+              &state, &PanelEditorState_Select::setCopperClearance));
+  mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested,
+                                      &state,
+                                      &PanelEditorState_Select::setFlipped));
+
   onDerivedUiDataChanged.notify();
 }
 
 void PanelTab::fsmToolEnter(PanelEditorState_AddBoard& state) noexcept {
   Q_UNUSED(state);
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddHole& state) noexcept {
+  mTool = ui::EditorTool::Hole;
+
+  // Diameter - reuses the same mToolDiameter member as the Add Fiducial
+  // tool, mirroring how Board2dTab::fsmToolEnter(BoardEditorState_AddHole&)
+  // reuses mToolDrill.
+  mToolDiameter.configure(state.getDiameter(),
+                          LengthEditContext::Steps::generic(),
+                          "panel_editor/add_hole/diameter");
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddHole::diameterChanged,
+              &mToolDiameter, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
+              &state, &PanelEditorState_AddHole::setDiameter));
+
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept {
+  mTool = ui::EditorTool::Fiducial;
+
+  // Diameter - mirrors Board2dTab::fsmToolEnter(BoardEditorState_AddHole&)'s
+  // wiring, just renamed to "diameter" since a fiducial isn't a hole.
+  mToolDiameter.configure(state.getDiameter(),
+                          LengthEditContext::Steps::generic(),
+                          "panel_editor/add_fiducial/diameter");
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddFiducial::diameterChanged, &mToolDiameter,
+      &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
+              &state, &PanelEditorState_AddFiducial::setDiameter));
+
+  // Copper clearance (drives the solder-mask gap around the fiducial too -
+  // see CmdPanelFiducialEdit::setCopperClearance()'s class-level comment).
+  mToolClearance.configure(state.getCopperClearance(),
+                           LengthEditContext::Steps::generic(),
+                           "panel_editor/add_fiducial/clearance");
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddFiducial::copperClearanceChanged,
+              &mToolClearance, &LengthEditContext::setValueUnsigned));
+  mFsmStateConnections.append(
+      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned,
+              &state, &PanelEditorState_AddFiducial::setCopperClearance));
+
+  // Board side - mirrors Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
+  // setComponentSide lambda, using a plain bool since PI_Fiducial::mFlipped
+  // is a bool (see its class-level Doxygen comment for why), rather than 
+  // Pad::ComponentSide.
+  auto setFlipped = [this](bool flipped) {
+    mToolFlipped = flipped;
+    onDerivedUiDataChanged.notify();
+  };
+  setFlipped(state.getFlipped());
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddFiducial::flippedChanged, this,
+      setFlipped));
+  mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested,
+                                      &state,
+                                      &PanelEditorState_AddFiducial::setFlipped));
+
   onDerivedUiDataChanged.notify();
 }
 
@@ -480,12 +717,43 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     const auto selection = scheme.getColors(ColorRole::boardSelection());
     mScene->setSelectionRectColors(selection.primary, selection.secondary);
     mScene->setGridStyle(settings.boardGridStyle.get());
+    mScene->setGridInterval(mPanel.getGridInterval());
     // Reuse Board's own board-outline color role, so the panel outline
     // follows the user's active board color scheme.
+    const auto outline = scheme.getColors(ColorRole::boardOutlines());
     if (auto outlineItem = mScene->getOutlineItem()) {
-      const auto outline = scheme.getColors(ColorRole::boardOutlines());
       outlineItem->setColors(outline.primary, outline.secondary);
     }
+	
+    // Individual board instances are placement references only in the
+    // Panel tool's context.  Also see PGI_BoardInstance's class doc comment.
+	// Their normal-state outline is a dimmed copy of the same boardOutlines()
+	// color rather than full strength, and their selected state reuses
+	// boardSelection() to fill the whole board area rather than just
+	// outlining its perimeter. PanelGraphicsScene caches these so a board
+	// instance added later (e.g. via Add Board or Paste) is colored
+	// immediately instead of waiting for the next schema change - see
+	// PanelGraphicsScene::setBoardInstanceColors().
+    QColor dimmedOutline = outline.primary;
+    dimmedOutline.setAlpha(dimmedOutline.alpha() / 2);
+    mScene->setBoardInstanceColors(dimmedOutline, selection.primary,
+                                   selection.secondary);
+								   
+    // Hole/fiducial colors match Board's own rendering. See
+    // PGI_Hole/PGI_Fiducial's class doc comments on why these particular
+    // color roles were chosen. A fiducial is a single-layer copper feature
+    // (like an SMT pad), so it takes its color from whichever side it's
+    // currently on, the same as BGI_Pad::updateLayer() does for a real pad.
+	// Selected state uses each role's own *secondary* (highlighted) color,
+	// not boardSelection() (which is reserved for the rubber-band rectangle
+	// and for PGI_BoardInstance's whole-board selection fill, which has no
+	// per-layer highlight to borrow.
+    const auto holes = scheme.getColors(ColorRole::boardHoles());
+    mScene->setHoleColors(holes.primary, holes.secondary);
+    const auto copperTop = scheme.getColors(ColorRole::boardCopperTop());
+    const auto copperBot = scheme.getColors(ColorRole::boardCopperBot());
+    mScene->setFiducialColors(copperTop.primary, copperTop.secondary,
+                              copperBot.primary, copperBot.secondary);
   }
 
   onDerivedUiDataChanged.notify();

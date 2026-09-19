@@ -1,29 +1,30 @@
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
+// It was reviewed by a human on 2026-09-17.
 
+import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
+import { AddHoleToolBar } from "addholetoolbar.slint";
 import { Tab } from "../../tab.slint";
-import { SceneButton } from "../../widgets.slint";
+import { SceneButton, ToolBar, ToolButton } from "../../widgets.slint";
 import {
     Backend,
     Data,
+    EditorCommandSet as Cmd,
+    EditorTool,
     PanelTabData,
     TabAction,
     WindowSectionData,
 } from "../../api.slint";
 
-// Minimal panel editor tab: an empty, pannable/zoomable canvas only (no tool
-// selection yet - the panel has no placeable content until the AddBoard/Tab/
-// V-Groove tools land, see claude/librepcb_panel_design_decisions.md). Kept
-// deliberately close to SchematicTab/Board2dTab's mechanics (same tab-data
-// proxy-array pattern, same generic Backend.render-scene/scene-pointer-event/
-// scene-scrolled/scene-key-* calls) so it's a natural base for those tools
-// once they exist, without inheriting any of their board/schematic-specific
-// toolbars or messages.
+// Panel editor tab: a pannable/zoomable canvas with a left-side tool column
+// (Select / Add Hole / Add Fiducial), following Board2dTab's toolbuttons-l
+// pattern.
 export component PanelTab inherits Tab {
     in property <int> section-index;
     in-out property <WindowSectionData> section;
     property <[PanelTabData]> tabs: section.panel-tabs;
     property <int> index: section.current-tab-index;
+    property <length> toolbar-space: view-buttons-l.x - toolbuttons-l.x - toolbuttons-l.width - 10px;
+    property <length> toolbutton-offset-y: (toolbar-r.width > toolbar-space) ? toolbar-r.height : 0;
 
     function update-tab-data() {
         tabs[index].scene-image-pos = self.absolute-position;
@@ -65,9 +66,71 @@ export component PanelTab inherits Tab {
         height: 100%;
         mouse-cursor: tabs[index].tool-cursor;
 
+        toolbuttons-l := VerticalLayout {
+            x: 7px;
+            y: 7px + toolbutton-offset-y;
+            width: self.preferred-width;
+            height: parent.height - 2 * self.y;
+            alignment: start;
+            spacing: 5px;
+
+            tool-select-btn := ToolButton {
+                cmd: Cmd.tool-select;
+                checked: tabs[index].tool == EditorTool.select;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-select);
+                }
+            }
+
+            tool-hole-btn := ToolButton {
+                cmd: Cmd.tool-hole;
+                checked: tabs[index].tool == EditorTool.hole;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-hole);
+                }
+            }
+
+            tool-fiducial-btn := ToolButton {
+                cmd: Cmd.tool-fiducial;
+                checked: tabs[index].tool == EditorTool.fiducial;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-fiducial);
+                }
+            }
+        }
+
+        toolbar-r := ToolBar {
+            y: -1px;
+            width: min(self.preferred-width, root.width - 10px);
+            visible: self.width > 30px;
+
+            if tabs[index].tool == EditorTool.fiducial: fiducial-toolbar := AddFiducialToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
+            if tabs[index].tool == EditorTool.hole: hole-toolbar := AddHoleToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
+            if tabs[index].tool == EditorTool.select && tabs[index].select-hole: sel-hole-toolbar := AddHoleToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
+            if tabs[index].tool == EditorTool.select && tabs[index].select-fiducial: sel-fiducial-toolbar := AddFiducialToolBar {
+                section-index: section-index;
+                section: section;
+            }
+        }
+
         view-buttons-l := VerticalLayout {
             x: parent.width - self.preferred-width - 7px;
-            y: 7px;
+            y: toolbutton-offset-y + 7px;
             width: self.preferred-width;
 
             zoom-fit-btn := SceneButton {

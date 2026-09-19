@@ -25,7 +25,7 @@
 #include "cmdpanelboardinstanceremove.h"
 
 #include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/panel/panelboardinstance.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 
 #include <QtCore>
 
@@ -40,7 +40,7 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelBoardInstanceRemove::CmdPanelBoardInstanceRemove(
-    Panel& panel, std::shared_ptr<PanelBoardInstance> instance) noexcept
+    Panel& panel, std::shared_ptr<PI_BoardInstance> instance) noexcept
   : UndoCommand(tr("Remove board from panel")),
     mPanel(panel),
     mInstance(instance) {

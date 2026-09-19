@@ -22,6 +22,8 @@
 #include "paneleditorfsm.h"
 
 #include "paneleditorstate_addboard.h"
+#include "paneleditorstate_addfiducial.h"
+#include "paneleditorstate_addhole.h"
 #include "paneleditorstate_select.h"
 
 #include <QtCore>
@@ -33,6 +35,9 @@ PanelEditorFsm::PanelEditorFsm(const Context& context, QObject* parent) noexcept
   : QObject(parent), mStates(), mCurrentState(State::IDLE) {
   mStates.insert(State::SELECT, new PanelEditorState_Select(context));
   mStates.insert(State::ADD_BOARD, new PanelEditorState_AddBoard(context));
+  mStates.insert(State::ADD_HOLE, new PanelEditorState_AddHole(context));
+  mStates.insert(State::ADD_FIDUCIAL,
+                 new PanelEditorState_AddFiducial(context));
 
   enterNextState(State::SELECT);
 
@@ -72,6 +77,14 @@ bool PanelEditorFsm::processAddBoard(Board& board) noexcept {
   }
   setNextState(oldState);  // restore previous state
   return false;
+}
+
+bool PanelEditorFsm::processAddHole() noexcept {
+  return setNextState(State::ADD_HOLE);
+}
+
+bool PanelEditorFsm::processAddFiducial() noexcept {
+  return setNextState(State::ADD_FIDUCIAL);
 }
 
 bool PanelEditorFsm::processRotate(const Angle& rotation) noexcept {
@@ -131,6 +144,15 @@ bool PanelEditorFsm::processPaste() noexcept {
 bool PanelEditorFsm::processRemove() noexcept {
   if (PanelEditorState* state = getCurrentStateObj()) {
     if (state->processRemove()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool PanelEditorFsm::processSetLocked(bool locked) noexcept {
+  if (PanelEditorState* state = getCurrentStateObj()) {
+    if (state->processSetLocked(locked)) {
       return true;
     }
   }

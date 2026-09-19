@@ -42,6 +42,8 @@ class Uuid;
 namespace editor {
 
 class PanelEditorState_AddBoard;
+class PanelEditorState_AddFiducial;
+class PanelEditorState_AddHole;
 class PanelEditorState_Select;
 class PanelGraphicsScene;
 
@@ -67,6 +69,8 @@ public:
     Cut = (1 << 4),
     Copy = (1 << 5),
     Paste = (1 << 6),
+    Lock = (1 << 7),
+    Unlock = (1 << 8),
   };
   Q_DECLARE_FLAGS(Features, Feature)
 
@@ -82,9 +86,21 @@ public:
                                       int timeoutMs = -1) noexcept = 0;
   virtual void fsmSetFeatures(Features features) noexcept = 0;
 
+  /**
+   * @brief Whether locked panel items should be treated as unlocked
+   *
+   * Mirrors ::librepcb::editor::BoardEditorState::getIgnoreLocks() /
+   * ::librepcb::editor::Board2dTab::fsmGetIgnoreLocks() - backed by a
+   * per-tab UI toggle (the status bar's lock/unlock icon).
+   */
+  virtual bool fsmGetIgnoreLocks() const noexcept = 0;
+
   virtual void fsmToolLeave() noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_Select& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept = 0;
+  virtual void fsmToolEnter(PanelEditorState_AddHole& state) noexcept = 0;
+  virtual void fsmToolEnter(
+      PanelEditorState_AddFiducial& state) noexcept = 0;
 };
 
 /*******************************************************************************

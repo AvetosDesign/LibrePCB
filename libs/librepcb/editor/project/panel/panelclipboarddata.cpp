@@ -20,6 +20,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #include "panelclipboarddata.h"
 
 #include <librepcb/core/application.h>
@@ -38,11 +40,12 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-PanelClipboardData::PanelClipboardData() noexcept : mInstances() {
+PanelClipboardData::PanelClipboardData() noexcept
+  : mInstances(), mHoles(), mFiducials() {
 }
 
 PanelClipboardData::PanelClipboardData(const SExpression& node)
-  : mInstances(node) {
+  : mInstances(node), mHoles(node), mFiducials(node) {
 }
 
 PanelClipboardData::~PanelClipboardData() noexcept {
@@ -54,9 +57,13 @@ PanelClipboardData::~PanelClipboardData() noexcept {
 
 std::unique_ptr<QMimeData> PanelClipboardData::toMimeData() {
   std::unique_ptr<SExpression> root =
-      SExpression::createList("librepcb_clipboard_panel_boardinstances");
+      SExpression::createList("librepcb_clipboard_panel_items");
   root->ensureLineBreak();
   mInstances.serialize(*root);
+  root->ensureLineBreak();
+  mHoles.serialize(*root);
+  root->ensureLineBreak();
+  mFiducials.serialize(*root);
   root->ensureLineBreak();
 
   const QByteArray sexpr = root->toByteArray();
@@ -91,7 +98,7 @@ bool PanelClipboardData::isValid(const QMimeData* mime) noexcept {
 
 QString PanelClipboardData::getMimeType() noexcept {
   return QString(
-             "application/x-librepcb-clipboard.panel-boardinstances; "
+             "application/x-librepcb-clipboard.panel-items; "
              "version=%1")
       .arg(Application::getVersion());
 }

@@ -24,7 +24,7 @@
  ******************************************************************************/
 #include "cmdpanelboardinstanceedit.h"
 
-#include <librepcb/core/project/panel/panelboardinstance.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 
 #include <QtCore>
 
@@ -39,7 +39,7 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelBoardInstanceEdit::CmdPanelBoardInstanceEdit(
-    PanelBoardInstance& instance) noexcept
+    PI_BoardInstance& instance) noexcept
   : UndoCommand(tr("Edit board placement")),
     mInstance(instance),
     mOldPos(mInstance.getPosition()),
@@ -47,7 +47,9 @@ CmdPanelBoardInstanceEdit::CmdPanelBoardInstanceEdit(
     mOldRotation(mInstance.getRotation()),
     mNewRotation(mOldRotation),
     mOldFlipped(mInstance.getFlipped()),
-    mNewFlipped(mOldFlipped) {
+    mNewFlipped(mOldFlipped),
+    mOldLocked(mInstance.isLocked()),
+    mNewLocked(mOldLocked) {
 }
 
 CmdPanelBoardInstanceEdit::~CmdPanelBoardInstanceEdit() noexcept {
@@ -55,6 +57,7 @@ CmdPanelBoardInstanceEdit::~CmdPanelBoardInstanceEdit() noexcept {
     mInstance.setPosition(mOldPos);
     mInstance.setRotation(mOldRotation);
     mInstance.setFlipped(mOldFlipped);
+    mInstance.setLocked(mOldLocked);
   }
 }
 
@@ -112,6 +115,13 @@ void CmdPanelBoardInstanceEdit::flip(const Point& center,
   setRotation(-mNewRotation, immediate);
 }
 
+void CmdPanelBoardInstanceEdit::setLocked(bool locked,
+                                          bool immediate) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewLocked = locked;
+  if (immediate) mInstance.setLocked(mNewLocked);
+}
+
 /*******************************************************************************
  *  Inherited from UndoCommand
  ******************************************************************************/
@@ -122,6 +132,7 @@ bool CmdPanelBoardInstanceEdit::performExecute() {
   if (mNewPos != mOldPos) return true;
   if (mNewRotation != mOldRotation) return true;
   if (mNewFlipped != mOldFlipped) return true;
+  if (mNewLocked != mOldLocked) return true;
   return false;
 }
 
@@ -129,12 +140,14 @@ void CmdPanelBoardInstanceEdit::performUndo() {
   mInstance.setPosition(mOldPos);
   mInstance.setRotation(mOldRotation);
   mInstance.setFlipped(mOldFlipped);
+  mInstance.setLocked(mOldLocked);
 }
 
 void CmdPanelBoardInstanceEdit::performRedo() {
   mInstance.setPosition(mNewPos);
   mInstance.setRotation(mNewRotation);
   mInstance.setFlipped(mNewFlipped);
+  mInstance.setLocked(mNewLocked);
 }
 
 /*******************************************************************************

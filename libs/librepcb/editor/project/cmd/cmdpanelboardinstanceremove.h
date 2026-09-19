@@ -35,7 +35,7 @@
 namespace librepcb {
 
 class Panel;
-class PanelBoardInstance;
+class PI_BoardInstance;
 
 namespace editor {
 
@@ -57,7 +57,7 @@ public:
   CmdPanelBoardInstanceRemove(const CmdPanelBoardInstanceRemove& other) =
       delete;
   CmdPanelBoardInstanceRemove(
-      Panel& panel, std::shared_ptr<PanelBoardInstance> instance) noexcept;
+      Panel& panel, std::shared_ptr<PI_BoardInstance> instance) noexcept;
   ~CmdPanelBoardInstanceRemove() noexcept override;
 
   // Operator Overloadings
@@ -78,7 +78,7 @@ private:
 
   // Private Member Variables
   Panel& mPanel;
-  std::shared_ptr<PanelBoardInstance> mInstance;
+  std::shared_ptr<PI_BoardInstance> mInstance;
 };
 
 /*******************************************************************************

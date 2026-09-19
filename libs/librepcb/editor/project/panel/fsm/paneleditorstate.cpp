@@ -62,6 +62,10 @@ PositiveLength PanelEditorState::getGridInterval() const noexcept {
   return PositiveLength(1000000);  // Fallback, should never happen.
 }
 
+bool PanelEditorState::getIgnoreLocks() const noexcept {
+  return mAdapter.fsmGetIgnoreLocks();
+}
+
 void PanelEditorState::abortBlockingToolsInOtherEditors() noexcept {
   mAdapter.fsmAbortBlockingToolsInOtherEditors();
 }
