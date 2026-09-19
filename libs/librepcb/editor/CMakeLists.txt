@@ -1,3 +1,6 @@
+# AI DISCLAIMER: This file was modified by Claude AI.  
+# Modifications were last reviewed by a human on 2026-09-17.
+
 # Enable Qt MOC/UIC/RCC
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -658,6 +661,18 @@ add_library(
   project/cmd/cmdpanelboardinstanceremove.h
   project/cmd/cmdpaneledit.cpp
   project/cmd/cmdpaneledit.h
+  project/cmd/cmdpanelfiducialadd.cpp
+  project/cmd/cmdpanelfiducialadd.h
+  project/cmd/cmdpanelfiducialedit.cpp
+  project/cmd/cmdpanelfiducialedit.h
+  project/cmd/cmdpanelfiducialremove.cpp
+  project/cmd/cmdpanelfiducialremove.h
+  project/cmd/cmdpanelholeadd.cpp
+  project/cmd/cmdpanelholeadd.h
+  project/cmd/cmdpanelholeedit.cpp
+  project/cmd/cmdpanelholeedit.h
+  project/cmd/cmdpanelholeremove.cpp
+  project/cmd/cmdpanelholeremove.h
   project/cmd/cmdpanelremove.cpp
   project/cmd/cmdpanelremove.h
   project/cmd/cmdpasteboarditems.cpp
@@ -768,10 +783,6 @@ add_library(
   project/newprojectwizard/newprojectwizardpage_metadata.cpp
   project/newprojectwizard/newprojectwizardpage_metadata.h
   project/newprojectwizard/newprojectwizardpage_metadata.ui
-  project/panel/bgi_panelboardinstance.cpp
-  project/panel/bgi_panelboardinstance.h
-  project/panel/bgi_paneloutline.cpp
-  project/panel/bgi_paneloutline.h
   project/panel/fsm/paneleditorfsm.cpp
   project/panel/fsm/paneleditorfsm.h
   project/panel/fsm/paneleditorfsmadapter.h
@@ -779,8 +790,20 @@ add_library(
   project/panel/fsm/paneleditorstate.h
   project/panel/fsm/paneleditorstate_addboard.cpp
   project/panel/fsm/paneleditorstate_addboard.h
+  project/panel/fsm/paneleditorstate_addfiducial.cpp
+  project/panel/fsm/paneleditorstate_addfiducial.h
+  project/panel/fsm/paneleditorstate_addhole.cpp
+  project/panel/fsm/paneleditorstate_addhole.h
   project/panel/fsm/paneleditorstate_select.cpp
   project/panel/fsm/paneleditorstate_select.h
+  project/panel/graphicsitems/pgi_boardinstance.cpp
+  project/panel/graphicsitems/pgi_boardinstance.h
+  project/panel/graphicsitems/pgi_fiducial.cpp
+  project/panel/graphicsitems/pgi_fiducial.h
+  project/panel/graphicsitems/pgi_hole.cpp
+  project/panel/graphicsitems/pgi_hole.h
+  project/panel/graphicsitems/pgi_outline.cpp
+  project/panel/graphicsitems/pgi_outline.h
   project/panel/panelclipboarddata.cpp
   project/panel/panelclipboarddata.h
   project/panel/paneleditor.cpp

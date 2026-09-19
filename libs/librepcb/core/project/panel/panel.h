@@ -30,8 +30,11 @@
 #include "../../fileio/transactionaldirectory.h"
 #include "../../types/elementname.h"
 #include "../../types/length.h"
+#include "../../types/lengthunit.h"
 #include "../../types/uuid.h"
-#include "panelboardinstance.h"
+#include "items/pi_boardinstance.h"
+#include "items/pi_fiducial.h"
+#include "items/pi_hole.h"
 
 #include <QtCore>
 
@@ -53,7 +56,7 @@ class Project;
  *
  * A panel arranges one or more copies of existing ::librepcb::Board designs
  * (from the same project) for fabrication. It intentionally holds no board
- * *content* of its own: every placed copy is a ::librepcb::PanelBoardInstance
+ * *content* of its own: every placed copy is a ::librepcb::PI_BoardInstance
  * (which references a board by UUID) plus its placement (position, rotation,
  * flip) on the panel. The panel editor can place, move and remove 
  * instances only.  It includes a provision to open a referenced board's own 
@@ -135,28 +138,81 @@ public:
    */
   const PositiveLength& getHeight() const noexcept { return mHeight; }
 
+  /**
+   * @brief Get the panel editor's grid interval
+   *
+   * Mirrors ::librepcb::Board::getGridInterval() - stored per-panel (not a
+   * global workspace setting), so different panels can use different grid
+   * spacings for placing boards. The grid *style* (dots/lines/off) is still
+   * shared across Board and Panel tabs via the workspace's boardGridStyle
+   * setting (see claude/librepcb_panelization_tool_addboard_slice.md,
+   * slice 18's reasoning for reusing Board's color scheme) - only the
+   * interval/unit are per-document, matching Board.
+   */
+  const PositiveLength& getGridInterval() const noexcept {
+    return mGridInterval;
+  }
+
+  /**
+   * @brief Get the panel editor's grid unit (for UI display only)
+   *
+   * @see #getGridInterval()
+   */
+  const LengthUnit& getGridUnit() const noexcept { return mGridUnit; }
+
   // Setters: Attributes
   void setName(const ElementName& name) noexcept;
   void setWidth(const PositiveLength& width) noexcept;
   void setHeight(const PositiveLength& height) noexcept;
+  void setGridInterval(const PositiveLength& interval) noexcept {
+    mGridInterval = interval;
+  }
+  void setGridUnit(const LengthUnit& unit) noexcept { mGridUnit = unit; }
 
   // Board Instance Methods
-  PanelBoardInstanceList& getBoardInstances() noexcept {
+  PI_BoardInstanceList& getBoardInstances() noexcept {
     return mBoardInstances;
   }
-  const PanelBoardInstanceList& getBoardInstances() const noexcept {
+  const PI_BoardInstanceList& getBoardInstances() const noexcept {
     return mBoardInstances;
   }
-  std::shared_ptr<PanelBoardInstance> getBoardInstance(
+  std::shared_ptr<PI_BoardInstance> getBoardInstance(
       const Uuid& uuid) noexcept {
     return mBoardInstances.find(uuid);
   }
-  std::shared_ptr<const PanelBoardInstance> getBoardInstance(
+  std::shared_ptr<const PI_BoardInstance> getBoardInstance(
       const Uuid& uuid) const noexcept {
     return mBoardInstances.find(uuid);
   }
-  void addBoardInstance(std::shared_ptr<PanelBoardInstance> instance);
-  void removeBoardInstance(std::shared_ptr<PanelBoardInstance> instance);
+  void addBoardInstance(std::shared_ptr<PI_BoardInstance> instance);
+  void removeBoardInstance(std::shared_ptr<PI_BoardInstance> instance);
+
+  // Hole Methods
+  PI_HoleList& getHoles() noexcept { return mHoles; }
+  const PI_HoleList& getHoles() const noexcept { return mHoles; }
+  std::shared_ptr<PI_Hole> getHole(const Uuid& uuid) noexcept {
+    return mHoles.find(uuid);
+  }
+  std::shared_ptr<const PI_Hole> getHole(const Uuid& uuid) const noexcept {
+    return mHoles.find(uuid);
+  }
+  void addHole(std::shared_ptr<PI_Hole> hole);
+  void removeHole(std::shared_ptr<PI_Hole> hole);
+
+  // Fiducial Methods
+  PI_FiducialList& getFiducials() noexcept { return mFiducials; }
+  const PI_FiducialList& getFiducials() const noexcept {
+    return mFiducials;
+  }
+  std::shared_ptr<PI_Fiducial> getFiducial(const Uuid& uuid) noexcept {
+    return mFiducials.find(uuid);
+  }
+  std::shared_ptr<const PI_Fiducial> getFiducial(
+      const Uuid& uuid) const noexcept {
+    return mFiducials.find(uuid);
+  }
+  void addFiducial(std::shared_ptr<PI_Fiducial> fiducial);
+  void removeFiducial(std::shared_ptr<PI_Fiducial> fiducial);
 
   /**
    * @brief Get the UUIDs of all distinct board designs referenced by this
@@ -197,12 +253,22 @@ signals:
   void outlineChanged();
   void boardInstanceAdded(int index);
   void boardInstanceRemoved(int index);
+  void holeAdded(int index);
+  void holeRemoved(int index);
+  void fiducialAdded(int index);
+  void fiducialRemoved(int index);
   void attributesChanged();
 
 private:  // Methods
-  void boardInstancesEdited(const PanelBoardInstanceList& list, int index,
-                            const std::shared_ptr<const PanelBoardInstance>& obj,
-                            PanelBoardInstanceList::Event event) noexcept;
+  void boardInstancesEdited(const PI_BoardInstanceList& list, int index,
+                            const std::shared_ptr<const PI_BoardInstance>& obj,
+                            PI_BoardInstanceList::Event event) noexcept;
+  void holesEdited(const PI_HoleList& list, int index,
+                   const std::shared_ptr<const PI_Hole>& obj,
+                   PI_HoleList::Event event) noexcept;
+  void fiducialsEdited(const PI_FiducialList& list, int index,
+                       const std::shared_ptr<const PI_Fiducial>& obj,
+                       PI_FiducialList::Event event) noexcept;
 
 private:  // Data
   // General
@@ -216,15 +282,23 @@ private:  // Data
   ElementName mName;
   PositiveLength mWidth;
   PositiveLength mHeight;
+  PositiveLength mGridInterval;
+  LengthUnit mGridUnit;
 
   // Content - references only, never board data (see class docs above).
-  PanelBoardInstanceList mBoardInstances;
+  PI_BoardInstanceList mBoardInstances;
+
+  // Content placed directly on the panel (not board references).
+  PI_HoleList mHoles;
+  PI_FiducialList mFiducials;
 
   /// One checksum per referenced board UUID, not per placement instance.
   QHash<Uuid, QString> mBoardChecksums;
 
   // Slots
-  PanelBoardInstanceList::OnEditedSlot mOnBoardInstancesEditedSlot;
+  PI_BoardInstanceList::OnEditedSlot mOnBoardInstancesEditedSlot;
+  PI_HoleList::OnEditedSlot mOnHolesEditedSlot;
+  PI_FiducialList::OnEditedSlot mOnFiducialsEditedSlot;
 };
 
 /*******************************************************************************

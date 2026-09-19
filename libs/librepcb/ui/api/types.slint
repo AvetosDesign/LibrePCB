@@ -1,5 +1,5 @@
 // AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// All modifications have been reviewed by a human.
+// Modifications were last reviewed by a human on 2026-09-17.
 
 ////////////////////////////////////////////////////////////////////////////////
 // General
@@ -363,6 +363,7 @@ export enum EditorTool {
     value,
     image,
     hole,
+    fiducial,
     pin,
     pad-tht,
     pad-smt,
@@ -846,6 +847,7 @@ export enum TabAction {
     tool-value,
     tool-image,
     tool-hole,
+    tool-fiducial,
     tool-pin,
     tool-pad-tht,
     tool-pad-smt,
@@ -1413,7 +1415,38 @@ export struct PanelTabData {
     frame: int,  // Frame index to trigger repainting
 
     // Data about the currently active tool.
+    tool: EditorTool,
     tool-cursor: MouseCursor,
+    tool-diameter: LengthEditData,  // Add Fiducial/Add Hole tool's diameter,
+                                    // or the Select tool's homogeneous
+                                    // hole/fiducial selection's diameter
+    tool-clearance: LengthEditData, // Add Fiducial tool's mask clearance,
+                                    // or the Select tool's homogeneous
+                                    // fiducial selection's mask clearance
+    tool-bottom: bool,  // Add Fiducial tool's board side (false=top, true=bottom),
+                        // or the Select tool's homogeneous fiducial
+                        // selection's board side
+    select-hole: bool,  // Select tool: true when the selection is
+                        // homogeneously all holes (shows the same
+                        // diameter field as the Add Hole tool's toolbar)
+    select-fiducial: bool,  // Select tool: true when the selection is
+                            // homogeneously all fiducials (shows the same
+                            // diameter/clearance/side fields as the Add
+                            // Fiducial tool's toolbar)
+
+    // Grid settings. grid-style is shared across Board and Panel tabs (a
+    // workspace setting, see Board2dTabData.grid-style), while
+    // grid-interval/unit are stored per-panel (Panel::getGridInterval()/
+    // getGridUnit()), mirroring Board2dTabData's fields exactly so the
+    // status bar's grid controls work the same way for both tab types.
+    grid-style: GridStyle,
+    grid-interval: Int64,
+    unit: LengthUnit,
+
+    // Whether locked panel items (holes/fiducials/board placements)
+    // should be treated as unlocked for drag/rotate/flip/remove, mirroring
+    // Board2dTabData.ignore-placement-locks exactly.
+    ignore-placement-locks: bool,
 
     // Write-only: setting this to a valid index into the project's boards
     // triggers placing that board onto the panel, then C++ resets it back

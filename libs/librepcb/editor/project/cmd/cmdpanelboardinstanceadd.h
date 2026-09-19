@@ -39,7 +39,7 @@
 namespace librepcb {
 
 class Panel;
-class PanelBoardInstance;
+class PI_BoardInstance;
 
 namespace editor {
 
@@ -50,7 +50,7 @@ namespace editor {
 /**
  * @brief The CmdPanelBoardInstanceAdd class
  *
- * Adds a new ::librepcb::PanelBoardInstance (a placed reference to one of
+ * Adds a new ::librepcb::PI_BoardInstance (a placed reference to one of
  * the project's boards) to a ::librepcb::Panel. Mirrors the simple shape of
  * CmdPanelRemove rather than the much more involved CmdAddDeviceToBoard,
  * since placing a board reference on a panel needs no library-copy logic -
@@ -63,11 +63,11 @@ public:
   CmdPanelBoardInstanceAdd(const CmdPanelBoardInstanceAdd& other) = delete;
   CmdPanelBoardInstanceAdd(Panel& panel, const Uuid& board,
                            const Point& position, const Angle& rotation,
-                           bool flipped) noexcept;
+                           bool flipped, bool locked = false) noexcept;
   ~CmdPanelBoardInstanceAdd() noexcept override;
 
   // General Methods
-  std::shared_ptr<PanelBoardInstance> getInstance() const noexcept {
+  std::shared_ptr<PI_BoardInstance> getInstance() const noexcept {
     return mInstance;
   }
 
@@ -89,7 +89,7 @@ private:
 
   // Private Member Variables
   Panel& mPanel;
-  std::shared_ptr<PanelBoardInstance> mInstance;
+  std::shared_ptr<PI_BoardInstance> mInstance;
 };
 
 /*******************************************************************************

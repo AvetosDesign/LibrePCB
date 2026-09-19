@@ -1114,6 +1114,16 @@ export global EditorCommandSet {
         key: "o",
     };
 
+    in property <EditorCommand> tool-fiducial: {
+        id: "tool_fiducial",
+        icon: @image-url("../../../bootstrap-icons/icons/crosshair.svg"),
+        text: "Add Fiducial",
+        status-tip: "Add a fiducial to the panel",
+        shortcut: "",
+        modifiers: { alt: false, control: false, shift: false, meta: false },
+        key: "",
+    };
+
     in property <EditorCommand> tool-wire: {
         id: "tool_wire",
         icon: @image-url("../../../../img/draw-wire.svg"),

@@ -26,9 +26,10 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../bgi_paneloutline.h"
+#include "../graphicsitems/pgi_outline.h"
 #include "paneleditorstate.h"
 
+#include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
 
 #include <QtCore>
@@ -44,6 +45,8 @@ namespace editor {
 
 class CmdPanelBoardInstanceEdit;
 class CmdPanelEdit;
+class CmdPanelFiducialEdit;
+class CmdPanelHoleEdit;
 
 /*******************************************************************************
  *  Class PanelEditorState_Select
@@ -55,32 +58,75 @@ class CmdPanelEdit;
  * A deliberately scoped-down first cut compared to BoardEditorState_Select
  * (which is ~2500 lines and deeply tied to Board's layer/net/pad hit-testing
  * machinery, none of which applies here. This version supports:
- *  - Click to select a placed board, with Shift to add to the selection.
- *  - Dragging a selected board to reposition it.
+ *  - Click to select a placed board, hole, or fiducial, with Shift to add
+ *    to the selection. Clicking empty panel space and dragging draws a
+ *    rubber-band selection rectangle instead
+ *    (PanelGraphicsScene::selectItemsInRect()), mirroring
+ *    ::librepcb::editor::BoardEditorState_Select's identical behavior.
+ *  - Dragging the selection (any mix of boards/holes/fiducials) to
+ *    reposition it.
+ *  - A secondary toolbar (mirroring the "Add Hole"/"Add Fiducial" tools'
+ *    own toolbars, reusing the same PanelTabData fields - see
+ *    PanelTab::fsmToolEnter(PanelEditorState_Select&)) for editing
+ *    diameter (holes/fiducials), solder-mask clearance, and board side
+ *    (fiducials) when the selection is homogeneously all-holes or
+ *    all-fiducials - see #getSelectionKind().
  *  - Right-click to rotate 90 degrees while a drag is in progress. A 
  *    multi-item drag rotates as one rigid group.
- *  - Delete key to remove the selected board placement(s) from the panel.
+ *  - Delete key to remove the selected board placement(s)/hole(s)/
+ *    fiducial(s) from the panel.
  *  - Escape key to abort an in-progress drag, or clear the selection if none
  *    is in progress.
  *  - Right-click (when not dragging) on a placed board opens a context menu
  *    with "Edit board" (opens the referenced board's 2D editor tab),
  *    "Flip" (mirrors the selected board(s) horizontally about their
  *    combined center), and "Remove" (delegates to the existing function).
- *  - Cut/Copy/Paste of board placements via PanelClipboardData. Paste
- *    reuses the existing drag-move machinery (mDragCmds/mIsUndoCmdActive)
- *    so the user places pasted instances with the same click-to-drop
- *    interaction as an ordinary drag. Pasting a board UUID that isn't part of
- *    this project (e.g. clipboard content copied from a different project) is
- *    not supported yet, and will generate a status bar message stating such.
+ *  - Cut/Copy/Paste of board placements, holes, and fiducials via
+ *    PanelClipboardData - together, in whatever mix was selected (not
+ *    required to be homogeneous). Paste reuses the existing drag-move
+ *    machinery (mDragCmds/mDragHoleCmds/mDragFiducialCmds/
+ *    mIsUndoCmdActive) so the user places the pasted item(s) with the same
+ *    click-to-drop interaction as an ordinary drag. Pasting a board UUID
+ *    that isn't part of this project (e.g. clipboard content copied from a
+ *    different project) is not supported yet, and will generate a status
+ *    bar message stating such - holes and fiducials have no such
+ *    restriction (they carry no reference to project content).
  *  - Feature-flag gating is DYNAMIC, matching BoardEditorState_Select.
  *  - Standalone (not-dragging) Rotate and Flip, reachable from the Edit
  *    menu/toolbar/keyboard shortcuts.
  *  - Select All (Ctrl+A / Edit menu), via processSelectAll() ->
  *    PanelGraphicsScene::selectAll().
- *  - Dragging one of BGI_PanelOutline's three resize handles (corner,
+ *  - Dragging one of PGI_Outline's three resize handles (corner,
  *    right-edge midpoint, top-edge midpoint) to resize the panel outline
  *    itself.
  *  - Hover feedback via mouse cursor change for the resize handles.
+ *  - Locking/unlocking board placements/holes/fiducials (via a "Lock"
+ *    checkable action on the board context menu, or the Edit menu/toolbar/
+ *    shortcut, matching Board's ::librepcb::editor::EditorCommandSet::
+ *    locked convention) - see #lockSelectedItems(). A locked item is
+ *    excluded from #startMovingSelection()/#processRemove()/
+ *    #flipSelectedItems()/#rotateSelectedItems() unless the per-tab
+ *    "ignore locks" override is active (#getIgnoreLocks(), a status bar
+ *    toggle mirroring Board's own), matching
+ *    ::librepcb::editor::BoardEditorState_Select's exact convention.
+ *    Locking never affects selection or copy/paste - only drag, remove,
+ *    flip, and rotate are gated.
+ *
+ * Cut/Copy/Paste (see #copySelectedItemsToClipboard()/processPaste()), Flip
+ * (see #flipSelectedItems()), and Rotate (see #rotateSelectedItems()/
+ * #rotateSelection()) all apply to board placements, holes, and fiducials
+ * together, in whatever mix was selected. Flip treats a fiducial the same
+ * way it treats a board's own single-layer copper features - toggling
+ * which side it's on and mirroring its position about the flip center. A
+ * hole has no board side to toggle, so Flip only mirrors its position as
+ * part of a rigid-group flip; flipping a SINGLE selected hole (or
+ * fiducial) alone is still a no-op, since with only one item selected the
+ * pivot center is that item's own position, and mirroring a point about
+ * itself doesn't move it. Rotate moves a hole's or fiducial's position
+ * the same way, and also spins a fiducial's own rotation field (a hole
+ * has none, being a plain circle); rotating a SINGLE selected hole is
+ * similarly a no-op, and rotating a single fiducial spins it in place
+ * about its own position without relocating it.
  */
 class PanelEditorState_Select final : public PanelEditorState {
   Q_OBJECT
@@ -104,6 +150,7 @@ public:
   bool processCopy() noexcept override;
   bool processPaste() noexcept override;
   bool processRemove() noexcept override;
+  bool processSetLocked(bool locked) noexcept override;
   bool processAbortCommand() noexcept override;
   bool processKeyPressed(const GraphicsSceneKeyEvent& e) noexcept override;
   bool processGraphicsSceneMouseMoved(
@@ -115,38 +162,91 @@ public:
   bool processGraphicsSceneRightMouseButtonReleased(
       const GraphicsSceneMouseEvent& e) noexcept override;
 
+  /**
+   * @brief What kind of item the current selection is homogeneously made of
+   *
+   * Only ::librepcb::PI_Hole and ::librepcb::PI_Fiducial are distinguished
+   * here (board instances aren't part of this parameter-editing feature) -
+   * #None whenever the selection is empty, mixed, or contains any board
+   * instance.
+   */
+  enum class SelectionKind { None, Hole, Fiducial };
+
+  // Connection to UI - selection property editing
+  SelectionKind getSelectionKind() const noexcept { return mSelectionKind; }
+  const PositiveLength& getDiameter() const noexcept {
+    return mCurrentDiameter;
+  }
+  void setDiameter(const PositiveLength& diameter) noexcept;
+  const UnsignedLength& getCopperClearance() const noexcept {
+    return mCurrentCopperClearance;
+  }
+  void setCopperClearance(const UnsignedLength& clearance) noexcept;
+  bool getFlipped() const noexcept { return mCurrentFlipped; }
+  void setFlipped(bool flipped) noexcept;
+
   // Operator Overloadings
   PanelEditorState_Select& operator=(const PanelEditorState_Select& rhs) =
       delete;
+
+signals:
+  /**
+   * @brief Emitted whenever the selection (or its relevant properties)
+   *        changes
+   *
+   * Carries the new values directly (rather than requiring the receiver to
+   * call back into this state), matching
+   * ::librepcb::editor::Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
+   * componentSideChanged wiring convention.
+   */
+  void selectionPropertiesChanged(bool isHole, bool isFiducial,
+                                  const PositiveLength& diameter,
+                                  const UnsignedLength& clearance,
+                                  bool flipped);
 
 private:
   // Private Methods
   bool clearSelection() noexcept;
   bool startMovingSelection(const Point& startPos) noexcept;
-  bool startResizingOutline(BGI_PanelOutline::ResizeHandle handle,
+  bool startResizingOutline(PGI_Outline::ResizeHandle handle,
                             const Point& startPos) noexcept;
   bool rotateSelection(const Angle& angle) noexcept;
   bool rotateSelectedItems(const Angle& angle) noexcept;
   bool flipSelectedItems() noexcept;
+  bool lockSelectedItems(bool locked) noexcept;
   bool copySelectedItemsToClipboard() noexcept;
   void scheduleUpdateAvailableFeatures() noexcept;
   void updateAvailableFeatures() noexcept;
+  void updateSelectionProperties() noexcept;
   bool abortCommand(bool showErrMsgBox) noexcept;
 
   // State
   bool mIsUndoCmdActive;
   Point mDragLastPos;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
-  /// Per-mDragCmds-entry offset from the cursor, populated only for a
-  /// paste-placement drag (empty for an ordinary selection drag) - see
-  /// the class doc comment's Cut/Copy/Paste bullet.
+  std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
+  std::vector<std::unique_ptr<CmdPanelFiducialEdit>> mDragFiducialCmds;
+  /// Per-mDragCmds/mDragHoleCmds/mDragFiducialCmds-entry offset from the
+  /// cursor, populated only for a paste-placement drag (empty for an
+  /// ordinary selection drag) - see the class doc comment's Cut/Copy/Paste
+  /// bullet. One vector per item type since a single paste can combine all
+  /// three (a non-homogeneous group), each index-aligned with its own
+  /// mDragCmds/mDragHoleCmds/mDragFiducialCmds.
   std::vector<Point> mDragPasteOffsets;
-  /// Non-null only while dragging one of BGI_PanelOutline's resize
+  std::vector<Point> mDragHolePasteOffsets;
+  std::vector<Point> mDragFiducialPasteOffsets;
+  /// Non-null only while dragging one of PGI_Outline's resize
   /// handles - mutually exclusive with #mDragCmds being non-empty.
   std::unique_ptr<CmdPanelEdit> mResizeCmd;
-  BGI_PanelOutline::ResizeHandle mResizeHandle;
+  PGI_Outline::ResizeHandle mResizeHandle;
   QList<QMetaObject::Connection> mConnections;
   std::unique_ptr<QTimer> mUpdateAvailableFeaturesTimer;
+
+  // Selection property editing state (see #getSelectionKind()).
+  SelectionKind mSelectionKind;
+  PositiveLength mCurrentDiameter;
+  UnsignedLength mCurrentCopperClearance;
+  bool mCurrentFlipped;
 };
 
 /*******************************************************************************

@@ -38,7 +38,7 @@ namespace librepcb {
 
 class Angle;
 class Board;
-class PanelBoardInstance;
+class PI_BoardInstance;
 
 namespace editor {
 
@@ -101,7 +101,7 @@ private:
 
   // Information about the current placement in progress. Only valid if
   // mIsUndoCmdActive == true.
-  std::shared_ptr<PanelBoardInstance> mCurrentInstance;
+  std::shared_ptr<PI_BoardInstance> mCurrentInstance;
   std::unique_ptr<CmdPanelBoardInstanceEdit> mCurrentInstanceEditCmd;
 };
 
