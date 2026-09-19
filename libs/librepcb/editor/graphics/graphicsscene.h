@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// It was reviewed by a human on 2026-09-18.
+
 #ifndef LIBREPCB_EDITOR_GRAPHICSSCENE_H
 #define LIBREPCB_EDITOR_GRAPHICSSCENE_H
 
@@ -30,7 +33,10 @@
 #include <QtCore>
 #include <QtWidgets>
 
+#include <memory>
 #include <optional>
+
+class QSvgRenderer;
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -100,6 +106,18 @@ public:
   void setSceneCursor(const Point& pos, bool cross, bool circle) noexcept;
   void setRulerPositions(
       const std::optional<std::pair<Point, Point>>& pos) noexcept;
+  /**
+   * @brief Set the positions at which to draw a "locked item" hint overlay
+   *
+   * Draws a small red "lock" icon at each given scene position, staying a
+   * fixed size on screen regardless of zoom. Intended to hint that an item
+   * at that position is locked while the user is actively trying to
+   * select/drag/rotate it.
+   *
+   * @param positions   The scene positions to mark. Pass an empty vector to
+   *                    clear all hints.
+   */
+  void setLockedItemHints(const QVector<Point>& positions) noexcept;
 
   void addItem(QGraphicsItem& item) noexcept;
   void removeItem(QGraphicsItem& item) noexcept;
@@ -141,6 +159,10 @@ private:
   };
   QVector<RulerGauge> mRulerGauges;
   std::optional<std::pair<Point, Point>> mRulerPositions;
+
+  // Overlay locked-item hint markers
+  QVector<Point> mLockedItemHintPositions;
+  std::unique_ptr<QSvgRenderer> mLockedItemHintIconRenderer;
 };
 
 /*******************************************************************************

@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+// It was last reviewed by a human on 2026-09-18.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -29,6 +32,7 @@
 #include <librepcb/core/utils/toolbox.h>
 
 #include <QtCore>
+#include <QtSvg>
 #include <QtWidgets>
 
 /*******************************************************************************
@@ -60,7 +64,8 @@ GraphicsScene::GraphicsScene(QObject* parent) noexcept
         {1, LengthUnit::millimeters(), " ", Length(100), Length(0)},
         {-1, LengthUnit::inches(), "", Length(254), Length(0)},
     }),
-    mRulerPositions() {
+    mRulerPositions(),
+    mLockedItemHintPositions() {
   mSelectionRectItem->setPen(QPen(QColor(120, 170, 255, 255), 0));
   mSelectionRectItem->setBrush(QColor(150, 200, 255, 80));
   mSelectionRectItem->setZValue(1000);
@@ -124,6 +129,33 @@ void GraphicsScene::setSceneCursor(const Point& pos, bool cross,
   mSceneCursorCross = cross;
   mSceneCursorCircle = circle;
   setForegroundBrush(foregroundBrush());  // this will repaint the foreground
+}
+
+void GraphicsScene::setLockedItemHints(
+    const QVector<Point>& positions) noexcept {
+  if (positions != mLockedItemHintPositions) {
+    mLockedItemHintPositions = positions;
+    if ((!mLockedItemHintIconRenderer) && (!positions.isEmpty())) {
+      // Lazily load & colorize the icon on first use. Font Awesome icons
+      // ship with no "fill" attribute (default SVG fill is black), so add
+      // one - same technique as EditorToolbox::svgIcon()/
+      // MonochromeSvgIconEngine, but hard-coded red instead of following
+      // the theme's text color, since this is a warning indicator, not a
+      // normal icon.
+      QFile file(":/fa/solid/lock.svg");
+      if (file.open(QFile::ReadOnly)) {
+        QByteArray svgContent = file.readAll();
+        if (!svgContent.contains("fill=\"")) {
+          svgContent.replace("<svg", "<svg fill=\"red\"");
+        }
+        mLockedItemHintIconRenderer =
+            std::make_unique<QSvgRenderer>(svgContent);
+      } else {
+        qWarning() << "Failed to load locked-item hint icon.";
+      }
+    }
+    setForegroundBrush(foregroundBrush());  // this will repaint the foreground
+  }
 }
 
 /*******************************************************************************
@@ -420,6 +452,22 @@ void GraphicsScene::drawForeground(QPainter* painter,
       painter->setPen(QPen(Qt::green, 2 / scaleFactor));
       painter->setBrush(Qt::NoBrush);
       painter->drawEllipse(pos, r / 2, r / 2);
+    }
+  }
+
+  // Draw a "locked item" hint (a red lock icon) at each requested position,
+  // at a fixed size on screen regardless of zoom.
+  if ((!mLockedItemHintPositions.isEmpty()) && mLockedItemHintIconRenderer &&
+      mLockedItemHintIconRenderer->isValid()) {
+    const qreal scaleFactor =
+        QStyleOptionGraphicsItem::levelOfDetailFromTransform(
+            painter->worldTransform());
+    const qreal size = 24 / scaleFactor;
+    foreach (const Point& hintPos, mLockedItemHintPositions) {
+      const QPointF pos = hintPos.toPxQPointF();
+      const QRectF targetRect(pos.x() - size / 2, pos.y() - size / 2, size,
+                              size);
+      mLockedItemHintIconRenderer->render(painter, targetRect);
     }
   }
 }
