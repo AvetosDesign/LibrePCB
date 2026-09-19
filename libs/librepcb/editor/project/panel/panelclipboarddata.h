@@ -25,7 +25,9 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include <librepcb/core/project/panel/panelboardinstance.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/items/pi_fiducial.h>
+#include <librepcb/core/project/panel/items/pi_hole.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -46,16 +48,22 @@ namespace editor {
  * @brief The PanelClipboardData class
  *
  * Holds the data copy/cut places on the clipboard for panel board
- * placements. Deliberately modeled on the lightweight
- * ::librepcb::editor::FootprintClipboardData (a plain S-Expression written
- * directly into QMimeData) rather than the much heavier
- * ::librepcb::editor::BoardClipboardData (which uses a zipped
+ * placements, holes, and fiducials - all three together, in whatever mix
+ * was selected (not required to be homogeneous). Deliberately modeled on
+ * the lightweight ::librepcb::editor::FootprintClipboardData (a plain
+ * S-Expression written directly into QMimeData) rather than the much
+ * heavier ::librepcb::editor::BoardClipboardData (which uses a zipped
  * TransactionalFileSystem, needed there because Board content can embed 3D
  * models etc.). A panel placement is just a reference to a board (by UUID)
- * plus its position/rotation/flip, and ::librepcb::PanelBoardInstance is
- * already directly S-Expression-serializable, so no embedded content or
- * intermediate struct is needed - see
- * claude/librepcb_panelization_tool_addboard_slice.md (slice 8).
+ * plus its position/rotation/flip, and ::librepcb::PI_BoardInstance/
+ * ::librepcb::PI_Hole/::librepcb::PI_Fiducial are already directly
+ * S-Expression-serializable, so no embedded content or intermediate struct
+ * is needed - see claude/librepcb_panelization_tool_addboard_slice.md
+ * (slice 8). #mInstances/#mHoles/#mFiducials each serialize under their
+ * own distinct tag ("board"/"hole"/"fiducial" respectively - see each
+ * type's ListNameProvider), so all three coexist as children of the same
+ * root node without ambiguity, exactly like ::librepcb::Panel's own
+ * serialize() already does.
  *
  * Note: pasting a board UUID that doesn't exist in the target project (e.g.
  * pasting into a different project than the one that was copied from) is
@@ -82,9 +90,22 @@ public:
   ~PanelClipboardData() noexcept;
 
   // Getters
-  PanelBoardInstanceList& getInstances() noexcept { return mInstances; }
-  const PanelBoardInstanceList& getInstances() const noexcept {
+  PI_BoardInstanceList& getInstances() noexcept { return mInstances; }
+  const PI_BoardInstanceList& getInstances() const noexcept {
     return mInstances;
+  }
+  PI_HoleList& getHoles() noexcept { return mHoles; }
+  const PI_HoleList& getHoles() const noexcept { return mHoles; }
+  PI_FiducialList& getFiducials() noexcept { return mFiducials; }
+  const PI_FiducialList& getFiducials() const noexcept { return mFiducials; }
+
+  /**
+   * @brief Whether this clipboard data is completely empty
+   *
+   * True only if all three of #mInstances/#mHoles/#mFiducials are empty.
+   */
+  bool isEmpty() const noexcept {
+    return mInstances.isEmpty() && mHoles.isEmpty() && mFiducials.isEmpty();
   }
 
   // General Methods
@@ -100,7 +121,9 @@ private:  // Methods
   static QString getMimeType() noexcept;
 
 private:  // Data
-  PanelBoardInstanceList mInstances;
+  PI_BoardInstanceList mInstances;
+  PI_HoleList mHoles;
+  PI_FiducialList mFiducials;
 };
 
 /*******************************************************************************

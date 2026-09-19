@@ -872,9 +872,26 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
         deserialize<PositiveLength>(size->getChild("height/@0")));
   }
 
+  // Grid interval/unit for the panel editor. Older panel.lp files (from
+  // before this feature existed) have no "grid" node at all - Panel's
+  // constructor already defaulted mGridInterval/mGridUnit, so there's
+  // nothing more to do for those.
+  if (const SExpression* grid = root->tryGetChild("grid")) {
+    panel->setGridInterval(
+        deserialize<PositiveLength>(grid->getChild("interval/@0")));
+    panel->setGridUnit(deserialize<LengthUnit>(grid->getChild("unit/@0")));
+  }
+
   // Board instances (references to boards in the same project, plus
   // their placement).
   panel->getBoardInstances().loadFromSExpression(*root);
+
+  // Holes and fiducials placed directly on the panel. Older panel.lp
+  // files (from before this feature existed) simply have no "hole"/
+  // "fiducial" entries at all - loadFromSExpression() on an empty list
+  // is a no-op, so no migration code is needed.
+  panel->getHoles().loadFromSExpression(*root);
+  panel->getFiducials().loadFromSExpression(*root);
 
   // Board checksums, keyed by referenced board UUID (not by instance).
   if (const SExpression* checksums = root->tryGetChild("checksums")) {

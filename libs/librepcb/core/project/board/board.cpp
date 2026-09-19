@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -749,9 +751,8 @@ void Board::forceAirWiresRebuild() noexcept {
  *  General Methods
  ******************************************************************************/
 
-std::optional<std::pair<Point, Point>> Board::calculateBoundingRect()
-    const noexcept {
-  QList<Path> outlines;
+std::optional<QVector<Path>> Board::calculateOutlinePath() const noexcept {
+  QVector<Path> outlines;
   foreach (const BI_Polygon* polygon, mPolygons) {
     if ((polygon->getData().getLayer() == Layer::boardOutlines()) &&
         (!polygon->getData().getPath().getVertices().isEmpty())) {
@@ -772,9 +773,17 @@ std::optional<std::pair<Point, Point>> Board::calculateBoundingRect()
       }
     }
   }
-  if (!outlines.isEmpty()) {
+  if (outlines.isEmpty()) {
+    return std::nullopt;
+  }
+  return outlines;
+}
+
+std::optional<std::pair<Point, Point>> Board::calculateBoundingRect()
+    const noexcept {
+  if (auto outlines = calculateOutlinePath()) {
     QPainterPath p;
-    foreach (const Path& outline, outlines) {
+    foreach (const Path& outline, *outlines) {
       p.addPath(outline.toQPainterPathPx());
     }
     const QRectF rectPx = p.boundingRect();

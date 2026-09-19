@@ -25,7 +25,7 @@
 #include "cmdpanelboardinstanceadd.h"
 
 #include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/panel/panelboardinstance.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 
 #include <QtCore>
 
@@ -41,11 +41,11 @@ namespace editor {
 
 CmdPanelBoardInstanceAdd::CmdPanelBoardInstanceAdd(
     Panel& panel, const Uuid& board, const Point& position,
-    const Angle& rotation, bool flipped) noexcept
+    const Angle& rotation, bool flipped, bool locked) noexcept
   : UndoCommand(tr("Add board to panel")),
     mPanel(panel),
-    mInstance(new PanelBoardInstance(Uuid::createRandom(), board, position,
-                                     rotation, flipped)) {
+    mInstance(new PI_BoardInstance(Uuid::createRandom(), board, position,
+                                     rotation, flipped, locked)) {
 }
 
 CmdPanelBoardInstanceAdd::~CmdPanelBoardInstanceAdd() noexcept {

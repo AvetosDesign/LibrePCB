@@ -55,12 +55,18 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mName(name),
     mWidth(defaultWidth),
     mHeight(defaultHeight),
-    mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited) {
+    mGridInterval(635000),  // 0.635 mm (same default as Board)
+    mGridUnit(LengthUnit::millimeters()),
+    mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
+    mOnHolesEditedSlot(*this, &Panel::holesEdited),
+    mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited) {
   if (mDirectoryName.isEmpty()) {
     throw LogicError(__FILE__, __LINE__);
   }
 
   mBoardInstances.onEdited.attach(mOnBoardInstancesEditedSlot);
+  mHoles.onEdited.attach(mOnHolesEditedSlot);
+  mFiducials.onEdited.attach(mOnFiducialsEditedSlot);
 
   // Emit the "attributesChanged" signal when the project has emitted it.
   connect(&mProject, &Project::attributesChanged, this,
@@ -76,7 +82,8 @@ Panel::~Panel() noexcept {
  ******************************************************************************/
 
 bool Panel::isEmpty() const noexcept {
-  return mBoardInstances.isEmpty();
+  return mBoardInstances.isEmpty() && mHoles.isEmpty() &&
+      mFiducials.isEmpty();
 }
 
 /*******************************************************************************
@@ -111,7 +118,7 @@ void Panel::setHeight(const PositiveLength& height) noexcept {
  *  Board Instance Methods
  ******************************************************************************/
 
-void Panel::addBoardInstance(std::shared_ptr<PanelBoardInstance> instance) {
+void Panel::addBoardInstance(std::shared_ptr<PI_BoardInstance> instance) {
   if (!instance) {
     throw LogicError(__FILE__, __LINE__);
   }
@@ -124,7 +131,7 @@ void Panel::addBoardInstance(std::shared_ptr<PanelBoardInstance> instance) {
   mBoardInstances.append(instance);
 }
 
-void Panel::removeBoardInstance(std::shared_ptr<PanelBoardInstance> instance) {
+void Panel::removeBoardInstance(std::shared_ptr<PI_BoardInstance> instance) {
   if ((!instance) || (!mBoardInstances.contains(instance->getUuid()))) {
     throw LogicError(__FILE__, __LINE__);
   }
@@ -133,10 +140,58 @@ void Panel::removeBoardInstance(std::shared_ptr<PanelBoardInstance> instance) {
 
 QSet<Uuid> Panel::getReferencedBoards() const noexcept {
   QSet<Uuid> boards;
-  for (const PanelBoardInstance& instance : mBoardInstances) {
+  for (const PI_BoardInstance& instance : mBoardInstances) {
     boards.insert(instance.getBoard());
   }
   return boards;
+}
+
+/*******************************************************************************
+ *  Hole Methods
+ ******************************************************************************/
+
+void Panel::addHole(std::shared_ptr<PI_Hole> hole) {
+  if (!hole) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (mHoles.contains(hole->getUuid())) {
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("There is already a hole with the UUID \"%1\"!")
+            .arg(hole->getUuid().toStr()));
+  }
+  mHoles.append(hole);
+}
+
+void Panel::removeHole(std::shared_ptr<PI_Hole> hole) {
+  if ((!hole) || (!mHoles.contains(hole->getUuid()))) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  mHoles.remove(hole->getUuid());
+}
+
+/*******************************************************************************
+ *  Fiducial Methods
+ ******************************************************************************/
+
+void Panel::addFiducial(std::shared_ptr<PI_Fiducial> fiducial) {
+  if (!fiducial) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (mFiducials.contains(fiducial->getUuid())) {
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("There is already a fiducial with the UUID \"%1\"!")
+            .arg(fiducial->getUuid().toStr()));
+  }
+  mFiducials.append(fiducial);
+}
+
+void Panel::removeFiducial(std::shared_ptr<PI_Fiducial> fiducial) {
+  if ((!fiducial) || (!mFiducials.contains(fiducial->getUuid()))) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  mFiducials.remove(fiducial->getUuid());
 }
 
 /*******************************************************************************
@@ -198,7 +253,15 @@ void Panel::save() {
   sizeNode.appendChild("width", mWidth);
   sizeNode.appendChild("height", mHeight);
   root->ensureLineBreak();
+  SExpression& gridNode = root->appendList("grid");
+  gridNode.appendChild("interval", mGridInterval);
+  gridNode.appendChild("unit", mGridUnit);
+  root->ensureLineBreak();
   mBoardInstances.serialize(*root);
+  root->ensureLineBreak();
+  mHoles.serialize(*root);
+  root->ensureLineBreak();
+  mFiducials.serialize(*root);
   root->ensureLineBreak();
 
   // Board checksums, sorted by UUID for deterministic file content.
@@ -222,18 +285,59 @@ void Panel::save() {
  ******************************************************************************/
 
 void Panel::boardInstancesEdited(
-    const PanelBoardInstanceList& list, int index,
-    const std::shared_ptr<const PanelBoardInstance>& obj,
-    PanelBoardInstanceList::Event event) noexcept {
+    const PI_BoardInstanceList& list, int index,
+    const std::shared_ptr<const PI_BoardInstance>& obj,
+    PI_BoardInstanceList::Event event) noexcept {
   Q_UNUSED(obj);
   Q_UNUSED(list);
   switch (event) {
-    case PanelBoardInstanceList::Event::ElementAdded:
+    case PI_BoardInstanceList::Event::ElementAdded:
       emit boardInstanceAdded(index);
       emit attributesChanged();
       break;
-    case PanelBoardInstanceList::Event::ElementRemoved:
+    case PI_BoardInstanceList::Event::ElementRemoved:
       emit boardInstanceRemoved(index);
+      emit attributesChanged();
+      break;
+    default:
+      emit attributesChanged();
+      break;
+  }
+}
+
+void Panel::holesEdited(const PI_HoleList& list, int index,
+                       const std::shared_ptr<const PI_Hole>& obj,
+                       PI_HoleList::Event event) noexcept {
+  Q_UNUSED(obj);
+  Q_UNUSED(list);
+  switch (event) {
+    case PI_HoleList::Event::ElementAdded:
+      emit holeAdded(index);
+      emit attributesChanged();
+      break;
+    case PI_HoleList::Event::ElementRemoved:
+      emit holeRemoved(index);
+      emit attributesChanged();
+      break;
+    default:
+      emit attributesChanged();
+      break;
+  }
+}
+
+void Panel::fiducialsEdited(
+    const PI_FiducialList& list, int index,
+    const std::shared_ptr<const PI_Fiducial>& obj,
+    PI_FiducialList::Event event) noexcept {
+  Q_UNUSED(obj);
+  Q_UNUSED(list);
+  switch (event) {
+    case PI_FiducialList::Event::ElementAdded:
+      emit fiducialAdded(index);
+      emit attributesChanged();
+      break;
+    case PI_FiducialList::Event::ElementRemoved:
+      emit fiducialRemoved(index);
       emit attributesChanged();
       break;
     default:

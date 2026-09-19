@@ -20,8 +20,8 @@
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
 // It has been reviewed by a human.
 
-#ifndef LIBREPCB_EDITOR_BGI_PANELOUTLINE_H
-#define LIBREPCB_EDITOR_BGI_PANELOUTLINE_H
+#ifndef LIBREPCB_EDITOR_PGI_OUTLINE_H
+#define LIBREPCB_EDITOR_PGI_OUTLINE_H
 
 /*******************************************************************************
  *  Includes
@@ -41,11 +41,11 @@ class Panel;
 namespace editor {
 
 /*******************************************************************************
- *  Class BGI_PanelOutline
+ *  Class PGI_Outline
  ******************************************************************************/
 
 /**
- * @brief The BGI_PanelOutline class
+ * @brief The PGI_Outline class
  *
  * Renders the ::librepcb::Panel's rectangular outline (`Panel::getWidth()` /
  * `Panel::getHeight()`) as a plain, always-axis-aligned, always-at-the-origin
@@ -65,7 +65,7 @@ namespace editor {
  * `Panel::boardInstanceAdded`/`Removed`.
  *
  * The panel is deliberately given a negative Z value so board instances (see
- * BGI_PanelBoardInstance) always paint above it rather than depending on
+ * PGI_BoardInstance) always paint above it rather than depending on
  * insertion order into the scene.
  *
  * The three resize handles are painted in a distinct, fixed color so they 
@@ -80,7 +80,7 @@ namespace editor {
  * is called by ::librepcb::editor::PanelTab::applyWorkspaceSettings(), both
  * on tab activation and whenever the active color scheme is edited.
  */
-class BGI_PanelOutline final : public QGraphicsItem {
+class PGI_Outline final : public QGraphicsItem {
 public:
   /**
    * @brief Which resize handle (if any) is at a given position
@@ -95,10 +95,10 @@ public:
   };
 
   // Constructors / Destructor
-  BGI_PanelOutline() = delete;
-  BGI_PanelOutline(const BGI_PanelOutline& other) = delete;
-  explicit BGI_PanelOutline(Panel& panel) noexcept;
-  ~BGI_PanelOutline() noexcept override;
+  PGI_Outline() = delete;
+  PGI_Outline(const PGI_Outline& other) = delete;
+  explicit PGI_Outline(Panel& panel) noexcept;
+  ~PGI_Outline() noexcept override;
 
   // General Methods
 
@@ -139,7 +139,7 @@ public:
             QWidget* widget) override;
 
   // Operator Overloadings
-  BGI_PanelOutline& operator=(const BGI_PanelOutline& rhs) = delete;
+  PGI_Outline& operator=(const PGI_Outline& rhs) = delete;
 
 private:  // Data
   Panel& mPanel;

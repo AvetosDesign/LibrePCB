@@ -20,17 +20,17 @@
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
 // It has been reviewed by a human.
 
-#ifndef LIBREPCB_CORE_PANELBOARDINSTANCE_H
-#define LIBREPCB_CORE_PANELBOARDINSTANCE_H
+#ifndef LIBREPCB_CORE_PI_BOARDINSTANCE_H
+#define LIBREPCB_CORE_PI_BOARDINSTANCE_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../serialization/serializableobjectlist.h"
-#include "../../types/angle.h"
-#include "../../types/point.h"
-#include "../../types/uuid.h"
-#include "../../utils/signalslot.h"
+#include "../../../serialization/serializableobjectlist.h"
+#include "../../../types/angle.h"
+#include "../../../types/point.h"
+#include "../../../types/uuid.h"
+#include "../../../utils/signalslot.h"
 
 #include <QtCore>
 
@@ -42,15 +42,15 @@ namespace librepcb {
 class SExpression;
 
 /*******************************************************************************
- *  Class PanelBoardInstance
+ *  Class PI_BoardInstance
  ******************************************************************************/
 
 /**
- * @brief The PanelBoardInstance class represents one placed copy of a board
+ * @brief The PI_BoardInstance class represents one placed copy of a board
  *        design on a panel
  *
  * A panel never contains board content itself (see ::librepcb::Panel).
- * Instead, each ::librepcb::PanelBoardInstance is just a lightweight
+ * Instead, each ::librepcb::PI_BoardInstance is just a lightweight
  * reference to a ::librepcb::Board of the same project (by UUID), plus the
  * placement (position/rotation/flip) of that particular copy on the panel.
  * Multiple instances may reference the same board UUID (e.g. an "array" of
@@ -61,8 +61,8 @@ class SExpression;
  * board's UUID) so individual placements can be identified, edited and
  * undone/redone even when multiple instances reference the same board.
  */
-class PanelBoardInstance final {
-  Q_DECLARE_TR_FUNCTIONS(PanelBoardInstance)
+class PI_BoardInstance final {
+  Q_DECLARE_TR_FUNCTIONS(PI_BoardInstance)
 
 public:
   // Signals
@@ -71,18 +71,19 @@ public:
     PositionChanged,
     RotationChanged,
     FlippedChanged,
+    LockedChanged,
   };
-  Signal<PanelBoardInstance, Event> onEdited;
-  typedef Slot<PanelBoardInstance, Event> OnEditedSlot;
+  Signal<PI_BoardInstance, Event> onEdited;
+  typedef Slot<PI_BoardInstance, Event> OnEditedSlot;
 
   // Constructors / Destructor
-  PanelBoardInstance() = delete;
-  PanelBoardInstance(const PanelBoardInstance& other) noexcept;
-  explicit PanelBoardInstance(const SExpression& node);
-  PanelBoardInstance(const Uuid& uuid, const Uuid& board,
+  PI_BoardInstance() = delete;
+  PI_BoardInstance(const PI_BoardInstance& other) noexcept;
+  explicit PI_BoardInstance(const SExpression& node);
+  PI_BoardInstance(const Uuid& uuid, const Uuid& board,
                      const Point& position, const Angle& rotation,
-                     bool flipped) noexcept;
-  ~PanelBoardInstance() noexcept;
+                     bool flipped, bool locked) noexcept;
+  ~PI_BoardInstance() noexcept;
 
   // Getters
   const Uuid& getUuid() const noexcept { return mUuid; }
@@ -90,12 +91,14 @@ public:
   const Point& getPosition() const noexcept { return mPosition; }
   const Angle& getRotation() const noexcept { return mRotation; }
   bool getFlipped() const noexcept { return mFlipped; }
+  bool isLocked() const noexcept { return mLocked; }
 
   // Setters
   void setBoard(const Uuid& board) noexcept;
   void setPosition(const Point& position) noexcept;
   void setRotation(const Angle& rotation) noexcept;
   void setFlipped(bool flipped) noexcept;
+  void setLocked(bool locked) noexcept;
 
   /**
    * @brief Serialize into ::librepcb::SExpression node
@@ -105,9 +108,9 @@ public:
   void serialize(SExpression& root) const;
 
   // Operator Overloadings
-  PanelBoardInstance& operator=(const PanelBoardInstance& rhs) = delete;
-  bool operator==(const PanelBoardInstance& rhs) const noexcept;
-  bool operator!=(const PanelBoardInstance& rhs) const noexcept {
+  PI_BoardInstance& operator=(const PI_BoardInstance& rhs) = delete;
+  bool operator==(const PI_BoardInstance& rhs) const noexcept;
+  bool operator!=(const PI_BoardInstance& rhs) const noexcept {
     return !(*this == rhs);
   }
 
@@ -124,18 +127,19 @@ private:  // Data
   Point mPosition;
   Angle mRotation;
   bool mFlipped;
+  bool mLocked;
 };
 
 /*******************************************************************************
- *  Class PanelBoardInstanceList
+ *  Class PI_BoardInstanceList
  ******************************************************************************/
 
-struct PanelBoardInstanceListNameProvider {
+struct PI_BoardInstanceListNameProvider {
   static constexpr const char* tagname = "board";
 };
-using PanelBoardInstanceList =
-    SerializableObjectList<PanelBoardInstance, PanelBoardInstanceListNameProvider,
-                           PanelBoardInstance::Event>;
+using PI_BoardInstanceList =
+    SerializableObjectList<PI_BoardInstance, PI_BoardInstanceListNameProvider,
+                           PI_BoardInstance::Event>;
 
 /*******************************************************************************
  *  End of File
