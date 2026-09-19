@@ -17,6 +17,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was last reviewed by Avetos Design on 2026-09-18.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -118,6 +121,7 @@ BoardEditorState_Select::BoardEditorState_Select(
     const Context& context) noexcept
   : BoardEditorState(context),
     mIsUndoCmdActive(false),
+    mSceneSelectionUpdateConnected(false),
     mSelectedPolygon(nullptr),
     mSelectedPolygonVertices(),
     mCmdPolygonEdit(),
@@ -152,6 +156,22 @@ bool BoardEditorState_Select::entry() noexcept {
           [this]() { updateAvailableFeatures(true); });
   scheduleUpdateAvailableFeatures();
 
+  mLockedItemHintTimer = std::make_unique<QTimer>();
+  mLockedItemHintTimer->setSingleShot(true);
+  connect(mLockedItemHintTimer.get(), &QTimer::timeout, this,
+          &BoardEditorState_Select::hideLockedItemHints);
+
+  // Recompute the locked-item hint whenever the selection itself changes,
+  // however that happens -- click, Ctrl-toggle, Shift-cycle, rubber-band,
+  // Select All, or a programmatic clearSelection().  This avoids having
+  // every mouse/keyboard handler having to remember to call this explicitly.
+  // This *should* succeed on every entry except possibly the very first
+  // (see also #connectSceneSelectionUpdate()).
+  mSceneSelectionUpdateConnected = false;
+  if (BoardGraphicsScene* scene = getActiveBoardScene()) {
+    connectSceneSelectionUpdate(*scene);
+  }
+
   mConnections.append(
       connect(&mContext.undoStack, &UndoStack::stateModified, this,
               &BoardEditorState_Select::scheduleUpdateAvailableFeatures));
@@ -165,7 +185,16 @@ bool BoardEditorState_Select::exit() noexcept {
   // Abort the currently active command
   if (!abortCommand(true)) return false;
 
+  hideLockedItemHints();
+  
+  // Unlike in hideLockedItemHints(), we DO drop the cached positions here:
+  // the state (and its selectionChanged() connection) is going away, so
+  // there's no longer anything keeping them in sync with the actual
+  // selection.
+  mLockedSelectedItemPositions.clear();
+
   mUpdateAvailableFeaturesTimer.reset();
+  mLockedItemHintTimer.reset();
 
   // Avoid propagating the selection to other, non-selectable tools, thus
   // clearing the selection.
@@ -527,6 +556,7 @@ bool BoardEditorState_Select::processGraphicsSceneMouseMoved(
     const GraphicsSceneMouseEvent& e) noexcept {
   BoardGraphicsScene* scene = getActiveBoardScene();
   if (!scene) return false;
+  connectSceneSelectionUpdate(*scene);
 
   if (mSelectedItemsDragCommand) {
     // If any individual footprint pads were selected, expand the selection
@@ -536,6 +566,11 @@ bool BoardEditorState_Select::processGraphicsSceneMouseMoved(
     }
     // Move selected elements to cursor position
     mSelectedItemsDragCommand->setCurrentPosition(e.scenePos);
+    // Keep the locked-item hints visible while the mouse is moving.  They
+    // will fade out if the mouse is held still for a moment. The selection 
+	// (and thus the locked-item set) can't change mid-drag, so this just
+	// needs to refresh the timer.
+    showLockedItemHints();
     return true;
   } else if (mSelectedPolygon && mCmdPolygonEdit) {
     // Move polygon vertices
@@ -587,6 +622,7 @@ bool BoardEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
 
   BoardGraphicsScene* scene = getActiveBoardScene();
   if (!scene) return false;
+  connectSceneSelectionUpdate(*scene);
 
   if (mIsUndoCmdActive) {
     // Place pasted items
@@ -631,6 +667,7 @@ bool BoardEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
       if (items.isEmpty()) {
         // no items under mouse --> start drawing a selection rectangle
         scene->clearSelection();
+        hideLockedItemHints();
         return true;
       }
 
@@ -681,6 +718,10 @@ bool BoardEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
 
   BoardGraphicsScene* scene = getActiveBoardScene();
   if (!scene) return false;
+
+  // Whatever gesture was in progress (drag, vertex edit, or rubber-band
+  // select) is ending now, so hide the locked-item hint overlay.
+  hideLockedItemHints();
 
   if ((!mIsUndoCmdActive) && mSelectedItemsDragCommand) {
     // Stop moving items (set position of all selected elements permanent)
@@ -1276,6 +1317,123 @@ bool BoardEditorState_Select::processChangedSelection() noexcept {
  *  Private Methods
  ******************************************************************************/
 
+void BoardEditorState_Select::hideLockedItemHints() noexcept {
+  // Deliberately does not clear #mLockedSelectedItemPositions:  Ending a
+  // gesture does not itself change the selection, so the cached positions
+  // are still valid for a later #showLockedItemHints() call.
+  if (mLockedItemHintTimer) {
+    mLockedItemHintTimer->stop();
+  }
+  if (BoardGraphicsScene* scene = getActiveBoardScene()) {
+    scene->setLockedItemHints(QVector<Point>());
+  }
+}
+
+void BoardEditorState_Select::connectSceneSelectionUpdate(
+    BoardGraphicsScene& scene) noexcept {
+  if (mSceneSelectionUpdateConnected) {
+    return;
+  }
+  mConnections.append(
+      connect(&scene, &QGraphicsScene::selectionChanged, this,
+              &BoardEditorState_Select::rebuildLockedItemList));
+  mSceneSelectionUpdateConnected = true;
+}
+
+void BoardEditorState_Select::rebuildLockedItemList() noexcept {
+  // Connected to the active scene's selectionChanged() signal in entry(),
+  // so this runs whenever the selection itself changes.
+  mLockedSelectedItemPositions.clear();
+
+  if (BoardGraphicsScene* scene = getActiveBoardScene()) {
+    auto addIfLocked = [this](bool locked, QGraphicsItem* item) {
+      if (locked && item) {
+        mLockedSelectedItemPositions.append(
+            Point::fromPx(item->sceneBoundingRect().center()));
+      }
+    };
+
+    // true: also include locked items.
+    BoardSelectionQuery query(*scene, true);
+    query.addDeviceInstancesOfSelectedFootprints();
+    query.addSelectedBoardPads();
+    query.addSelectedPlanes();
+    query.addSelectedZones();
+    query.addSelectedPolygons();
+    query.addSelectedBoardStrokeTexts();
+    query.addSelectedFootprintStrokeTexts();
+    query.addSelectedHoles();
+
+    const auto& devices = scene->getDevices();
+    foreach (auto ptr, query.getDeviceInstances()) {
+      auto it = devices.find(ptr);
+      addIfLocked(ptr->isLocked(),
+                 (it != devices.end()) ? it.value().get() : nullptr);
+    }
+    const auto& pads = scene->getPads();
+    foreach (auto ptr, query.getPads()) {
+      auto it = pads.find(ptr);
+      addIfLocked(ptr->getProperties().isLocked(),
+                 (it != pads.end()) ? it.value().get() : nullptr);
+    }
+    const auto& planes = scene->getPlanes();
+    foreach (auto ptr, query.getPlanes()) {
+      auto it = planes.find(ptr);
+      addIfLocked(ptr->isLocked(),
+                 (it != planes.end()) ? it.value().get() : nullptr);
+    }
+    const auto& zones = scene->getZones();
+    foreach (auto ptr, query.getZones()) {
+      auto it = zones.find(ptr);
+      addIfLocked(ptr->getData().isLocked(),
+                 (it != zones.end()) ? it.value().get() : nullptr);
+    }
+    const auto& polygons = scene->getPolygons();
+    foreach (auto ptr, query.getPolygons()) {
+      auto it = polygons.find(ptr);
+      addIfLocked(ptr->getData().isLocked(),
+                 (it != polygons.end()) ? it.value().get() : nullptr);
+    }
+    const auto& strokeTexts = scene->getStrokeTexts();
+    foreach (auto ptr, query.getStrokeTexts()) {
+      auto it = strokeTexts.find(ptr);
+      addIfLocked(ptr->getData().isLocked(),
+                 (it != strokeTexts.end()) ? it.value().get() : nullptr);
+    }
+    const auto& holes = scene->getHoles();
+    foreach (auto ptr, query.getHoles()) {
+      auto it = holes.find(ptr);
+      addIfLocked(ptr->getData().isLocked(),
+                 (it != holes.end()) ? it.value().get() : nullptr);
+    }
+  }
+
+  // A selection change is itself a reason to display the hint.
+  showLockedItemHints();
+}
+
+void BoardEditorState_Select::showLockedItemHints() noexcept {
+  // Show whatever #rebuildLockedItemList() last computed, then
+  // (re)start the timer. This doesn't recompute anything, so it's cheap
+  // to call after every shortcut-triggered move/rotate/flip and on/ every
+  // mouse-move during an active drag (none of which change the
+  // selection).  Only the "ignore locks" override can change what actually
+  // gets displayed.
+  if (getIgnoreLocks() || mLockedSelectedItemPositions.isEmpty()) {
+    hideLockedItemHints();
+    return;
+  }
+
+  BoardGraphicsScene* scene = getActiveBoardScene();
+  if (!scene) return;
+
+  scene->setLockedItemHints(mLockedSelectedItemPositions);
+
+  if (mLockedItemHintTimer) {
+    mLockedItemHintTimer->start(sLockedItemHintFlashMs);
+  }
+}
+
 bool BoardEditorState_Select::startMovingSelectedItems(
     BoardGraphicsScene& scene, const Point& startPos) noexcept {
   Q_ASSERT(!mSelectedItemsDragCommand);
@@ -1293,7 +1451,11 @@ bool BoardEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
         new CmdDragSelectedBoardItems(*scene, getIgnoreLocks(), false,
                                       Point(0, 0)));
     cmd->setCurrentPosition(delta);
-    return execCmd(cmd.release());
+    const bool ok = execCmd(cmd.release());
+    if (ok) {
+      showLockedItemHints();
+    }
+    return ok;
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     return false;
@@ -1312,6 +1474,7 @@ bool BoardEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
           new CmdDragSelectedBoardItems(*scene, getIgnoreLocks()));
       cmd->rotate(angle, false);
       mContext.undoStack.execCmd(cmd.release());
+      showLockedItemHints();
     }
     return true;
   } catch (const Exception& e) {
@@ -1329,6 +1492,7 @@ bool BoardEditorState_Select::flipSelectedItems(
     CmdFlipSelectedBoardItems* cmd =
         new CmdFlipSelectedBoardItems(*scene, orientation, getIgnoreLocks());
     mContext.undoStack.execCmd(cmd);
+    showLockedItemHints();
     return true;
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
@@ -1692,6 +1856,7 @@ bool BoardEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
 
     // Delete the current undo command
     mSelectedItemsDragCommand.reset();
+    hideLockedItemHints();
 
     // Abort the undo command
     if (mIsUndoCmdActive) {
