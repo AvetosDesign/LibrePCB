@@ -18,7 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// All modifications were reviewed by a human.
+// Modifications were last reviewed by a human on 2026-09-17.
 
 #ifndef LIBREPCB_EDITOR_EDITORCOMMANDSET_H
 #define LIBREPCB_EDITOR_EDITORCOMMANDSET_H
@@ -1180,6 +1180,15 @@ public:
       ":/img/drill.svg",
       EditorCommand::Flags(),
       {QKeySequence(Qt::Key_O)},
+      &categoryTools,
+  };
+  EditorCommand toolFiducial{
+      "tool_fiducial",  // clang-format break
+      QT_TR_NOOP("Add Fiducial"),
+      QT_TR_NOOP("Add a fiducial to the panel"),
+      ":/bi/crosshair.svg",
+      EditorCommand::Flags(),
+      {},
       &categoryTools,
   };
   EditorCommand toolWire{

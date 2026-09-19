@@ -18,6 +18,7 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
+// It was reviewed by Avetos Design on 2026-09-17.
 
 #ifndef LIBREPCB_EDITOR_PANELTAB_H
 #define LIBREPCB_EDITOR_PANELTAB_H
@@ -25,6 +26,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../utils/lengtheditcontext.h"
 #include "../../widgets/if_graphicsvieweventhandler.h"
 #include "windowtab.h"
 #include "fsm/paneleditorfsmadapter.h"
@@ -47,6 +49,8 @@ namespace editor {
 class GuiApplication;
 class PanelEditor;
 class PanelEditorFsm;
+class PanelEditorState_AddFiducial;
+class PanelEditorState_AddHole;
 class PanelGraphicsScene;
 class ProjectEditor;
 class SlintGraphicsView;
@@ -145,12 +149,19 @@ public:
   void fsmSetStatusBarMessage(const QString& message,
                               int timeoutMs = -1) noexcept override;
   void fsmSetFeatures(Features features) noexcept override;
+  bool fsmGetIgnoreLocks() const noexcept override;
   void fsmToolLeave() noexcept override;
   void fsmToolEnter(PanelEditorState_Select& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddHole& state) noexcept override;
+  void fsmToolEnter(
+      PanelEditorState_AddFiducial& state) noexcept override;
 
   // Operator Overloadings
   PanelTab& operator=(const PanelTab& rhs) = delete;
+
+signals:
+  void flippedRequested(bool flipped);
 
 private:
   void applyWorkspaceSettings() noexcept;
@@ -167,8 +178,16 @@ private:
   // State
   QPointF mSceneImagePos;
   int mFrameIndex;
+  ui::EditorTool mTool;
   Features mToolFeatures;
   Qt::CursorShape mToolCursorShape;
+  LengthEditContext mToolDiameter;
+  LengthEditContext mToolClearance;
+  bool mToolFlipped;
+  bool mSelectHole;
+  bool mSelectFiducial;
+  bool mIgnorePlacementLocks;
+  QVector<QMetaObject::Connection> mFsmStateConnections;
 
   // Objects in active state
   std::unique_ptr<PanelGraphicsScene> mScene;

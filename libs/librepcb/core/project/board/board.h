@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_CORE_BOARD_H
 #define LIBREPCB_CORE_BOARD_H
 
@@ -25,6 +27,7 @@
  ******************************************************************************/
 #include "../../fileio/filepath.h"
 #include "../../fileio/transactionaldirectory.h"
+#include "../../geometry/path.h"
 #include "../../types/elementname.h"
 #include "../../types/length.h"
 #include "../../types/lengthunit.h"
@@ -259,6 +262,28 @@ public:
   void forceAirWiresRebuild() noexcept;
 
   // General Methods
+
+  /**
+   * @brief Calculate the combined outline shape of all
+   *        `Layer::boardOutlines()` content on this board (own polygons/
+   *        circles plus footprint outlines from placed devices)
+   *
+   * Used by places that need the board's actual outline shape rather than
+   * just its bounding rectangle (see #calculateBoundingRect(), which is now
+   * implemented in terms of this method) - for example the Panel editor,
+   * to render an individual placed board's reference outline/selection
+   * highlight as the board's real perimeter instead of a rectangle, since
+   * board outlines are not necessarily rectangular.
+   *
+   * @return  The combined outline as a list of ::librepcb::Path objects in
+   *          the board's own local pixel coordinate system (the same frame
+   *          used by #calculateBoundingRect()), or std::nullopt if the
+   *          board has no `Layer::boardOutlines()` content at all. Callers
+   *          needing a `QPainterPath` (e.g. for painting or hit-testing)
+   *          can combine them with `Path::toQPainterPathPx()`.
+   */
+  std::optional<QVector<Path>> calculateOutlinePath() const noexcept;
+
   std::optional<std::pair<Point, Point>> calculateBoundingRect() const noexcept;
   void addDefaultContent();
   void copyFrom(const Board& other);

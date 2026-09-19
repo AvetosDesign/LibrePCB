@@ -29,7 +29,7 @@
 #include "../../cmd/cmdpanelboardinstanceedit.h"
 
 #include <librepcb/core/project/board/board.h>
-#include <librepcb/core/project/panel/panelboardinstance.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 
 #include <QtCore>
 #include <QtWidgets>
