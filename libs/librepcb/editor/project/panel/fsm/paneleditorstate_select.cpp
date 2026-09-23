@@ -38,9 +38,13 @@
 #include "../../cmd/cmdpanelholeadd.h"
 #include "../../cmd/cmdpanelholeedit.h"
 #include "../../cmd/cmdpanelholeremove.h"
+#include "../../cmd/cmdpaneltabadd.h"
+#include "../../cmd/cmdpaneltabedit.h"
+#include "../../cmd/cmdpaneltabremove.h"
 #include "../graphicsitems/pgi_boardinstance.h"
 #include "../graphicsitems/pgi_fiducial.h"
 #include "../graphicsitems/pgi_hole.h"
+#include "../graphicsitems/pgi_tab.h"
 #include "../panelclipboarddata.h"
 #include "../panelgraphicsscene.h"
 
@@ -48,7 +52,10 @@
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/project/project.h>
+#include <librepcb/core/types/lengthunit.h>
+#include <librepcb/core/utils/toolbox.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -113,6 +120,7 @@ bool PanelEditorState_Select::exit() noexcept {
 
   mAdapter.fsmSetViewCursor(std::nullopt);
   mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features());
+  mAdapter.fsmSetViewInfoBoxText(QString());
   mAdapter.fsmToolLeave();
   return true;
 }
@@ -165,13 +173,30 @@ bool PanelEditorState_Select::processRemove() noexcept {
       }
     }
   }
+  // Tab markers aren't lockable themselves.
+  QVector<std::shared_ptr<PI_Tab>> tabsToRemove;
+  const auto& tabItems = scene->getTabItems();
+  for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto tab = mContext.panel.getTabs().find(it.key())) {
+        tabsToRemove.append(tab);
+      }
+    }
+  }
   if (boardsToRemove.isEmpty() && holesToRemove.isEmpty() &&
-      fiducialsToRemove.isEmpty()) {
+      fiducialsToRemove.isEmpty() && tabsToRemove.isEmpty()) {
     return false;
   }
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Remove item(s) from panel"));
+    // Selected tabs first: removing a board placement also removes all tabs
+    // still attached to it (see CmdPanelBoardInstanceRemove), so a selected
+    // tab of a selected board must already be gone by then.
+    foreach (const std::shared_ptr<PI_Tab>& tab, tabsToRemove) {
+      mContext.undoStack.appendToCmdGroup(
+          new CmdPanelTabRemove(mContext.panel, tab));
+    }
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
             boardsToRemove) {
       mContext.undoStack.appendToCmdGroup(
@@ -202,6 +227,7 @@ bool PanelEditorState_Select::processSetLocked(bool locked) noexcept {
 }
 
 bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
+  if (mDragTabCmd) return false;  // Tab markers can't be rotated.
   if (mIsUndoCmdActive && (!mDragCmds.empty())) {
     // A drag is in progress - rotate the live preview, same as
     // right-click-during-drag (see processGraphicsSceneRightMouseButtonReleased()).
@@ -258,6 +284,11 @@ bool PanelEditorState_Select::processPaste() noexcept {
     return false;
   }
   if ((!data) || data->isEmpty()) return false;
+  // Tabs are only ever pasted along with their board placement.
+  if (data->getInstances().isEmpty() && data->getHoles().isEmpty() &&
+      data->getFiducials().isEmpty()) {
+    return false;
+  }
 
   const Point startPos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos());
   // Reference point for the paste offset is the first copied item's own
@@ -283,6 +314,9 @@ bool PanelEditorState_Select::processPaste() noexcept {
     mIsUndoCmdActive = true;
 
     bool skippedUnknownBoard = false;
+    // Copied board placement UUID -> pasted placement UUID, to re-attach
+    // the copied tabs to the pasted boards.
+    QHash<Uuid, Uuid> pastedInstances;
     for (const PI_BoardInstance& src : data->getInstances()) {
       // Pasting a board that isn't part of this project (e.g. clipboard
       // content copied from a different project) isn't supported yet.
@@ -297,6 +331,7 @@ bool PanelEditorState_Select::processPaste() noexcept {
       mContext.undoStack.appendToCmdGroup(addCmd);  // can throw
 
       if (auto instance = addCmd->getInstance()) {
+        pastedInstances.insert(src.getUuid(), instance->getUuid());
         mDragCmds.push_back(
             std::make_unique<CmdPanelBoardInstanceEdit>(*instance));
         // Offset from the copied reference point, independent of the cursor
@@ -337,6 +372,19 @@ bool PanelEditorState_Select::processPaste() noexcept {
         if (auto item = scene->getFiducialItem(fiducial->getUuid())) {
           item->setSelected(true);
         }
+      }
+    }
+
+    // Tabs are board-local, so they follow their pasted board through the
+    // placement drag without any drag command of their own.
+    // Note: QHash::value() can't be used since Uuid has no default
+    // constructor, so look the entry up with find() instead.
+    for (const PI_Tab& src : data->getTabs()) {
+      auto it = pastedInstances.constFind(src.getBoardInstance());
+      if (it != pastedInstances.constEnd()) {
+        mContext.undoStack.appendToCmdGroup(
+            new CmdPanelTabAdd(mContext.panel, it.value(), src.getPosition(),
+                               src.getWidth()));  // can throw
       }
     }
 
@@ -440,6 +488,20 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     return false;
   }
 
+  if (mDragTabCmd) {
+    // Snap the marker onto the nearest edge of any placed board (not
+    // grid-snapped, since it slides along the edge), re-attaching it to
+    // that board.
+    if (PanelGraphicsScene* scene = getActivePanelScene()) {
+      if (auto hit = scene->findNearestBoardEdge(e.scenePos)) {
+        mDragTabCmd->setAnchor(hit->boardInstance, hit->boardPos, true);
+      }
+    }
+    // Keep the displayed position live while dragging.
+    mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
+    return true;
+  }
+
   const Point pos = e.scenePos.mappedToGrid(getGridInterval());
 
   if (mResizeCmd) {
@@ -531,7 +593,8 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
       scene->items(e.scenePos.toPxQPointF());
   foreach (QGraphicsItem* item, itemsAtPos) {
     if (dynamic_cast<PGI_BoardInstance*>(item) ||
-        dynamic_cast<PGI_Hole*>(item) || dynamic_cast<PGI_Fiducial*>(item)) {
+        dynamic_cast<PGI_Hole*>(item) || dynamic_cast<PGI_Fiducial*>(item) ||
+        dynamic_cast<PGI_Tab*>(item)) {
       clickedItem = item;
       break;
     }
@@ -564,7 +627,12 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   // Clicking an already-selected item without a modifier keeps the current
   // (possibly multi-item) selection intact, so the whole group can be
   // dragged together.
-  if (clickedItem) {
+  if (PGI_Tab* tabItem = dynamic_cast<PGI_Tab*>(clickedItem)) {
+    // A tab marker is dragged on its own, along the board edges.
+    if (!(e.modifiers & Qt::ShiftModifier)) {
+      startMovingTab(*tabItem);
+    }
+  } else if (clickedItem) {
     startMovingSelection(e.scenePos);
   }
 
@@ -592,6 +660,8 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
   try {
     if (mResizeCmd) {
       mContext.undoStack.appendToCmdGroup(mResizeCmd.release());  // can throw
+    } else if (mDragTabCmd) {
+      mContext.undoStack.appendToCmdGroup(mDragTabCmd.release());  // can throw
     } else {
       for (std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
@@ -625,6 +695,9 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
 
   if (mIsUndoCmdActive && (!mDragCmds.empty())) {
     return rotateSelection(Angle::deg90());
+  }
+  if (mIsUndoCmdActive) {
+    return true;  // No context menu while dragging something else.
   }
 
   PanelGraphicsScene* scene = getActivePanelScene();
@@ -742,6 +815,22 @@ bool PanelEditorState_Select::startMovingSelection(
   }
 
   mDragLastPos = startPos.mappedToGrid(getGridInterval());
+  return true;
+}
+
+bool PanelEditorState_Select::startMovingTab(PGI_Tab& item) noexcept {
+  Q_ASSERT(!mIsUndoCmdActive);
+  Q_ASSERT(!mDragTabCmd);
+
+  try {
+    mContext.undoStack.beginCmdGroup(tr("Move tab"));  // can throw
+    mIsUndoCmdActive = true;
+  } catch (const Exception& e) {
+    QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
+    return false;
+  }
+
+  mDragTabCmd = std::make_unique<CmdPanelTabEdit>(item.getTab());
   return true;
 }
 
@@ -1168,6 +1257,11 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
             selectedBoards) {
       data.getInstances().append(
           std::make_shared<PI_BoardInstance>(*instance));
+      // Attached tabs are copied along with their board placement.
+      foreach (const std::shared_ptr<PI_Tab>& tab,
+               mContext.panel.getTabsOfBoardInstance(instance->getUuid())) {
+        data.getTabs().append(std::make_shared<PI_Tab>(*tab));
+      }
     }
     foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
       data.getHoles().append(std::make_shared<PI_Hole>(*hole));
@@ -1249,6 +1343,17 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
       }
     }
   }
+  // Selected tab markers can only be removed (they follow their board for
+  // everything else, see the class doc comment).
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    const auto& tabItems = scene->getTabItems();
+    for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
+      if (it.value() && it.value()->isSelected()) {
+        features |= PanelEditorFsmAdapter::Feature::Remove;
+        break;
+      }
+    }
+  }
   if (hasSelection) {
     features |= PanelEditorFsmAdapter::Feature::Cut;
     features |= PanelEditorFsmAdapter::Feature::Copy;
@@ -1264,6 +1369,96 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
   }
 
   mAdapter.fsmSetFeatures(features);
+  mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
+}
+
+QString PanelEditorState_Select::buildInfoBoxText() noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return QString();
+
+  // Only a selection consisting solely of tab markers shows info.
+  auto anySelected = [](const auto& items) {
+    for (auto it = items.begin(); it != items.end(); it++) {
+      if (it.value() && it.value()->isSelected()) return true;
+    }
+    return false;
+  };
+  if (anySelected(scene->getBoardInstanceItems()) ||
+      anySelected(scene->getHoleItems()) ||
+      anySelected(scene->getFiducialItems())) {
+    return QString();
+  }
+  QVector<PGI_Tab*> tabItems;
+  const auto& items = scene->getTabItems();
+  for (auto it = items.begin(); it != items.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      tabItems.append(it.value().get());
+    }
+  }
+  if (tabItems.isEmpty()) return QString();
+
+  const LengthUnit& unit = mContext.panel.getGridUnit();
+  auto formatLength = [&unit](const Length& l) {
+    return Toolbox::floatToString(unit.convertToUnit(l),
+                                  unit.getReasonableNumberOfDecimals() + 1,
+                                  QLocale());
+  };
+  QVector<std::pair<QString, QString>> keyValues;
+
+  // Position (panel coordinates) - only meaningful for a single marker.
+  // Limited to two decimal places, since the marker slides freely along the
+  // edge (not grid-snapped), so more digits are just noise.
+  auto formatPosition = [&unit](const Length& l) {
+    return Toolbox::floatToString(unit.convertToUnit(l), 2, QLocale());
+  };
+  if (tabItems.count() == 1) {
+    if (const std::optional<Point>& pos =
+            tabItems.first()->getScenePosition()) {
+      keyValues.append(std::make_pair(
+          tr("Position"),
+          QString("%1, %2 %3")
+              .arg(formatPosition(pos->getX()), formatPosition(pos->getY()),
+                   unit.toShortStringTr())));
+    }
+  }
+
+  // Effective width, and whether it comes from the panel default or from
+  // the tab's own override.
+  std::optional<PositiveLength> width;
+  bool sameWidth = true;
+  std::optional<bool> isOverride;
+  bool sameSource = true;
+  for (PGI_Tab* item : tabItems) {
+    const PI_Tab& tab = item->getTab();
+    const PositiveLength w = mContext.panel.getEffectiveTabWidth(tab);
+    if (width && (*width != w)) sameWidth = false;
+    if (isOverride && (*isOverride != tab.hasWidthOverride())) {
+      sameSource = false;
+    }
+    width = w;
+    isOverride = tab.hasWidthOverride();
+  }
+  if (width && sameWidth) {
+    QString value =
+        QString("%1 %2").arg(formatLength(**width), unit.toShortStringTr());
+    if (isOverride && sameSource) {
+      value += " " % (*isOverride ? tr("(override)") : tr("(panel default)"));
+    }
+    keyValues.append(std::make_pair(tr("Width"), value));
+  }
+
+  // Build string with aligned values, same as Board's info box.
+  qsizetype maxKeyLen = 0;
+  for (const auto& item : keyValues) {
+    maxKeyLen = std::max(maxKeyLen, item.first.length());
+  }
+  QStringList lines;
+  for (const auto& item : keyValues) {
+    lines.append(item.first % ": " %
+                 QString(" ").repeated(maxKeyLen - item.first.length()) %
+                 item.second);
+  }
+  return lines.join("\n");
 }
 
 void PanelEditorState_Select::updateSelectionProperties() noexcept {
@@ -1274,6 +1469,14 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
     bool anyBoardSelected = false;
     const auto& boardItems = scene->getBoardInstanceItems();
     for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
+      if (it.value() && it.value()->isSelected()) {
+        anyBoardSelected = true;
+        break;
+      }
+    }
+    // A selected tab marker makes the selection mixed too.
+    const auto& tabItems = scene->getTabItems();
+    for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
       if (it.value() && it.value()->isSelected()) {
         anyBoardSelected = true;
         break;
@@ -1481,6 +1684,7 @@ bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
     mDragCmds.clear();
     mDragHoleCmds.clear();
     mDragFiducialCmds.clear();
+    mDragTabCmd.reset();
     mDragPasteOffsets.clear();
     mDragHolePasteOffsets.clear();
     mDragFiducialPasteOffsets.clear();

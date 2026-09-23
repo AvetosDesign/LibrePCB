@@ -22,11 +22,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "cmdpanelboardinstanceremove.h"
-
-#include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/panel/items/pi_boardinstance.h>
-#include <librepcb/core/project/panel/items/pi_tab.h>
+#include "paneleditorstate_addvcut.h"
 
 #include <QtCore>
 
@@ -40,40 +36,41 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-CmdPanelBoardInstanceRemove::CmdPanelBoardInstanceRemove(
-    Panel& panel, std::shared_ptr<PI_BoardInstance> instance) noexcept
-  : UndoCommand(tr("Remove board from panel")),
-    mPanel(panel),
-    mInstance(instance) {
+PanelEditorState_AddVCut::PanelEditorState_AddVCut(
+    const Context& context) noexcept
+  : PanelEditorState(context) {
 }
 
-CmdPanelBoardInstanceRemove::~CmdPanelBoardInstanceRemove() noexcept {
+PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {
 }
 
 /*******************************************************************************
- *  Inherited from UndoCommand
+ *  General Methods
  ******************************************************************************/
 
-bool CmdPanelBoardInstanceRemove::performExecute() {
-  mTabs = mPanel.getTabsOfBoardInstance(mInstance->getUuid());
-  performRedo();  // can throw
-
+bool PanelEditorState_AddVCut::entry() noexcept {
+  mAdapter.fsmToolEnter(*this);
+  mAdapter.fsmSetViewCursor(Qt::CrossCursor);
+  mAdapter.fsmSetStatusBarMessage(tr("Adding V-cuts is not implemented yet"));
   return true;
 }
 
-void CmdPanelBoardInstanceRemove::performUndo() {
-  mPanel.addBoardInstance(mInstance);  // can throw
-  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
-    mPanel.addTab(tab);  // can throw
-  }
+bool PanelEditorState_AddVCut::exit() noexcept {
+  mAdapter.fsmSetStatusBarMessage(QString());
+  mAdapter.fsmSetViewCursor(std::nullopt);
+  mAdapter.fsmToolLeave();
+  return true;
 }
 
-void CmdPanelBoardInstanceRemove::performRedo() {
-  // Tabs first, so no tab ever references a missing board placement.
-  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
-    mPanel.removeTab(tab);  // can throw
-  }
-  mPanel.removeBoardInstance(mInstance);  // can throw
+/*******************************************************************************
+ *  Event Handlers
+ ******************************************************************************/
+
+bool PanelEditorState_AddVCut::processGraphicsSceneLeftMouseButtonPressed(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  Q_UNUSED(e);
+  // TODO: V-cut placement is not implemented yet.
+  return true;
 }
 
 /*******************************************************************************

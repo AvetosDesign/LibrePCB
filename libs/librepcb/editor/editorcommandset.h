@@ -1191,6 +1191,24 @@ public:
       {},
       &categoryTools,
   };
+  EditorCommand toolPanelVCut{
+      "tool_panel_vcut",  // clang-format break
+      QT_TR_NOOP("Add V-Cuts"),
+      QT_TR_NOOP("Add V-cut (V-score) lines to the panel"),
+      ":/img/v-cut.svg",
+      EditorCommand::Flags(),
+      {},
+      &categoryTools,
+  };
+  EditorCommand toolPanelTab{
+      "tool_panel_tab",  // clang-format break
+      QT_TR_NOOP("Add Tab"),
+      QT_TR_NOOP("Add breakaway tabs to the edges of boards on the panel"),
+      ":/img/tab-tool.svg",
+      EditorCommand::Flags(),
+      {},
+      &categoryTools,
+  };
   EditorCommand toolWire{
       "tool_wire",  // clang-format break
       QT_TR_NOOP("Draw Wire"),

@@ -19,62 +19,59 @@
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
 
-#ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDHOLE_H
-#define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDHOLE_H
+#ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDTAB_H
+#define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDTAB_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../panelgraphicsscene.h"
 #include "paneleditorstate.h"
-
-#include <librepcb/core/types/length.h>
 
 #include <QtCore>
 
-#include <memory>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
-
-class PI_Hole;
-
 namespace editor {
 
-class CmdPanelHoleEdit;
-
 /*******************************************************************************
- *  Class PanelEditorState_AddHole
+ *  Class PanelEditorState_AddTab
  ******************************************************************************/
 
 /**
- * @brief The "add hole" state/tool of the panel editor
+ * @brief The "add tab" state/tool of the panel editor
  *
- * Mirrors ::librepcb::editor::BoardEditorState_AddHole's continuous
- * placement loop exactly (place one hole, immediately start placing the
- * next, until aborted/tool switch) rather than PanelEditorState_AddBoard's
- * single-shot-then-leave pattern, since tooling holes are typically placed
- * several at a time. Operates on ::librepcb::PI_Hole/CmdPanelHoleAdd/
- * CmdPanelHoleEdit instead of BI_Hole/CmdBoardHoleAdd/CmdBoardHoleEdit -
- * see claude/librepcb_panelization_tool_addboard_slice.md for why panel
- * holes are a separate, simpler item type. This slice is placement-only:
- * diameter/stop-mask editing and Select-tool integration are deferred.
+ * Places ::librepcb::PI_Tab markers on the edges of placed boards,
+ * following the KiKit Viewer's tab placement: each click on a board edge
+ * adds one tab there, and the tool stays active for placing more
+ * (multi-placement, like PanelEditorState_AddHole) until aborted or
+ * another tool is selected.
  *
- * A double click is ignored (rather than handled as a second click), since
- * its preceding press already placed a hole - handling it too would stack
- * a duplicate hole at the same position (same as
- * PanelEditorState_AddBoard).
+ * Unlike the Add Hole/Add Fiducial tools, no real item follows the cursor:
+ * a tab only exists attached to a board edge, so a click is resolved
+ * directly to the nearest edge of any placed board (see
+ * PanelGraphicsScene::findNearestBoardEdge()), within a small screen-space
+ * tolerance. Clicks away from any edge, or on an existing tab marker, add
+ * nothing. The cursor position is used as-is (never snapped to the grid),
+ * since the tab slides continuously along the edge.
+ *
+ * Instead, whenever a click *would* add a tab, a semi-transparent "phantom"
+ * marker is shown at that spot (PanelGraphicsScene::setTabPhantom()), and
+ * hidden again as soon as it wouldn't (see #findPlacement()).
  */
-class PanelEditorState_AddHole final : public PanelEditorState {
+class PanelEditorState_AddTab final : public PanelEditorState {
   Q_OBJECT
 
 public:
   // Constructors / Destructor
-  PanelEditorState_AddHole() = delete;
-  PanelEditorState_AddHole(const PanelEditorState_AddHole& other) = delete;
-  explicit PanelEditorState_AddHole(const Context& context) noexcept;
-  ~PanelEditorState_AddHole() noexcept override;
+  PanelEditorState_AddTab() = delete;
+  PanelEditorState_AddTab(const PanelEditorState_AddTab& other) = delete;
+  explicit PanelEditorState_AddTab(const Context& context) noexcept;
+  ~PanelEditorState_AddTab() noexcept override;
 
   // General Methods
   bool entry() noexcept override;
@@ -88,32 +85,31 @@ public:
   bool processGraphicsSceneLeftMouseButtonDoubleClicked(
       const GraphicsSceneMouseEvent& e) noexcept override;
 
-  // Connection to UI
-  const PositiveLength& getDiameter() const noexcept {
-    return mCurrentDiameter;
-  }
-  void setDiameter(const PositiveLength& diameter) noexcept;
-
   // Operator Overloadings
-  PanelEditorState_AddHole& operator=(const PanelEditorState_AddHole& rhs) =
+  PanelEditorState_AddTab& operator=(const PanelEditorState_AddTab& rhs) =
       delete;
 
-signals:
-  void diameterChanged(const PositiveLength& diameter);
-
 private:  // Methods
-  bool addHole(const Point& pos) noexcept;
-  bool updatePosition(const Point& pos) noexcept;
-  bool fixPosition(const Point& pos) noexcept;
-  bool abortCommand(bool showErrMsgBox) noexcept;
+  /**
+   * @brief Determine where a click at a position would add a tab
+   *
+   * @param pos   Cursor position, in panel coordinates.
+   *
+   * @return The board edge point a tab would be added at, or
+   *         `std::nullopt` if a click there wouldn't add a tab (not close
+   *         enough to a board edge, or over an existing tab marker).
+   */
+  std::optional<PanelGraphicsScene::BoardEdgeHit> findPlacement(
+      const Point& pos) noexcept;
 
-private:  // Data
-  bool mIsUndoCmdActive;
-  PositiveLength mCurrentDiameter;
+  /**
+   * @brief Show or hide the phantom marker for a cursor position
+   *
+   * @param pos   Cursor position, in panel coordinates.
+   */
+  void updatePhantom(const Point& pos) noexcept;
 
-  // Only valid if mIsUndoCmdActive == true.
-  std::shared_ptr<PI_Hole> mCurrentHole;
-  std::unique_ptr<CmdPanelHoleEdit> mCurrentHoleEditCmd;
+  bool addTab(const Point& pos) noexcept;
 };
 
 /*******************************************************************************

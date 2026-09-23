@@ -1124,6 +1124,26 @@ export global EditorCommandSet {
         key: "",
     };
 
+    in property <EditorCommand> tool-panel-vcut: {
+        id: "tool_panel_vcut",
+        icon: @image-url("../../../../img/v-cut.svg"),
+        text: "Add V-Cuts",
+        status-tip: "Add V-cut (V-score) lines to the panel",
+        shortcut: "",
+        modifiers: { alt: false, control: false, shift: false, meta: false },
+        key: "",
+    };
+
+    in property <EditorCommand> tool-panel-tab: {
+        id: "tool_panel_tab",
+        icon: @image-url("../../../../img/tab-tool.svg"),
+        text: "Add Tab",
+        status-tip: "Add breakaway tabs to the edges of boards on the panel",
+        shortcut: "",
+        modifiers: { alt: false, control: false, shift: false, meta: false },
+        key: "",
+    };
+
     in property <EditorCommand> tool-wire: {
         id: "tool_wire",
         icon: @image-url("../../../../img/draw-wire.svg"),

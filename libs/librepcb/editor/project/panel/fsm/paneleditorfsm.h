@@ -53,11 +53,11 @@ struct GraphicsSceneMouseEvent;
 /**
  * @brief The panel editor finite state machine
  *
- * Trimmed down from ::librepcb::editor::BoardEditorFsm: only four states
- * exist (`SELECT`, `ADD_BOARD`, `ADD_HOLE`, `ADD_FIDUCIAL`), since the
- * panel editor has no other tools yet - see
- * claude/librepcb_panel_design_decisions.md for what's still to come
- * (tabs, v-grooves, etc.). Unlike
+ * Trimmed down from ::librepcb::editor::BoardEditorFsm: only six states
+ * exist (`SELECT`, `ADD_BOARD`, `ADD_HOLE`, `ADD_FIDUCIAL`, `ADD_TAB`,
+ * `ADD_VCUT` - the latter still a stub), since the panel editor has no
+ * other tools yet - see claude/librepcb_panel_design_decisions.md for
+ * what's still to come. Unlike
  * `BoardEditorFsm`, there's no `mPreviousState`/`switchToPreviousState()` -
  * with only one other state to fall back to, aborting a tool always returns
  * to `SELECT` rather than needing to remember what was active before.
@@ -78,6 +78,10 @@ public:
     ADD_HOLE,
     /// ::librepcb::editor::PanelEditorState_AddFiducial
     ADD_FIDUCIAL,
+    /// ::librepcb::editor::PanelEditorState_AddTab
+    ADD_TAB,
+    /// ::librepcb::editor::PanelEditorState_AddVCut
+    ADD_VCUT,
   };
 
   /// FSM Context
@@ -103,6 +107,8 @@ public:
   bool processAddBoard(Board& board) noexcept;
   bool processAddHole() noexcept;
   bool processAddFiducial() noexcept;
+  bool processAddTab() noexcept;
+  bool processAddVCut() noexcept;
   bool processRotate(const Angle& rotation) noexcept;
   bool processFlip() noexcept;
   bool processSelectAll() noexcept;

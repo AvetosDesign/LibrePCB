@@ -26,31 +26,42 @@
  *  Includes
  ******************************************************************************/
 #include "../../graphics/graphicsscene.h"
+#include "../board/boardgraphicsscene.h"
 
+#include <librepcb/core/types/angle.h>
+#include <librepcb/core/types/length.h>
+#include <librepcb/core/types/point.h>
 #include <librepcb/core/types/uuid.h>
 
 #include <QtCore>
 #include <QtGui>
 
+#include <map>
 #include <memory>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
 
+class Board;
 class Panel;
 class PI_BoardInstance;
 class PI_Fiducial;
 class PI_Hole;
+class PI_Tab;
 class Project;
 
 namespace editor {
 
+class BoardProxy;
+class GraphicsLayerList;
 class PGI_BoardInstance;
 class PGI_Fiducial;
 class PGI_Hole;
 class PGI_Outline;
+class PGI_Tab;
 
 /*******************************************************************************
  *  Class PanelGraphicsScene
@@ -63,9 +74,10 @@ class PGI_Outline;
  * outline (PGI_Outline) plus its placed board instances
  * (PGI_BoardInstance) - following ::librepcb::editor::
  * BoardGraphicsScene's role as a `GraphicsScene` subclass that keeps a live
- * item registry in sync with the model. Still no tabs/v-grooves/
- * manufacturing-primitive rendering (those don't exist in the model yet
- * either, see claude/librepcb_panel_design_decisions.md).
+ * item registry in sync with the model. Holes, fiducials and tab markers
+ * (PGI_Hole, PGI_Fiducial, PGI_Tab) are registered the same way. Still no
+ * v-grooves or generated tab/mouse-bite geometry (see
+ * claude/librepcb_panel_design_decisions.md).
  *
  * Also caches the current board-instance colors (#setBoardInstanceColors()),
  * set by ::librepcb::editor::PanelTab::applyWorkspaceSettings() - unlike the
@@ -84,8 +96,10 @@ public:
   // Constructors / Destructor
   PanelGraphicsScene() = delete;
   PanelGraphicsScene(const PanelGraphicsScene& other) = delete;
-  explicit PanelGraphicsScene(Panel& panel, Project& project,
-                              QObject* parent = nullptr) noexcept;
+  explicit PanelGraphicsScene(
+      Panel& panel, Project& project, const GraphicsLayerList& layers,
+      std::shared_ptr<BoardGraphicsScene::Context> boardProxyContext,
+      QObject* parent = nullptr) noexcept;
   ~PanelGraphicsScene() noexcept override;
 
   // Getters
@@ -115,6 +129,39 @@ public:
       const noexcept {
     return mFiducialItems;
   }
+  std::shared_ptr<PGI_Tab> getTabItem(const Uuid& uuid) const noexcept {
+    return mTabItems.value(uuid);
+  }
+  const QHash<Uuid, std::shared_ptr<PGI_Tab>>& getTabItems() const noexcept {
+    return mTabItems;
+  }
+
+  /**
+   * @brief Result of #findNearestBoardEdge()
+   */
+  struct BoardEdgeHit {
+    Uuid boardInstance;  ///< The placement whose edge was found
+    Point boardPos;  ///< Nearest edge point, in that board's own coordinates
+    Point scenePos;  ///< Nearest edge point, in panel coordinates
+    Angle direction;  ///< Edge normal pointing off the board, panel coords
+    UnsignedLength distance;  ///< Distance from the queried position
+  };
+
+  /**
+   * @brief Find the nearest edge of any placed board
+   *
+   * Used to anchor tab markers (::librepcb::PI_Tab): every placed board's
+   * current outline is checked with ::librepcb::BoardEdgeSnap, after
+   * mapping @p scenePos into that board's own coordinates (inverse of the
+   * placement's position/rotation/flip).
+   *
+   * @param scenePos  Position in panel coordinates.
+   *
+   * @return The nearest edge point over all placed boards, or
+   *         `std::nullopt` if no placed board has an outline.
+   */
+  std::optional<BoardEdgeHit> findNearestBoardEdge(
+      const Point& scenePos) const noexcept;
 
   // General Methods
   void selectAll() noexcept;
@@ -180,6 +227,78 @@ public:
                          const QColor& botColor,
                          const QColor& botSelectedColor) noexcept;
 
+  /**
+   * @brief Set the colors applied to every tab marker item
+   *
+   * @param color          Forwarded to `PGI_Tab::setColors()`.
+   * @param selectedColor  Forwarded to `PGI_Tab::setColors()`.
+   */
+  void setTabColors(const QColor& color, const QColor& selectedColor) noexcept;
+
+  /**
+   * @brief Show or hide all tab markers (display toggle)
+   *
+   * Applied to every current PGI_Tab item (see PGI_Tab::setMarkerShown())
+   * and remembered for tab items added later.
+   *
+   * @param visible   Whether tab markers should be shown.
+   */
+  void setTabsVisible(bool visible) noexcept;
+
+  /**
+   * @brief Show or hide the board placements' reference outlines
+   *
+   * Applied to every current PGI_BoardInstance item (see
+   * PGI_BoardInstance::setOutlineShown()) and remembered for items added
+   * later. The panel's own perimeter (PGI_Outline) is not affected.
+   *
+   * @param visible   Whether the placement outlines should be shown.
+   */
+  void setBoardOutlinesVisible(bool visible) noexcept;
+
+  /**
+   * @brief Show the "phantom" tab marker at a board edge position
+   *
+   * The phantom is a non-selectable preview with the same shape as a real
+   * tab marker (PGI_Tab::markerShapePx()), drawn in the tab color at
+   * reduced alpha. PanelEditorState_AddTab shows it while the cursor is
+   * close enough to a board edge that a click would add a tab there.
+   *
+   * @param pos        Marker position (on the board edge), panel coords.
+   * @param direction  Edge normal pointing off the board, panel coords.
+   */
+  void setTabPhantom(const Point& pos, const Angle& direction) noexcept;
+
+  /**
+   * @brief Hide the "phantom" tab marker
+   *
+   * @see #setTabPhantom()
+   */
+  void clearTabPhantom() noexcept;
+
+  /**
+   * @brief Get (creating if needed) the shared BoardProxy for a board
+   *
+   * Reference-counted: every PGI_BoardInstance placement of the same
+   * board design shares one BoardProxy (and thus one hidden
+   * BoardGraphicsScene), rather than each placement building its own
+   * redundant copy. #releaseBoardProxy() is the matching call - see
+   * PGI_BoardInstance::updateOutline()/~PGI_BoardInstance(). Public
+   * (rather than a friend declaration) since PGI_BoardInstance is a
+   * separate class needing to call this, matching this class's existing
+   * looseness about public API scope for its own tightly-coupled
+   * PGI_* item collaborators (e.g. #setBoardInstanceColors()).
+   */
+  BoardProxy* acquireBoardProxy(Board& board) noexcept;
+
+  /**
+   * @brief Release a previously-#acquireBoardProxy()'d BoardProxy
+   *
+   * Decrements the shared BoardProxy's reference count and destroys it
+   * once no PGI_BoardInstance is using it anymore.
+   */
+  void releaseBoardProxy(BoardProxy* proxy) noexcept;
+
   // Operator Overloadings
   PanelGraphicsScene& operator=(const PanelGraphicsScene& rhs) = delete;
 
@@ -198,14 +317,29 @@ private:  // Methods
   void fiducialRemoved(int index) noexcept;
   void addFiducialItem(std::shared_ptr<PI_Fiducial> fiducial) noexcept;
   void removeFiducialItem(const Uuid& uuid) noexcept;
+  void tabAdded(int index) noexcept;
+  void tabRemoved(int index) noexcept;
+  void addTabItem(std::shared_ptr<PI_Tab> tab) noexcept;
+  void removeTabItem(const Uuid& uuid) noexcept;
 
 private:  // Data
   Panel& mPanel;
   Project& mProject;
+  const GraphicsLayerList& mLayers;
+  std::shared_ptr<BoardGraphicsScene::Context> mBoardProxyContext;
+  // Note: std::map (not QHash) since QHash's internal reallocation
+  // path copy-constructs nodes even when never actually shared, which
+  // does not compile for a move-only value type like std::unique_ptr -
+  // the same class of issue as the QVector<std::unique_ptr<...>> one
+  // documented for slice 3c's mDragCmds. Uuid already provides
+  // operator<(), so std::map needs no new hash specialization.
+  std::map<Uuid, std::unique_ptr<BoardProxy>> mBoardProxies;
+  QHash<Uuid, int> mBoardProxyRefCounts;
   std::shared_ptr<PGI_Outline> mOutlineItem;
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
+  QHash<Uuid, std::shared_ptr<PGI_Tab>> mTabItems;
 
   // Cached for #addBoardInstanceItem() - see #setBoardInstanceColors().
   QColor mBoardInstanceColor;
@@ -220,6 +354,13 @@ private:  // Data
   QColor mFiducialTopSelectedColor;
   QColor mFiducialBotColor;
   QColor mFiducialBotSelectedColor;
+  QColor mTabColor;
+  QColor mTabSelectedColor;
+  bool mTabsVisible = true;  ///< See #setTabsVisible()
+  bool mBoardOutlinesVisible = false;  ///< See #setBoardOutlinesVisible()
+
+  /// Preview marker for the Add Tab tool, see #setTabPhantom()
+  std::unique_ptr<QGraphicsPathItem> mTabPhantomItem;
 };
 
 /*******************************************************************************

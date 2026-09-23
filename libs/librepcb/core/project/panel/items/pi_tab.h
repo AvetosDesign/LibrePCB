@@ -1,0 +1,174 @@
+/*
+ * LibrePCB - Professional EDA for everyone!
+ * Copyright (C) 2013 LibrePCB Developers, see AUTHORS.md for contributors.
+ * https://librepcb.org/
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
+#ifndef LIBREPCB_CORE_PI_TAB_H
+#define LIBREPCB_CORE_PI_TAB_H
+
+/*******************************************************************************
+ *  Includes
+ ******************************************************************************/
+#include "../../../serialization/serializableobjectlist.h"
+#include "../../../types/length.h"
+#include "../../../types/point.h"
+#include "../../../types/uuid.h"
+#include "../../../utils/signalslot.h"
+
+#include <QtCore>
+
+/*******************************************************************************
+ *  Namespace / Forward Declarations
+ ******************************************************************************/
+namespace librepcb {
+
+class SExpression;
+
+/*******************************************************************************
+ *  Class PI_Tab
+ ******************************************************************************/
+
+/**
+ * @brief The PI_Tab class represents a single tab marker placed on the edge
+ *        of a board placed on a panel
+ *
+ * A tab marks where a breakaway tab will connect a placed board to the rest
+ * of the panel, following the KiKit Viewer model (a placed "annotation"
+ * marker rather than an automatically computed tab position - see
+ * claude/librepcb_panel_design_decisions.md, decision 4, "Tabs"). This
+ * class only stores the marker itself; the tab's actual solid geometry
+ * (and any mouse bites) will be generated from it at build time.
+ *
+ * A tab is always attached to exactly one ::librepcb::PI_BoardInstance
+ * (#getBoardInstance()), and its #getPosition() is stored in that board's
+ * *own* coordinate system (the same coordinates as the board's
+ * `board.lp`), not in panel coordinates. So when the board instance is
+ * moved, rotated or flipped, the tab automatically stays at the same place
+ * on the board's perimeter without the tab itself being modified.
+ *
+ * The position is expected to lie on the board outline, but that is not
+ * enforced here (the outline can change at any time, since it's edited in
+ * the board's own editor). Consumers project the stored position onto the
+ * current outline with ::librepcb::BoardEdgeSnap, which also yields the
+ * tab's direction (perpendicular to the edge, pointing away from the
+ * board), so no direction needs to be stored either.
+ *
+ * The tab width is a per-tab override (#getWidth()) of the panel-wide
+ * default (::librepcb::Panel::getDefaultTabWidth()): a width of zero means
+ * "no override, use the panel default". Mouse bite parameters (see the
+ * design decisions doc) are not part of this slice yet.
+ */
+class PI_Tab final {
+  Q_DECLARE_TR_FUNCTIONS(PI_Tab)
+
+public:
+  // Signals
+  enum class Event {
+    BoardInstanceChanged,
+    PositionChanged,
+    WidthChanged,
+  };
+  Signal<PI_Tab, Event> onEdited;
+  typedef Slot<PI_Tab, Event> OnEditedSlot;
+
+  // Constructors / Destructor
+  PI_Tab() = delete;
+  PI_Tab(const PI_Tab& other) noexcept;
+  explicit PI_Tab(const SExpression& node);
+  PI_Tab(const Uuid& uuid, const Uuid& boardInstance, const Point& position,
+         const UnsignedLength& width = UnsignedLength(0)) noexcept;
+  ~PI_Tab() noexcept;
+
+  // Getters
+
+  /**
+   * @brief Get the UUID of this tab
+   */
+  const Uuid& getUuid() const noexcept { return mUuid; }
+
+  /**
+   * @brief Get the UUID of the ::librepcb::PI_BoardInstance this tab is
+   *        attached to
+   */
+  const Uuid& getBoardInstance() const noexcept { return mBoardInstance; }
+
+  /**
+   * @brief Get the tab position in the attached board's own coordinates
+   *
+   * @see Class description for why this is board-local.
+   */
+  const Point& getPosition() const noexcept { return mPosition; }
+
+  /**
+   * @brief Get the tab width override
+   *
+   * @return The width of this tab, or zero if this tab has no override and
+   *         uses the panel's default width instead
+   *         (::librepcb::Panel::getDefaultTabWidth()).
+   */
+  const UnsignedLength& getWidth() const noexcept { return mWidth; }
+
+  /**
+   * @brief Check whether this tab overrides the panel's default width
+   *
+   * @return True if #getWidth() is non-zero.
+   */
+  bool hasWidthOverride() const noexcept { return mWidth->toNm() > 0; }
+
+  // Setters
+  void setBoardInstance(const Uuid& boardInstance) noexcept;
+  void setPosition(const Point& position) noexcept;
+  void setWidth(const UnsignedLength& width) noexcept;
+
+  /**
+   * @brief Serialize into ::librepcb::SExpression node
+   *
+   * @param root    Root node to serialize into.
+   */
+  void serialize(SExpression& root) const;
+
+  // Operator Overloadings
+  PI_Tab& operator=(const PI_Tab& rhs) = delete;
+  bool operator==(const PI_Tab& rhs) const noexcept;
+  bool operator!=(const PI_Tab& rhs) const noexcept { return !(*this == rhs); }
+
+private:  // Data
+  Uuid mUuid;
+  Uuid mBoardInstance;
+  Point mPosition;
+  UnsignedLength mWidth;  ///< Zero = use the panel default, see #getWidth()
+};
+
+/*******************************************************************************
+ *  Class PI_TabList
+ ******************************************************************************/
+
+struct PI_TabListNameProvider {
+  static constexpr const char* tagname = "tab";
+};
+using PI_TabList =
+    SerializableObjectList<PI_Tab, PI_TabListNameProvider, PI_Tab::Event>;
+
+/*******************************************************************************
+ *  End of File
+ ******************************************************************************/
+
+}  // namespace librepcb
+
+#endif

@@ -893,12 +893,51 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
   panel->getHoles().loadFromSExpression(*root);
   panel->getFiducials().loadFromSExpression(*root);
 
+  // Panel-wide tab defaults. Older panel.lp files have no "tab_defaults"
+  // node - the Panel constructor already initialized the default width.
+  if (const SExpression* tabDefaults = root->tryGetChild("tab_defaults")) {
+    panel->setDefaultTabWidth(
+        deserialize<PositiveLength>(tabDefaults->getChild("width/@0")));
+  }
+
+  // Tab markers attached to placed boards. Same as above, older panel.lp
+  // files just have no "tab" entries.
+  panel->getTabs().loadFromSExpression(*root);
+
   // Board checksums, keyed by referenced board UUID (not by instance).
   if (const SExpression* checksums = root->tryGetChild("checksums")) {
     foreach (const SExpression* node, checksums->getChildren("board_checksum")) {
       panel->setBoardChecksum(deserialize<Uuid>(node->getChild("@0")),
                               node->getChild("value/@0").getValue());
     }
+  }
+
+  loadPanelUserSettings(*panel);
+}
+
+void ProjectLoader::loadPanelUserSettings(Panel& panel) {
+  // Panels saved before this feature existed have no user settings file -
+  // that's not an error, just keep the defaults.
+  const QString fp = "settings.user.lp";
+  if (!panel.getDirectory().fileExists(fp)) {
+    return;
+  }
+  try {
+    const std::unique_ptr<const SExpression> root = SExpression::parse(
+        panel.getDirectory().read(fp), panel.getDirectory().getAbsPath(fp));
+
+    // Layers.
+    QMap<QString, bool> layersVisibility;
+    for (const SExpression* node : root->getChildren("layer")) {
+      const QString name = node->getChild("@0").getValue();
+      layersVisibility[name] = deserialize<bool>(node->getChild("visible/@0"));
+    }
+    panel.setLayersVisibility(layersVisibility);
+  } catch (const Exception&) {
+    // Same reasoning as loadBoardUserSettings(): user settings are normally
+    // not under version control, so rather ignore errors and use defaults.
+    qCritical() << "Could not load panel user settings, defaults will be "
+                   "used instead.";
   }
 }
 

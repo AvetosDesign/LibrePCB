@@ -18,61 +18,73 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by a human on 2026-09-16.
 
-#ifndef LIBREPCB_EDITOR_CMDPANELEDIT_H
-#define LIBREPCB_EDITOR_CMDPANELEDIT_H
+#ifndef LIBREPCB_EDITOR_CMDPANELTABEDIT_H
+#define LIBREPCB_EDITOR_CMDPANELTABEDIT_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "../../undocommand.h"
 
-#include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/types/elementname.h>
-
-#include <QtCore>
+#include <librepcb/core/types/point.h>
+#include <librepcb/core/types/uuid.h>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
+
+class PI_Tab;
+
 namespace editor {
 
 /*******************************************************************************
- *  Class CmdPanelEdit
+ *  Class CmdPanelTabEdit
  ******************************************************************************/
 
 /**
- * @brief The CmdPanelEdit class
+ * @brief The CmdPanelTabEdit class
  *
- * Undo command to modify a ::librepcb::Panel's own attributes, following
- * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
- * #performExecute()). Covers the panel's name, its outline width &
- * height, and its default tab width. Width & height also support "immediate" application, so a single
- * instance of this command can be reused both for the one-shot Panel Setup
- * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
- * for a live edge-drag resize preview on the canvas 
- *(::librepcb::editor::PanelEditorState_Select, immediate=true).
- * Because width & height can be applied immediately (i.e. before this command
- * is executed on the undo stack), the destructor reverts them back to their 
- * original values if the command is destroyed without having been executed.
+ * Edits a ::librepcb::PI_Tab's attachment (which board placement it
+ * belongs to) and its board-local position, following CmdPanelHoleEdit's
+ * "immediate" live-preview convention: changes applied with
+ * `immediate=true` are reverted by the destructor if the command is never
+ * executed (e.g. an aborted drag).
  */
-class CmdPanelEdit final : public UndoCommand {
+class CmdPanelTabEdit final : public UndoCommand {
 public:
   // Constructors / Destructor
-  CmdPanelEdit() = delete;
-  CmdPanelEdit(const CmdPanelEdit& other) = delete;
-  explicit CmdPanelEdit(Panel& panel) noexcept;
-  ~CmdPanelEdit() noexcept override;
+  CmdPanelTabEdit() = delete;
+  CmdPanelTabEdit(const CmdPanelTabEdit& other) = delete;
+  explicit CmdPanelTabEdit(PI_Tab& tab) noexcept;
+  ~CmdPanelTabEdit() noexcept override;
 
-  // Setters
-  void setName(const ElementName& name) noexcept;
-  void setWidth(const PositiveLength& width, bool immediate) noexcept;
-  void setHeight(const PositiveLength& height, bool immediate) noexcept;
-  void setDefaultTabWidth(const PositiveLength& width) noexcept;
+  // Getters
+  PI_Tab& getTab() noexcept { return mTab; }
 
-private:  // Methods
+  // General Methods
+
+  /**
+   * @brief Move the tab to a (possibly different) board placement
+   *
+   * Both values are set together since a board-local position is only
+   * meaningful relative to its board placement.
+   *
+   * @param boardInstance   UUID of the new ::librepcb::PI_BoardInstance.
+   * @param position        New position in that board's own coordinates.
+   * @param immediate       Whether to apply the change to the model right
+   *                        away (for a live preview).
+   */
+  void setAnchor(const Uuid& boardInstance, const Point& position,
+                 bool immediate) noexcept;
+
+  // Operator Overloadings
+  CmdPanelTabEdit& operator=(const CmdPanelTabEdit& rhs) = delete;
+
+private:
+  // Private Methods
+
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
   bool performExecute() override;
 
@@ -82,18 +94,12 @@ private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performRedo()
   void performRedo() override;
 
-private:  // Data
-  Panel& mPanel;
-
-  ElementName mOldName;
-  ElementName mNewName;
-
-  PositiveLength mOldWidth;
-  PositiveLength mNewWidth;
-  PositiveLength mOldHeight;
-  PositiveLength mNewHeight;
-  PositiveLength mOldDefaultTabWidth;
-  PositiveLength mNewDefaultTabWidth;
+  // Private Member Variables
+  PI_Tab& mTab;
+  Uuid mOldBoardInstance;
+  Uuid mNewBoardInstance;
+  Point mOldPos;
+  Point mNewPos;
 };
 
 /*******************************************************************************

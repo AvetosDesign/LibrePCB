@@ -62,6 +62,11 @@ class CmdPanelFiducialEdit;
  * Hole/Add Pad toolbars. Rotation/clearance/stop-mask editing and
  * Select-tool integration are still deferred - see
  * claude/librepcb_panelization_tool_addboard_slice.md.
+ *
+ * A double click is ignored (rather than handled as a second click), since
+ * its preceding press already placed a fiducial - handling it too would
+ * stack a duplicate fiducial at the same position (same as
+ * PanelEditorState_AddHole and PanelEditorState_AddBoard).
  */
 class PanelEditorState_AddFiducial final : public PanelEditorState {
   Q_OBJECT

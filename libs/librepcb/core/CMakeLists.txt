@@ -427,12 +427,16 @@ add_library(
   project/erc/electricalrulecheckmessages.h
   project/outputjobrunner.cpp
   project/outputjobrunner.h
+  project/panel/boardedgesnap.cpp
+  project/panel/boardedgesnap.h
   project/panel/items/pi_boardinstance.cpp
   project/panel/items/pi_boardinstance.h
   project/panel/items/pi_fiducial.cpp
   project/panel/items/pi_fiducial.h
   project/panel/items/pi_hole.cpp
   project/panel/items/pi_hole.h
+  project/panel/items/pi_tab.cpp
+  project/panel/items/pi_tab.h
   project/panel/panel.cpp
   project/panel/panel.h
   project/project.cpp
