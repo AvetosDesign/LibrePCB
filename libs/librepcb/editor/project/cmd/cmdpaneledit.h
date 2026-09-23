@@ -49,7 +49,8 @@ namespace editor {
  * Undo command to modify a ::librepcb::Panel's own attributes, following
  * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
  * #performExecute()). Covers the panel's name, its outline width &
- * height, and its default tab width. Width & height also support "immediate" application, so a single
+ * height, its tab defaults (width, mouse bites enabled, mouse bite hole
+ * diameter/spacing), and its V-cut defaults (minimum distance to the panel edge). Width & height also support "immediate" application, so a single
  * instance of this command can be reused both for the one-shot Panel Setup
  * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
  * for a live edge-drag resize preview on the canvas 
@@ -57,6 +58,13 @@ namespace editor {
  * Because width & height can be applied immediately (i.e. before this command
  * is executed on the undo stack), the destructor reverts them back to their 
  * original values if the command is destroyed without having been executed.
+ *
+ * Changing the width or height also moves the panel's V-cuts
+ * (::librepcb::PI_VCut) that are nearer to the right resp. top edge by the
+ * same amount, so every V-cut keeps its distance to its nearest edge (the
+ * left and bottom edges are fixed at 0, so V-cuts nearer to those never
+ * move). "Nearest" is determined from the original size. These V-cut moves
+ * are applied, undone and reverted together with the size.
  */
 class CmdPanelEdit final : public UndoCommand {
 public:
@@ -71,6 +79,11 @@ public:
   void setWidth(const PositiveLength& width, bool immediate) noexcept;
   void setHeight(const PositiveLength& height, bool immediate) noexcept;
   void setDefaultTabWidth(const PositiveLength& width) noexcept;
+  void setDefaultMouseBitesEnabled(bool enabled) noexcept;
+  void setDefaultMouseBiteDiameter(const PositiveLength& diameter) noexcept;
+  void setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept;
+  void setDefaultVCutMinPanelEdgeDistance(
+      const UnsignedLength& distance) noexcept;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
@@ -94,6 +107,27 @@ private:  // Data
   PositiveLength mNewHeight;
   PositiveLength mOldDefaultTabWidth;
   PositiveLength mNewDefaultTabWidth;
+  bool mOldDefaultMouseBitesEnabled;
+  bool mNewDefaultMouseBitesEnabled;
+  PositiveLength mOldDefaultMouseBiteDiameter;
+  PositiveLength mNewDefaultMouseBiteDiameter;
+  PositiveLength mOldDefaultMouseBiteSpacing;
+  PositiveLength mNewDefaultMouseBiteSpacing;
+  UnsignedLength mOldDefaultVCutMinPanelEdgeDistance;
+  UnsignedLength mNewDefaultVCutMinPanelEdgeDistance;
+
+  /// All V-cuts with their original positions, captured on construction
+  QVector<std::pair<std::shared_ptr<PI_VCut>, Length>> mVCutOldPositions;
+
+  // Private Methods
+  /**
+   * @brief Move the V-cuts according to a panel size
+   *
+   * @param width   Panel width to fit the V-cuts to.
+   * @param height  Panel height to fit the V-cuts to.
+   */
+  void applyVCutPositions(const PositiveLength& width,
+                          const PositiveLength& height) noexcept;
 };
 
 /*******************************************************************************

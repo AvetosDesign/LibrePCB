@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>250</height>
+    <height>415</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -76,27 +76,7 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="lblDefaultTabWidth">
-         <property name="text">
-          <string>Default Tab Width:</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QDoubleSpinBox" name="spbxDefaultTabWidth">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="toolTip">
-          <string>Width used by all tabs which don't override it</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0" colspan="2">
+       <item row="3" column="0" colspan="2">
         <widget class="QLabel" name="lblSizeNotYetEditable">
          <property name="text">
           <string>Note: Changing the panel size here is not supported yet.</string>
@@ -104,6 +84,120 @@
          <property name="wordWrap">
           <bool>true</bool>
          </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QGroupBox" name="grpTabs">
+         <property name="title">
+          <string>Tabs</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutTabs">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+          </property>
+           <item row="0" column="0">
+             <widget class="QLabel" name="lblDefaultTabWidth">
+              <property name="text">
+               <string>Default Width:</string>
+              </property>
+             </widget>
+           </item>
+           <item row="0" column="1">
+             <widget class="QDoubleSpinBox" name="spbxDefaultTabWidth">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Width used by all tabs which don&apos;t override it</string>
+              </property>
+             </widget>
+           </item>
+           <item row="1" column="0" colspan="2">
+             <widget class="QCheckBox" name="cbxDefaultMouseBites">
+              <property name="text">
+               <string>Include Mouse Bites on Tabs</string>
+              </property>
+              <property name="toolTip">
+               <string>Whether tabs get mouse bite holes along their cut lines by default</string>
+              </property>
+             </widget>
+           </item>
+           <item row="2" column="0">
+             <widget class="QLabel" name="lblDefaultMouseBiteDiameter">
+              <property name="text">
+               <string>Mouse Bite Hole Size:</string>
+              </property>
+             </widget>
+           </item>
+           <item row="2" column="1">
+             <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteDiameter">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Default diameter of the mouse bite holes along the tabs&apos; cut lines</string>
+              </property>
+             </widget>
+           </item>
+           <item row="3" column="0">
+             <widget class="QLabel" name="lblDefaultMouseBiteSpacing">
+              <property name="text">
+               <string>Mouse Bite Hole Spacing:</string>
+              </property>
+             </widget>
+           </item>
+           <item row="3" column="1">
+             <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteSpacing">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Default center-to-center distance between neighboring mouse bite holes</string>
+              </property>
+             </widget>
+           </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <widget class="QGroupBox" name="grpVCuts">
+         <property name="title">
+          <string>V-Cuts</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutVCuts">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+          </property>
+           <item row="0" column="0">
+             <widget class="QLabel" name="lblDefaultVCutMinPanelEdgeDistance">
+              <property name="text">
+               <string>Minimum Distance to Edge of Panel:</string>
+              </property>
+             </widget>
+           </item>
+           <item row="0" column="1">
+             <widget class="QDoubleSpinBox" name="spbxDefaultVCutMinPanelEdgeDistance">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Default minimum distance between a V-cut line and the edge of the panel</string>
+              </property>
+             </widget>
+           </item>
+         </layout>
         </widget>
        </item>
       </layout>

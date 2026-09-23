@@ -24,7 +24,12 @@
  ******************************************************************************/
 #include "paneleditorstate_addvcut.h"
 
+#include "../../../undostack.h"
+#include "../../cmd/cmdpanelvcutadd.h"
+#include "../panelgraphicsscene.h"
+
 #include <QtCore>
+#include <QtWidgets>
 
 /*******************************************************************************
  *  Namespace
@@ -38,7 +43,7 @@ namespace editor {
 
 PanelEditorState_AddVCut::PanelEditorState_AddVCut(
     const Context& context) noexcept
-  : PanelEditorState(context) {
+  : PanelEditorState(context), mVertical(false), mCurrentPos() {
 }
 
 PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {
@@ -49,14 +54,21 @@ PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {
  ******************************************************************************/
 
 bool PanelEditorState_AddVCut::entry() noexcept {
+  mCurrentPos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos())
+                    .mappedToGrid(getGridInterval());
   mAdapter.fsmToolEnter(*this);
   mAdapter.fsmSetViewCursor(Qt::CrossCursor);
-  mAdapter.fsmSetStatusBarMessage(tr("Adding V-cuts is not implemented yet"));
+  mAdapter.fsmSetFeatures(
+      PanelEditorFsmAdapter::Features(PanelEditorFsmAdapter::Feature::Rotate));
+  updatePhantom();
   return true;
 }
 
 bool PanelEditorState_AddVCut::exit() noexcept {
-  mAdapter.fsmSetStatusBarMessage(QString());
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    scene->clearVCutPhantom();
+  }
+  mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features());
   mAdapter.fsmSetViewCursor(std::nullopt);
   mAdapter.fsmToolLeave();
   return true;
@@ -66,11 +78,82 @@ bool PanelEditorState_AddVCut::exit() noexcept {
  *  Event Handlers
  ******************************************************************************/
 
+bool PanelEditorState_AddVCut::processRotate(const Angle& rotation) noexcept {
+  // Only horizontal and vertical exist, so any rotation just toggles.
+  Q_UNUSED(rotation);
+  setVertical(!mVertical);
+  return true;
+}
+
+bool PanelEditorState_AddVCut::processGraphicsSceneMouseMoved(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  mCurrentPos = e.scenePos.mappedToGrid(getGridInterval());
+  updatePhantom();
+  return true;
+}
+
 bool PanelEditorState_AddVCut::processGraphicsSceneLeftMouseButtonPressed(
     const GraphicsSceneMouseEvent& e) noexcept {
-  Q_UNUSED(e);
-  // TODO: V-cut placement is not implemented yet.
+  mCurrentPos = e.scenePos.mappedToGrid(getGridInterval());
+  const Length position = mVertical ? mCurrentPos.getX() : mCurrentPos.getY();
+  if (!isVCutOnPanel(mVertical, position)) {
+    return true;  // V-cuts must be placed on the panel - ignore the click.
+  }
+  try {
+    abortBlockingToolsInOtherEditors();
+    execCmd(new CmdPanelVCutAdd(mContext.panel, mVertical,
+                                position));  // can throw
+  } catch (const Exception& ex) {
+    QMessageBox::critical(parentWidget(), tr("Error"), ex.getMsg());
+  }
   return true;
+}
+
+bool PanelEditorState_AddVCut::processGraphicsSceneLeftMouseButtonDoubleClicked(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  // Ignored - the preceding press already placed a V-cut, so handling this
+  // as another press would stack a duplicate at the same position.
+  Q_UNUSED(e);
+  return true;
+}
+
+bool PanelEditorState_AddVCut::processGraphicsSceneRightMouseButtonReleased(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  Q_UNUSED(e);
+  // Consumed (rather than aborting the tool), same as rotating a board
+  // placement with a right click.
+  setVertical(!mVertical);
+  return true;
+}
+
+/*******************************************************************************
+ *  Connection to UI
+ ******************************************************************************/
+
+void PanelEditorState_AddVCut::setVertical(bool vertical) noexcept {
+  if (vertical != mVertical) {
+    mVertical = vertical;
+    emit verticalChanged(mVertical);
+    updatePhantom();
+  }
+}
+
+/*******************************************************************************
+ *  Private Methods
+ ******************************************************************************/
+
+void PanelEditorState_AddVCut::updatePhantom() noexcept {
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    // Only shown where a click would actually place a V-cut, i.e. on the
+    // panel.
+    const Length position =
+        mVertical ? mCurrentPos.getX() : mCurrentPos.getY();
+    if (isVCutOnPanel(mVertical, position)) {
+      scene->setVCutPhantom(mVertical, position);
+    } else {
+      scene->clearVCutPhantom();
+    }
+  }
 }
 
 /*******************************************************************************

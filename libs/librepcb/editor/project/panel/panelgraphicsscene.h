@@ -25,6 +25,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../graphics/graphicslayer.h"
 #include "../../graphics/graphicsscene.h"
 #include "../board/boardgraphicsscene.h"
 
@@ -51,6 +52,7 @@ class PI_BoardInstance;
 class PI_Fiducial;
 class PI_Hole;
 class PI_Tab;
+class PI_VCut;
 class Project;
 
 namespace editor {
@@ -62,6 +64,7 @@ class PGI_Fiducial;
 class PGI_Hole;
 class PGI_Outline;
 class PGI_Tab;
+class PGI_VCut;
 
 /*******************************************************************************
  *  Class PanelGraphicsScene
@@ -74,9 +77,9 @@ class PGI_Tab;
  * outline (PGI_Outline) plus its placed board instances
  * (PGI_BoardInstance) - following ::librepcb::editor::
  * BoardGraphicsScene's role as a `GraphicsScene` subclass that keeps a live
- * item registry in sync with the model. Holes, fiducials and tab markers
- * (PGI_Hole, PGI_Fiducial, PGI_Tab) are registered the same way. Still no
- * v-grooves or generated tab/mouse-bite geometry (see
+ * item registry in sync with the model. Holes, fiducials, tab markers and
+ * V-cuts (PGI_Hole, PGI_Fiducial, PGI_Tab, PGI_VCut) are registered the
+ * same way. Still no generated tab/mouse-bite geometry (see
  * claude/librepcb_panel_design_decisions.md).
  *
  * Also caches the current board-instance colors (#setBoardInstanceColors()),
@@ -134,6 +137,13 @@ public:
   }
   const QHash<Uuid, std::shared_ptr<PGI_Tab>>& getTabItems() const noexcept {
     return mTabItems;
+  }
+  std::shared_ptr<PGI_VCut> getVCutItem(const Uuid& uuid) const noexcept {
+    return mVCutItems.value(uuid);
+  }
+  const QHash<Uuid, std::shared_ptr<PGI_VCut>>& getVCutItems()
+      const noexcept {
+    return mVCutItems;
   }
 
   /**
@@ -246,6 +256,46 @@ public:
   void setTabsVisible(bool visible) noexcept;
 
   /**
+   * @brief Force the placed V-cuts visible, regardless of their layer
+   *
+   * Used while the Add V-Cuts tool is active. Otherwise, placed V-cuts
+   * follow the Documentation layer's visibility (see
+   * #updateVCutsVisibility()).
+   *
+   * @param forced   Whether V-cuts are shown regardless of the layer.
+   */
+  void setVCutsForcedVisible(bool forced) noexcept;
+
+  /**
+   * @brief Set the colors applied to every V-cut item and the V-cut phantom
+   *
+   * @param color          Forwarded to `PGI_VCut::setColors()`; the
+   *                       phantom uses it at reduced alpha.
+   * @param selectedColor  Forwarded to `PGI_VCut::setColors()`.
+   */
+  void setVCutColors(const QColor& color,
+                     const QColor& selectedColor) noexcept;
+
+  /**
+   * @brief Show the "phantom" V-cut line
+   *
+   * A non-selectable preview with the same drawing as a real V-cut
+   * (PGI_VCut::buildPathPx()), in the V-cut color at reduced alpha.
+   * PanelEditorState_AddVCut shows it at the cursor while placing.
+   *
+   * @param vertical  Whether the line is vertical (else horizontal).
+   * @param position  Y coordinate (horizontal) or X coordinate (vertical).
+   */
+  void setVCutPhantom(bool vertical, const Length& position) noexcept;
+
+  /**
+   * @brief Hide the "phantom" V-cut line
+   *
+   * @see #setVCutPhantom()
+   */
+  void clearVCutPhantom() noexcept;
+
+  /**
    * @brief Show or hide the board placements' reference outlines
    *
    * Applied to every current PGI_BoardInstance item (see
@@ -321,6 +371,25 @@ private:  // Methods
   void tabRemoved(int index) noexcept;
   void addTabItem(std::shared_ptr<PI_Tab> tab) noexcept;
   void removeTabItem(const Uuid& uuid) noexcept;
+  void vCutAdded(int index) noexcept;
+  void vCutRemoved(int index) noexcept;
+  void addVCutItem(std::shared_ptr<PI_VCut> vcut) noexcept;
+  void removeVCutItem(const Uuid& uuid) noexcept;
+  void updateVCutPhantom() noexcept;
+
+  /**
+   * @brief Show/hide the placed V-cuts according to #mVCutLayer
+   *
+   * Placed V-cuts belong to the board documentation layer
+   * (::librepcb::ColorRole::boardDocumentation()), so toggling that layer in
+   * the Layers panel shows/hides them - unless forced visible, see
+   * #setVCutsForcedVisible(). Hidden V-cuts can't be clicked or
+   * selected (Qt also deselects an item when hiding it). The Add V-Cuts
+   * tool's phantom line is not affected.
+   */
+  void updateVCutsVisibility() noexcept;
+  void vCutLayerEdited(const GraphicsLayer& layer,
+                       GraphicsLayer::Event event) noexcept;
 
 private:  // Data
   Panel& mPanel;
@@ -340,6 +409,7 @@ private:  // Data
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
   QHash<Uuid, std::shared_ptr<PGI_Tab>> mTabItems;
+  QHash<Uuid, std::shared_ptr<PGI_VCut>> mVCutItems;
 
   // Cached for #addBoardInstanceItem() - see #setBoardInstanceColors().
   QColor mBoardInstanceColor;
@@ -358,6 +428,18 @@ private:  // Data
   QColor mTabSelectedColor;
   bool mTabsVisible = true;  ///< See #setTabsVisible()
   bool mBoardOutlinesVisible = false;  ///< See #setBoardOutlinesVisible()
+  QColor mVCutColor;
+  QColor mVCutSelectedColor;
+
+  /// Layer controlling the placed V-cuts' visibility (may be null), see
+  /// #updateVCutsVisibility()
+  std::shared_ptr<const GraphicsLayer> mVCutLayer;
+  bool mVCutsForcedVisible = false;  ///< See #setVCutsForcedVisible()
+  GraphicsLayer::OnEditedSlot mOnVCutLayerEditedSlot;
+
+  /// Preview line for the Add V-Cuts tool, see #setVCutPhantom()
+  std::unique_ptr<QGraphicsPathItem> mVCutPhantomItem;
+  std::optional<std::pair<bool, Length>> mVCutPhantom;  ///< Current preview
 
   /// Preview marker for the Add Tab tool, see #setTabPhantom()
   std::unique_ptr<QGraphicsPathItem> mTabPhantomItem;
