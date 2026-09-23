@@ -894,15 +894,41 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
   panel->getFiducials().loadFromSExpression(*root);
 
   // Panel-wide tab defaults. Older panel.lp files have no "tab_defaults"
-  // node - the Panel constructor already initialized the default width.
+  // node, or no mouse bite entries in it - the Panel constructor already
+  // initialized all defaults.
   if (const SExpression* tabDefaults = root->tryGetChild("tab_defaults")) {
     panel->setDefaultTabWidth(
         deserialize<PositiveLength>(tabDefaults->getChild("width/@0")));
+    if (tabDefaults->tryGetChild("mouse_bites")) {
+      panel->setDefaultMouseBitesEnabled(
+          deserialize<bool>(tabDefaults->getChild("mouse_bites/@0")));
+    }
+    if (tabDefaults->tryGetChild("mouse_bite_diameter")) {
+      panel->setDefaultMouseBiteDiameter(deserialize<PositiveLength>(
+          tabDefaults->getChild("mouse_bite_diameter/@0")));
+    }
+    if (tabDefaults->tryGetChild("mouse_bite_spacing")) {
+      panel->setDefaultMouseBiteSpacing(deserialize<PositiveLength>(
+          tabDefaults->getChild("mouse_bite_spacing/@0")));
+    }
+  }
+
+  // Panel-wide V-cut defaults. Older panel.lp files have no
+  // "vcut_defaults" node - the Panel constructor already initialized them.
+  if (const SExpression* vcutDefaults = root->tryGetChild("vcut_defaults")) {
+    if (vcutDefaults->tryGetChild("min_panel_edge_distance")) {
+      panel->setDefaultVCutMinPanelEdgeDistance(deserialize<UnsignedLength>(
+          vcutDefaults->getChild("min_panel_edge_distance/@0")));
+    }
   }
 
   // Tab markers attached to placed boards. Same as above, older panel.lp
   // files just have no "tab" entries.
   panel->getTabs().loadFromSExpression(*root);
+
+  // V-cut lines. Same as above, older panel.lp files have no "vcut"
+  // entries.
+  panel->getVCuts().loadFromSExpression(*root);
 
   // Board checksums, keyed by referenced board UUID (not by instance).
   if (const SExpression* checksums = root->tryGetChild("checksums")) {
