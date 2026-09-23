@@ -351,14 +351,18 @@ public:
   }
 
   /**
-   * @brief Get all tabs attached to a specific board placement
+   * @brief Get all tabs of a specific board design
    *
-   * @param boardInstance   UUID of the ::librepcb::PI_BoardInstance.
+   * These tabs apply to every placed copy of that board, see
+   * ::librepcb::PI_Tab.
    *
-   * @return The attached tabs, in list order.
+   * @param board   UUID of the referenced ::librepcb::Board.
+   *
+   * @return The board's tabs, in list order.
    */
-  QVector<std::shared_ptr<PI_Tab>> getTabsOfBoardInstance(
-      const Uuid& boardInstance) noexcept;
+  QVector<std::shared_ptr<PI_Tab>> getTabsOfBoard(const Uuid& board) noexcept;
+  QVector<std::shared_ptr<const PI_Tab>> getTabsOfBoard(
+      const Uuid& board) const noexcept;
 
   void addTab(std::shared_ptr<PI_Tab> tab);
   void removeTab(std::shared_ptr<PI_Tab> tab);

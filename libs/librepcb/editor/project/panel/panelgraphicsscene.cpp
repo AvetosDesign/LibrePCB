@@ -59,7 +59,10 @@ PanelGraphicsScene::PanelGraphicsScene(
     // BoardProxy's hidden scene populates itself.
     mBoardProxyContext(boardProxyContext),
     mVCutLayer(layers.get(ColorRole::boardDocumentation())),
-    mOnVCutLayerEditedSlot(*this, &PanelGraphicsScene::vCutLayerEdited) {
+    mOnVCutLayerEditedSlot(*this, &PanelGraphicsScene::vCutLayerEdited),
+    mOnTabListEditedSlot(*this, &PanelGraphicsScene::tabListEdited),
+    mOnBoardInstanceListEditedSlot(
+        *this, &PanelGraphicsScene::boardInstanceListEdited) {
   if (mVCutLayer) {
     mVCutLayer->onEdited.attach(mOnVCutLayerEditedSlot);
   }
@@ -99,11 +102,12 @@ PanelGraphicsScene::PanelGraphicsScene(
       addFiducialItem(fiducial);
     }
   }
-  for (int i = 0; i < mPanel.getTabs().count(); ++i) {
-    if (auto tab = mPanel.getTabs().value(i)) {
-      addTabItem(tab);
-    }
-  }
+  updateTabItems();
+  mPanel.getTabs().onElementEdited.attach(mOnTabListEditedSlot);
+  mPanel.getBoardInstances().onElementEdited.attach(
+      mOnBoardInstanceListEditedSlot);
+  connect(this, &QGraphicsScene::selectionChanged, this,
+          &PanelGraphicsScene::updateTabHighlights);
   for (int i = 0; i < mPanel.getVCuts().count(); ++i) {
     if (auto vcut = mPanel.getVCuts().value(i)) {
       addVCutItem(vcut);
@@ -143,9 +147,12 @@ PanelGraphicsScene::~PanelGraphicsScene() noexcept {
     removeItem(*mTabPhantomItem);
     mTabPhantomItem.reset();
   }
-  foreach (const Uuid& uuid, mTabItems.keys()) {
-    removeTabItem(uuid);
+  disconnect(this, &QGraphicsScene::selectionChanged, this,
+             &PanelGraphicsScene::updateTabHighlights);
+  foreach (const auto& item, mTabItems) {
+    removeItem(*item);
   }
+  mTabItems.clear();
   foreach (const Uuid& uuid, mBoardInstanceItems.keys()) {
     removeBoardInstanceItem(uuid);
   }
@@ -239,7 +246,8 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
     if (snap && ((!best) || (snap->distance < best->distance))) {
       const Transform transform(instance.getPosition(), instance.getRotation(),
                                 instance.getFlipped());
-      best = BoardEdgeHit{instance.getUuid(), snap->position,
+      best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
+                          snap->position,
                           transform.map(snap->position),
                           transform.mapNonMirrorable(snap->direction),
                           snap->distance};
@@ -379,11 +387,8 @@ void PanelGraphicsScene::boardInstanceAdded(int index) noexcept {
   if (auto instance = mPanel.getBoardInstances().value(index)) {
     addBoardInstanceItem(instance);
   }
-  // A tab marker whose board placement was missing until now (hidden) can
-  // be shown again.
-  foreach (const auto& item, mTabItems) {
-    if (item) item->updateGeometry();
-  }
+  // The new copy gets the markers of its board's tabs.
+  updateTabItems();
 }
 
 void PanelGraphicsScene::boardInstanceRemoved(int index) noexcept {
@@ -397,6 +402,7 @@ void PanelGraphicsScene::boardInstanceRemoved(int index) noexcept {
       removeBoardInstanceItem(uuid);
     }
   }
+  updateTabItems();
 }
 
 void PanelGraphicsScene::addBoardInstanceItem(
@@ -527,35 +533,96 @@ void PanelGraphicsScene::releaseBoardProxy(BoardProxy* proxy) noexcept {
 }
 
 void PanelGraphicsScene::tabAdded(int index) noexcept {
-  if (auto tab = mPanel.getTabs().value(index)) {
-    addTabItem(tab);
-  }
+  Q_UNUSED(index);
+  updateTabItems();
 }
 
 void PanelGraphicsScene::tabRemoved(int index) noexcept {
   Q_UNUSED(index);
-  const QList<Uuid> currentUuids = mTabItems.keys();
-  foreach (const Uuid& uuid, currentUuids) {
-    if (!mPanel.getTab(uuid)) {
-      removeTabItem(uuid);
+  updateTabItems();
+}
+
+void PanelGraphicsScene::updateTabItems() noexcept {
+  // Remove items whose (tab, instance) pair no longer exists.
+  for (int i = mTabItems.count() - 1; i >= 0; --i) {
+    const std::shared_ptr<PGI_Tab>& item = mTabItems.at(i);
+    const Uuid& tabUuid = item->getTab().getUuid();
+    const Uuid& instanceUuid = item->getBoardInstance().getUuid();
+    std::shared_ptr<PI_Tab> tab = mPanel.getTab(tabUuid);
+    std::shared_ptr<PI_BoardInstance> instance =
+        mPanel.getBoardInstance(instanceUuid);
+    if ((tab != item->getTabPtr()) || (!instance) ||
+        (instance.get() != &item->getBoardInstance()) ||
+        (instance->getBoard() != tab->getBoard())) {
+      removeItem(*item);
+      mTabItems.removeAt(i);
     }
+  }
+
+  // Add items for new pairs.
+  for (int t = 0; t < mPanel.getTabs().count(); ++t) {
+    std::shared_ptr<PI_Tab> tab = mPanel.getTabs().value(t);
+    if (!tab) continue;
+    for (int b = 0; b < mPanel.getBoardInstances().count(); ++b) {
+      std::shared_ptr<PI_BoardInstance> instance =
+          mPanel.getBoardInstances().value(b);
+      if ((!instance) || (instance->getBoard() != tab->getBoard())) {
+        continue;
+      }
+      bool exists = false;
+      foreach (const auto& item, mTabItems) {
+        if ((item->getTabPtr() == tab) &&
+            (&item->getBoardInstance() == instance.get())) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
+        std::shared_ptr<PGI_Tab> item =
+            std::make_shared<PGI_Tab>(tab, instance, mProject);
+        item->setColors(mTabColor, mTabSelectedColor);
+        item->setMarkerShown(mTabsVisible);
+        addItem(*item);
+        mTabItems.append(item);
+      }
+    }
+  }
+  updateTabHighlights();
+}
+
+void PanelGraphicsScene::updateTabHighlights() noexcept {
+  QSet<const PI_Tab*> selectedTabs;
+  foreach (const auto& item, mTabItems) {
+    if (item->isSelected()) {
+      selectedTabs.insert(&item->getTab());
+    }
+  }
+  foreach (const auto& item, mTabItems) {
+    item->setHighlighted((!item->isSelected()) &&
+                         selectedTabs.contains(&item->getTab()));
   }
 }
 
-void PanelGraphicsScene::addTabItem(std::shared_ptr<PI_Tab> tab) noexcept {
-  Q_ASSERT(tab);
-  Q_ASSERT(!mTabItems.contains(tab->getUuid()));
-  std::shared_ptr<PGI_Tab> item =
-      std::make_shared<PGI_Tab>(tab, mPanel, mProject);
-  item->setColors(mTabColor, mTabSelectedColor);
-  item->setMarkerShown(mTabsVisible);
-  addItem(*item);
-  mTabItems.insert(tab->getUuid(), item);
+void PanelGraphicsScene::tabListEdited(const PI_TabList& list, int index,
+                                       const std::shared_ptr<const PI_Tab>& tab,
+                                       PI_Tab::Event event) noexcept {
+  Q_UNUSED(list);
+  Q_UNUSED(index);
+  Q_UNUSED(tab);
+  if (event == PI_Tab::Event::BoardChanged) {
+    updateTabItems();
+  }
 }
 
-void PanelGraphicsScene::removeTabItem(const Uuid& uuid) noexcept {
-  if (std::shared_ptr<PGI_Tab> item = mTabItems.take(uuid)) {
-    removeItem(*item);
+void PanelGraphicsScene::boardInstanceListEdited(
+    const PI_BoardInstanceList& list, int index,
+    const std::shared_ptr<const PI_BoardInstance>& instance,
+    PI_BoardInstance::Event event) noexcept {
+  Q_UNUSED(list);
+  Q_UNUSED(index);
+  Q_UNUSED(instance);
+  if (event == PI_BoardInstance::Event::BoardChanged) {
+    updateTabItems();
   }
 }
 
