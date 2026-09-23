@@ -78,6 +78,7 @@ PanelEditorState_Select::PanelEditorState_Select(
     const Context& context) noexcept
   : PanelEditorState(context),
     mIsUndoCmdActive(false),
+    mDragSnapPending(false),
     mResizeHandle(PGI_Outline::ResizeHandle::None),
     mSelectionKind(SelectionKind::None),
     mCurrentDiameter(1000000),
@@ -575,7 +576,27 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     return true;
   }
 
-  const Point delta = pos - mDragLastPos;
+  Point delta = pos - mDragLastPos;
+  if (mDragSnapPending && (delta != Point(0, 0))) {
+    // First actual move step: shift the whole group so its anchor item gets
+    // aligned to the current grid (it may have been placed with another
+    // grid interval). Since all further deltas are multiples of the grid,
+    // it stays aligned. The group is moved rigidly, so only the anchor is
+    // guaranteed to be on the grid: a single dragged board/hole/fiducial
+    // always is. V-cuts are snapped individually (see below).
+    std::optional<Point> anchor;
+    if (!mDragCmds.empty()) {
+      anchor = mDragCmds.front()->getPosition();
+    } else if (!mDragHoleCmds.empty()) {
+      anchor = mDragHoleCmds.front()->getPosition();
+    } else if (!mDragFiducialCmds.empty()) {
+      anchor = mDragFiducialCmds.front()->getPosition();
+    }
+    if (anchor) {
+      delta += anchor->mappedToGrid(getGridInterval()) - *anchor;
+    }
+    mDragSnapPending = false;
+  }
   if (delta != Point(0, 0)) {
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
       cmd->translate(delta, true);
@@ -864,6 +885,7 @@ bool PanelEditorState_Select::startMovingSelection(
   }
 
   mDragLastPos = startPos.mappedToGrid(getGridInterval());
+  mDragSnapPending = true;
   return true;
 }
 
