@@ -40,6 +40,39 @@
 namespace librepcb {
 
 /*******************************************************************************
+ *  Non-Member Functions
+ ******************************************************************************/
+
+template <>
+std::unique_ptr<SExpression> serialize(const Panel::RoutingStyle& obj) {
+  switch (obj) {
+    case Panel::RoutingStyle::None:
+      return SExpression::createToken("none");
+    case Panel::RoutingStyle::Open:
+      return SExpression::createToken("open");
+    case Panel::RoutingStyle::Tight:
+      return SExpression::createToken("tight");
+    default:
+      throw LogicError(__FILE__, __LINE__);
+  }
+}
+
+template <>
+Panel::RoutingStyle deserialize(const SExpression& node) {
+  const QString str = node.getValue();
+  if (str == QLatin1String("none")) {
+    return Panel::RoutingStyle::None;
+  } else if (str == QLatin1String("open")) {
+    return Panel::RoutingStyle::Open;
+  } else if (str == QLatin1String("tight")) {
+    return Panel::RoutingStyle::Tight;
+  } else {
+    throw RuntimeError(__FILE__, __LINE__,
+                       QString("Unknown panel routing style: '%1'").arg(str));
+  }
+}
+
+/*******************************************************************************
  *  Constructors / Destructor
  ******************************************************************************/
 
@@ -61,7 +94,11 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mDefaultMouseBitesEnabled(true),
     mDefaultMouseBiteDiameter(initialDefaultMouseBiteDiameter),
     mDefaultMouseBiteSpacing(initialDefaultMouseBiteSpacing),
-    mDefaultVCutMinPanelEdgeDistance(initialDefaultVCutMinPanelEdgeDistance),
+    mDefaultMouseBiteOffset(initialDefaultMouseBiteOffset),
+    mRoutingStyle(RoutingStyle::Open),
+    mRouterBitDiameter(initialRouterBitDiameter),
+    mFrameWidthTopBottom(initialFrameWidth),
+    mFrameWidthLeftRight(initialFrameWidth),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
     mOnHolesEditedSlot(*this, &Panel::holesEdited),
     mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited),
@@ -152,10 +189,37 @@ void Panel::setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept {
   }
 }
 
-void Panel::setDefaultVCutMinPanelEdgeDistance(
-    const UnsignedLength& distance) noexcept {
-  if (distance != mDefaultVCutMinPanelEdgeDistance) {
-    mDefaultVCutMinPanelEdgeDistance = distance;
+void Panel::setDefaultMouseBiteOffset(const Length& offset) noexcept {
+  if (offset != mDefaultMouseBiteOffset) {
+    mDefaultMouseBiteOffset = offset;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setRoutingStyle(RoutingStyle style) noexcept {
+  if (style != mRoutingStyle) {
+    mRoutingStyle = style;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setRouterBitDiameter(const PositiveLength& diameter) noexcept {
+  if (diameter != mRouterBitDiameter) {
+    mRouterBitDiameter = diameter;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setFrameWidthTopBottom(const UnsignedLength& width) noexcept {
+  if (width != mFrameWidthTopBottom) {
+    mFrameWidthTopBottom = width;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setFrameWidthLeftRight(const UnsignedLength& width) noexcept {
+  if (width != mFrameWidthLeftRight) {
+    mFrameWidthLeftRight = width;
     emit attributesChanged();
   }
 }
@@ -385,10 +449,13 @@ void Panel::save() {
   tabDefaultsNode.appendChild("mouse_bites", mDefaultMouseBitesEnabled);
   tabDefaultsNode.appendChild("mouse_bite_diameter", mDefaultMouseBiteDiameter);
   tabDefaultsNode.appendChild("mouse_bite_spacing", mDefaultMouseBiteSpacing);
+  tabDefaultsNode.appendChild("mouse_bite_offset", mDefaultMouseBiteOffset);
   root->ensureLineBreak();
-  SExpression& vcutDefaultsNode = root->appendList("vcut_defaults");
-  vcutDefaultsNode.appendChild("min_panel_edge_distance",
-                               mDefaultVCutMinPanelEdgeDistance);
+  SExpression& routingNode = root->appendList("routing");
+  routingNode.appendChild("style", mRoutingStyle);
+  routingNode.appendChild("bit_diameter", mRouterBitDiameter);
+  routingNode.appendChild("frame_width_top_bottom", mFrameWidthTopBottom);
+  routingNode.appendChild("frame_width_left_right", mFrameWidthLeftRight);
   root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();

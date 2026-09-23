@@ -56,15 +56,20 @@ class PanelSetupDialog;
  * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
  * `QDialogButtonBox`, loaded from the model on construction, applied back
  * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name, outline width/height and the tab defaults
- * (width, whether mouse bites are included, mouse bite hole size and
- * spacing - see ::librepcb::Panel::getDefaultTabWidth()) and the V-cut
- * defaults (minimum distance to the panel edge, in a "V-Cuts" group after
- * "Tabs"), all applied together via a single
- * ::librepcb::editor::CmdPanelEdit. The tab defaults are grouped in a
- * "Tabs" group box, named like the short noun section headings of
- * ::librepcb::editor::BoardSetupDialog ("Clearances", "Minimum Sizes") and
- * this dialog's own "Routing" group. The width & height
+ * ::librepcb::Panel today, on four tabs: "General" (name, outline
+ * width/height), "Design" (groups "Tabs": default width - see
+ * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bites": whether mouse
+ * bites are included, default hole size, spacing and offset; "Framing": routing
+ * style and frame widths) and "Manufacturing" (router bit size), all
+ * applied together via a single
+ * ::librepcb::editor::CmdPanelEdit, plus "DRC Settings". DRC rules (e.g.
+ * the minimum V-cut distances to the panel edge, copper, holes and
+ * components) are kept separate from the design settings, like Board Setup
+ * does. The "DRC Settings" tab is a UI placeholder for now (defaults only,
+ * not loaded, saved or used), since there is no panel DRC yet. The group
+ * boxes are named like the short noun section headings of
+ * ::librepcb::editor::BoardSetupDialog ("Clearances", "Minimum Sizes").
+ * The width & height
  * and tab default fields are currently plain `QDoubleSpinBox` fields
  * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
  */
@@ -86,6 +91,11 @@ private:  // Methods
   void buttonBoxClicked(QAbstractButton* button);
   void load() noexcept;
   bool apply() noexcept;
+
+  /**
+   * @brief Enable the frame width fields only for the Open routing style
+   */
+  void updateFrameWidthsEnabled() noexcept;
 
 private:  // Data
   GuiApplication& mApp;

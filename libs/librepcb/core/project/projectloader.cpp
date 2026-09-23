@@ -911,16 +911,36 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
       panel->setDefaultMouseBiteSpacing(deserialize<PositiveLength>(
           tabDefaults->getChild("mouse_bite_spacing/@0")));
     }
-  }
-
-  // Panel-wide V-cut defaults. Older panel.lp files have no
-  // "vcut_defaults" node - the Panel constructor already initialized them.
-  if (const SExpression* vcutDefaults = root->tryGetChild("vcut_defaults")) {
-    if (vcutDefaults->tryGetChild("min_panel_edge_distance")) {
-      panel->setDefaultVCutMinPanelEdgeDistance(deserialize<UnsignedLength>(
-          vcutDefaults->getChild("min_panel_edge_distance/@0")));
+    if (tabDefaults->tryGetChild("mouse_bite_offset")) {
+      panel->setDefaultMouseBiteOffset(deserialize<Length>(
+          tabDefaults->getChild("mouse_bite_offset/@0")));
     }
   }
+
+  // Routing settings. Older panel.lp files have no "routing" node - the
+  // Panel constructor already initialized them.
+  if (const SExpression* routing = root->tryGetChild("routing")) {
+    if (routing->tryGetChild("style")) {
+      panel->setRoutingStyle(
+          deserialize<Panel::RoutingStyle>(routing->getChild("style/@0")));
+    }
+    if (routing->tryGetChild("bit_diameter")) {
+      panel->setRouterBitDiameter(deserialize<PositiveLength>(
+          routing->getChild("bit_diameter/@0")));
+    }
+    if (routing->tryGetChild("frame_width_top_bottom")) {
+      panel->setFrameWidthTopBottom(deserialize<UnsignedLength>(
+          routing->getChild("frame_width_top_bottom/@0")));
+    }
+    if (routing->tryGetChild("frame_width_left_right")) {
+      panel->setFrameWidthLeftRight(deserialize<UnsignedLength>(
+          routing->getChild("frame_width_left_right/@0")));
+    }
+  }
+
+  // Note: panel.lp files from development builds may contain a
+  // "vcut_defaults" node (minimum V-cut to panel edge distance). That
+  // setting was removed since it's a DRC rule, so the node is ignored.
 
   // Tab markers, one set per board design (shared by all its placed copies).
   // Same as above, older panel.lp files just have no "tab" entries. Tabs
