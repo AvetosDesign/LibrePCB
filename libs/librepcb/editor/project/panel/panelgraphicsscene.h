@@ -29,6 +29,8 @@
 #include "../../graphics/graphicsscene.h"
 #include "../board/boardgraphicsscene.h"
 
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
@@ -132,10 +134,14 @@ public:
       const noexcept {
     return mFiducialItems;
   }
-  std::shared_ptr<PGI_Tab> getTabItem(const Uuid& uuid) const noexcept {
-    return mTabItems.value(uuid);
-  }
-  const QHash<Uuid, std::shared_ptr<PGI_Tab>>& getTabItems() const noexcept {
+  /**
+   * @brief Get all tab marker items
+   *
+   * A tab (::librepcb::PI_Tab) belongs to a board design, so there is one
+   * item per (tab, placed copy of its board) pair - i.e. several items can
+   * refer to the same tab.
+   */
+  const QList<std::shared_ptr<PGI_Tab>>& getTabItems() const noexcept {
     return mTabItems;
   }
   std::shared_ptr<PGI_VCut> getVCutItem(const Uuid& uuid) const noexcept {
@@ -151,6 +157,7 @@ public:
    */
   struct BoardEdgeHit {
     Uuid boardInstance;  ///< The placement whose edge was found
+    Uuid board;  ///< The board (design) of that placement
     Point boardPos;  ///< Nearest edge point, in that board's own coordinates
     Point scenePos;  ///< Nearest edge point, in panel coordinates
     Angle direction;  ///< Edge normal pointing off the board, panel coords
@@ -369,8 +376,29 @@ private:  // Methods
   void removeFiducialItem(const Uuid& uuid) noexcept;
   void tabAdded(int index) noexcept;
   void tabRemoved(int index) noexcept;
-  void addTabItem(std::shared_ptr<PI_Tab> tab) noexcept;
-  void removeTabItem(const Uuid& uuid) noexcept;
+  /**
+   * @brief Bring the tab marker items in sync with the model
+   *
+   * Creates one PGI_Tab per (tab, board instance of the tab's board) pair
+   * and removes items whose pair no longer exists (tab or instance
+   * removed, or tab/instance now referring to another board). Existing
+   * items are kept, so their selection survives.
+   */
+  void updateTabItems() noexcept;
+
+  /**
+   * @brief Highlight the markers of selected tabs on the other copies
+   *
+   * Called whenever the selection changes, see PGI_Tab::setHighlighted().
+   */
+  void updateTabHighlights() noexcept;
+  void tabListEdited(const PI_TabList& list, int index,
+                     const std::shared_ptr<const PI_Tab>& tab,
+                     PI_Tab::Event event) noexcept;
+  void boardInstanceListEdited(
+      const PI_BoardInstanceList& list, int index,
+      const std::shared_ptr<const PI_BoardInstance>& instance,
+      PI_BoardInstance::Event event) noexcept;
   void vCutAdded(int index) noexcept;
   void vCutRemoved(int index) noexcept;
   void addVCutItem(std::shared_ptr<PI_VCut> vcut) noexcept;
@@ -408,7 +436,7 @@ private:  // Data
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
-  QHash<Uuid, std::shared_ptr<PGI_Tab>> mTabItems;
+  QList<std::shared_ptr<PGI_Tab>> mTabItems;  ///< See #getTabItems()
   QHash<Uuid, std::shared_ptr<PGI_VCut>> mVCutItems;
 
   // Cached for #addBoardInstanceItem() - see #setBoardInstanceColors().
@@ -436,6 +464,11 @@ private:  // Data
   std::shared_ptr<const GraphicsLayer> mVCutLayer;
   bool mVCutsForcedVisible = false;  ///< See #setVCutsForcedVisible()
   GraphicsLayer::OnEditedSlot mOnVCutLayerEditedSlot;
+
+  /// Tab/board instance edits that change which tab markers exist (a tab
+  /// or a placement referring to another board), see #updateTabItems()
+  PI_TabList::OnElementEditedSlot mOnTabListEditedSlot;
+  PI_BoardInstanceList::OnElementEditedSlot mOnBoardInstanceListEditedSlot;
 
   /// Preview line for the Add V-Cuts tool, see #setVCutPhantom()
   std::unique_ptr<QGraphicsPathItem> mVCutPhantomItem;

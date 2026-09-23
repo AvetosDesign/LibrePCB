@@ -179,14 +179,14 @@ bool PanelEditorState_Select::processRemove() noexcept {
       }
     }
   }
-  // Tab markers aren't lockable themselves.
+  // Tab markers aren't lockable themselves. Several selected markers can
+  // be the same tab (one per copy of its board), so collect unique tabs.
   QVector<std::shared_ptr<PI_Tab>> tabsToRemove;
-  const auto& tabItems = scene->getTabItems();
-  for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto tab = mContext.panel.getTabs().find(it.key())) {
-        tabsToRemove.append(tab);
-      }
+  foreach (const auto& item, scene->getTabItems()) {
+    if (item && item->isSelected() &&
+        (!tabsToRemove.contains(item->getTabPtr())) &&
+        mContext.panel.getTab(item->getTab().getUuid())) {
+      tabsToRemove.append(item->getTabPtr());
     }
   }
   QVector<std::shared_ptr<PI_VCut>> vCutsToRemove;
@@ -208,9 +208,9 @@ bool PanelEditorState_Select::processRemove() noexcept {
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Remove item(s) from panel"));
-    // Selected tabs first: removing a board placement also removes all tabs
-    // still attached to it (see CmdPanelBoardInstanceRemove), so a selected
-    // tab of a selected board must already be gone by then.
+    // Tabs belong to the board design and are kept when board placements
+    // are removed (see CmdPanelBoardInstanceRemove), so only the selected
+    // tabs are removed.
     foreach (const std::shared_ptr<PI_Tab>& tab, tabsToRemove) {
       mContext.undoStack.appendToCmdGroup(
           new CmdPanelTabRemove(mContext.panel, tab));
@@ -336,9 +336,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
     mIsUndoCmdActive = true;
 
     bool skippedUnknownBoard = false;
-    // Copied board placement UUID -> pasted placement UUID, to re-attach
-    // the copied tabs to the pasted boards.
-    QHash<Uuid, Uuid> pastedInstances;
+    // Boards (designs) of the pasted placements, to add their copied tabs.
+    QSet<Uuid> pastedBoards;
     for (const PI_BoardInstance& src : data->getInstances()) {
       // Pasting a board that isn't part of this project (e.g. clipboard
       // content copied from a different project) isn't supported yet.
@@ -353,7 +352,7 @@ bool PanelEditorState_Select::processPaste() noexcept {
       mContext.undoStack.appendToCmdGroup(addCmd);  // can throw
 
       if (auto instance = addCmd->getInstance()) {
-        pastedInstances.insert(src.getUuid(), instance->getUuid());
+        pastedBoards.insert(instance->getBoard());
         mDragCmds.push_back(
             std::make_unique<CmdPanelBoardInstanceEdit>(*instance));
         // Offset from the copied reference point, independent of the cursor
@@ -397,15 +396,27 @@ bool PanelEditorState_Select::processPaste() noexcept {
       }
     }
 
-    // Tabs are board-local, so they follow their pasted board through the
-    // placement drag without any drag command of their own.
-    // Note: QHash::value() can't be used since Uuid has no default
-    // constructor, so look the entry up with find() instead.
+    // Tabs belong to the board design, so the pasted copies already show
+    // the design's tabs of this panel. The copied tabs are only added where
+    // this panel doesn't have them yet (e.g. pasting into another panel of
+    // the project), so pasting never duplicates a tab. They are board-local,
+    // so they follow their pasted board through the placement drag without
+    // any drag command of their own.
     for (const PI_Tab& src : data->getTabs()) {
-      auto it = pastedInstances.constFind(src.getBoardInstance());
-      if (it != pastedInstances.constEnd()) {
+      if (!pastedBoards.contains(src.getBoard())) {
+        continue;
+      }
+      bool exists = false;
+      foreach (const auto& tab, mContext.panel.getTabsOfBoard(src.getBoard())) {
+        if (tab->getPosition() == src.getPosition()) {
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) {
         mContext.undoStack.appendToCmdGroup(
-            new CmdPanelTabAdd(mContext.panel, it.value(), src.getPosition(),
+            new CmdPanelTabAdd(mContext.panel, src.getBoard(),
+                               src.getPosition(),
                                src.getWidth()));  // can throw
       }
     }
@@ -516,7 +527,27 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     // that board.
     if (PanelGraphicsScene* scene = getActivePanelScene()) {
       if (auto hit = scene->findNearestBoardEdge(e.scenePos)) {
-        mDragTabCmd->setAnchor(hit->boardInstance, hit->boardPos, true);
+        mDragTabCmd->setAnchor(hit->board, hit->boardPos, true);
+        // Moving the tab onto another board design replaces its markers
+        // (one per copy of the new board), which drops the selection -
+        // select the marker on the copy under the cursor again.
+        bool anySelected = false;
+        foreach (const auto& item, scene->getTabItems()) {
+          if ((&item->getTab() == &mDragTabCmd->getTab()) &&
+              item->isSelected()) {
+            anySelected = true;
+            break;
+          }
+        }
+        if (!anySelected) {
+          foreach (const auto& item, scene->getTabItems()) {
+            if ((&item->getTab() == &mDragTabCmd->getTab()) &&
+                (item->getBoardInstance().getUuid() == hit->boardInstance)) {
+              item->setSelected(true);
+              break;
+            }
+          }
+        }
       }
     }
     // Keep the displayed position live while dragging.
@@ -1379,14 +1410,19 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
 
   try {
     PanelClipboardData data;
+    QSet<Uuid> copiedBoards;
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
             selectedBoards) {
       data.getInstances().append(
           std::make_shared<PI_BoardInstance>(*instance));
-      // Attached tabs are copied along with their board placement.
-      foreach (const std::shared_ptr<PI_Tab>& tab,
-               mContext.panel.getTabsOfBoardInstance(instance->getUuid())) {
-        data.getTabs().append(std::make_shared<PI_Tab>(*tab));
+      // The board design's tabs are copied along (once per design), so
+      // pasting into another panel carries them over.
+      if (!copiedBoards.contains(instance->getBoard())) {
+        copiedBoards.insert(instance->getBoard());
+        foreach (const std::shared_ptr<PI_Tab>& tab,
+                 mContext.panel.getTabsOfBoard(instance->getBoard())) {
+          data.getTabs().append(std::make_shared<PI_Tab>(*tab));
+        }
       }
     }
     foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
@@ -1474,9 +1510,8 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
   // removed, rotated (toggles horizontal/vertical) and locked/unlocked (no
   // Flip/Cut/Copy yet).
   if (PanelGraphicsScene* scene = getActivePanelScene()) {
-    const auto& tabItems = scene->getTabItems();
-    for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
+    foreach (const auto& item, scene->getTabItems()) {
+      if (item && item->isSelected()) {
         features |= PanelEditorFsmAdapter::Feature::Remove;
         break;
       }
@@ -1532,10 +1567,9 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
     return QString();
   }
   QVector<PGI_Tab*> tabItems;
-  const auto& items = scene->getTabItems();
-  for (auto it = items.begin(); it != items.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      tabItems.append(it.value().get());
+  foreach (const auto& item, scene->getTabItems()) {
+    if (item && item->isSelected()) {
+      tabItems.append(item.get());
     }
   }
   QVector<PGI_VCut*> vCutItems;
@@ -1651,9 +1685,8 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
       }
     }
     // A selected tab marker makes the selection mixed too.
-    const auto& tabItems = scene->getTabItems();
-    for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
+    foreach (const auto& item, scene->getTabItems()) {
+      if (item && item->isSelected()) {
         anyBoardSelected = true;
         break;
       }

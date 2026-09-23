@@ -922,9 +922,40 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
     }
   }
 
-  // Tab markers attached to placed boards. Same as above, older panel.lp
-  // files just have no "tab" entries.
-  panel->getTabs().loadFromSExpression(*root);
+  // Tab markers, one set per board design (shared by all its placed copies).
+  // Same as above, older panel.lp files just have no "tab" entries. Tabs
+  // from development builds before this change were attached to a single
+  // placed copy ("board_instance") instead of a board ("board"): they are
+  // converted to that copy's board, and duplicates (same board and
+  // position, i.e. the same tab placed on several copies) are dropped.
+  foreach (const SExpression* node, root->getChildren("tab")) {
+    if (node->tryGetChild("board")) {
+      panel->addTab(std::make_shared<PI_Tab>(*node));  // can throw
+      continue;
+    }
+    const Uuid instanceUuid =
+        deserialize<Uuid>(node->getChild("board_instance/@0"));
+    auto instance = panel->getBoardInstance(instanceUuid);
+    if (!instance) {
+      continue;  // Dangling tab, drop it.
+    }
+    const Point position(node->getChild("position"));
+    bool duplicate = false;
+    foreach (const auto& tab, panel->getTabsOfBoard(instance->getBoard())) {
+      if (tab->getPosition() == position) {
+        duplicate = true;
+        break;
+      }
+    }
+    if (!duplicate) {
+      panel->addTab(std::make_shared<PI_Tab>(
+          deserialize<Uuid>(node->getChild("@0")), instance->getBoard(),
+          position,
+          node->tryGetChild("width")
+              ? deserialize<UnsignedLength>(node->getChild("width/@0"))
+              : UnsignedLength(0)));  // can throw
+    }
+  }
 
   // V-cut lines. Same as above, older panel.lp files have no "vcut"
   // entries.

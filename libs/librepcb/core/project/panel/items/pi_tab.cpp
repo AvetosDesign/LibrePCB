@@ -40,7 +40,7 @@ namespace librepcb {
 PI_Tab::PI_Tab(const PI_Tab& other) noexcept
   : onEdited(*this),
     mUuid(other.mUuid),
-    mBoardInstance(other.mBoardInstance),
+    mBoard(other.mBoard),
     mPosition(other.mPosition),
     mWidth(other.mWidth) {
 }
@@ -48,7 +48,7 @@ PI_Tab::PI_Tab(const PI_Tab& other) noexcept
 PI_Tab::PI_Tab(const SExpression& node)
   : onEdited(*this),
     mUuid(deserialize<Uuid>(node.getChild("@0"))),
-    mBoardInstance(deserialize<Uuid>(node.getChild("board_instance/@0"))),
+    mBoard(deserialize<Uuid>(node.getChild("board/@0"))),
     mPosition(node.getChild("position")),
     // Tabs saved before the width feature existed have no "width" node -
     // treat them as using the panel default (zero).
@@ -57,11 +57,11 @@ PI_Tab::PI_Tab(const SExpression& node)
                : UnsignedLength(0)) {
 }
 
-PI_Tab::PI_Tab(const Uuid& uuid, const Uuid& boardInstance,
-               const Point& position, const UnsignedLength& width) noexcept
+PI_Tab::PI_Tab(const Uuid& uuid, const Uuid& board, const Point& position,
+               const UnsignedLength& width) noexcept
   : onEdited(*this),
     mUuid(uuid),
-    mBoardInstance(boardInstance),
+    mBoard(board),
     mPosition(position),
     mWidth(width) {
 }
@@ -73,10 +73,10 @@ PI_Tab::~PI_Tab() noexcept {
  *  Setters
  ******************************************************************************/
 
-void PI_Tab::setBoardInstance(const Uuid& boardInstance) noexcept {
-  if (boardInstance != mBoardInstance) {
-    mBoardInstance = boardInstance;
-    onEdited.notify(Event::BoardInstanceChanged);
+void PI_Tab::setBoard(const Uuid& board) noexcept {
+  if (board != mBoard) {
+    mBoard = board;
+    onEdited.notify(Event::BoardChanged);
   }
 }
 
@@ -100,7 +100,7 @@ void PI_Tab::setWidth(const UnsignedLength& width) noexcept {
 
 void PI_Tab::serialize(SExpression& root) const {
   root.appendChild(mUuid);
-  root.appendChild("board_instance", mBoardInstance);
+  root.appendChild("board", mBoard);
   root.ensureLineBreak();
   mPosition.serialize(root.appendList("position"));
   root.appendChild("width", mWidth);
@@ -113,7 +113,7 @@ void PI_Tab::serialize(SExpression& root) const {
 
 bool PI_Tab::operator==(const PI_Tab& rhs) const noexcept {
   if (mUuid != rhs.mUuid) return false;
-  if (mBoardInstance != rhs.mBoardInstance) return false;
+  if (mBoard != rhs.mBoard) return false;
   if (mPosition != rhs.mPosition) return false;
   if (mWidth != rhs.mWidth) return false;
   return true;

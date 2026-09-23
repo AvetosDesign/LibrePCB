@@ -244,12 +244,24 @@ void Panel::removeFiducial(std::shared_ptr<PI_Fiducial> fiducial) {
  *  Tab Methods
  ******************************************************************************/
 
-QVector<std::shared_ptr<PI_Tab>> Panel::getTabsOfBoardInstance(
-    const Uuid& boardInstance) noexcept {
+QVector<std::shared_ptr<PI_Tab>> Panel::getTabsOfBoard(
+    const Uuid& board) noexcept {
   QVector<std::shared_ptr<PI_Tab>> tabs;
   for (int i = 0; i < mTabs.count(); ++i) {
     std::shared_ptr<PI_Tab> tab = mTabs.value(i);
-    if (tab && (tab->getBoardInstance() == boardInstance)) {
+    if (tab && (tab->getBoard() == board)) {
+      tabs.append(tab);
+    }
+  }
+  return tabs;
+}
+
+QVector<std::shared_ptr<const PI_Tab>> Panel::getTabsOfBoard(
+    const Uuid& board) const noexcept {
+  QVector<std::shared_ptr<const PI_Tab>> tabs;
+  for (int i = 0; i < mTabs.count(); ++i) {
+    std::shared_ptr<const PI_Tab> tab = mTabs.value(i);
+    if (tab && (tab->getBoard() == board)) {
       tabs.append(tab);
     }
   }

@@ -117,15 +117,18 @@ class PGI_Tab;
  *    ::librepcb::editor::BoardEditorState_Select's exact convention.
  *    Locking never affects selection or copy/paste - only drag, remove,
  *    flip, and rotate are gated.
- *  - Tab markers (::librepcb::PI_Tab): click to select (Shift to add to
- *    the selection, rubber-band and Select All include them too), drag to
+ *  - Tab markers (::librepcb::PI_Tab): a tab belongs to a board design and
+ *    is shown on every placed copy of it (one PGI_Tab per copy; selecting
+ *    one highlights the others). Click to select (Shift to add to the
+ *    selection, rubber-band and Select All include them too), drag to
  *    move one along the board edges - the dragged marker snaps to the
- *    nearest edge of *any* placed board and re-attaches to that board
- *    (see #startMovingTab()) - and Delete to remove the selected
- *    marker(s). A marker drag always moves just the clicked marker, never
- *    the rest of the selection. Tab markers are otherwise not part of
- *    Rotate/Flip/Lock/Cut/Copy: they follow their board automatically, and
- *    copying a board placement copies its attached tabs along with it.
+ *    nearest edge of *any* placed board and re-attaches the tab to that
+ *    board's design (see #startMovingTab()), moving it on all copies - and
+ *    Delete to remove the selected tab(s) from all copies. A marker drag
+ *    always moves just the clicked tab, never the rest of the selection.
+ *    Tabs are otherwise not part of Rotate/Flip/Lock/Cut/Copy: they follow
+ *    their boards automatically, and copying a board placement copies its
+ *    design's tabs along (added on paste only where missing).
  *  - V-cut lines (::librepcb::PI_VCut): click anywhere on the line to
  *    select, drag (together with the rest of the selection) to move, Delete
  *    to remove, and Lock/Unlock. Rotate (key, button or right-click while
