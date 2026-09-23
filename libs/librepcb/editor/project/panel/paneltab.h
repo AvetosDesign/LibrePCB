@@ -28,6 +28,7 @@
  ******************************************************************************/
 #include "../../utils/lengtheditcontext.h"
 #include "../../widgets/if_graphicsvieweventhandler.h"
+#include "../board/boardgraphicsscene.h"
 #include "windowtab.h"
 #include "fsm/paneleditorfsmadapter.h"
 
@@ -46,11 +47,15 @@ class Uuid;
 
 namespace editor {
 
+class GraphicsLayerList;
+class GraphicsLayersModel;
 class GuiApplication;
 class PanelEditor;
 class PanelEditorFsm;
 class PanelEditorState_AddFiducial;
 class PanelEditorState_AddHole;
+class PanelEditorState_AddTab;
+class PanelEditorState_AddVCut;
 class PanelGraphicsScene;
 class ProjectEditor;
 class SlintGraphicsView;
@@ -144,11 +149,14 @@ public:
   void fsmSetViewCursor(
       const std::optional<Qt::CursorShape>& shape) noexcept override;
   Point fsmMapGlobalPosToScenePos(const QPoint& pos) const noexcept override;
+  QPainterPath fsmCalcPosWithTolerance(
+      const Point& pos, qreal multiplier) const noexcept override;
   void fsmAbortBlockingToolsInOtherEditors() noexcept override;
   void fsmOpenBoardEditor(const Uuid& boardUuid) noexcept override;
   void fsmSetStatusBarMessage(const QString& message,
                               int timeoutMs = -1) noexcept override;
   void fsmSetFeatures(Features features) noexcept override;
+  void fsmSetViewInfoBoxText(const QString& text) noexcept override;
   bool fsmGetIgnoreLocks() const noexcept override;
   void fsmToolLeave() noexcept override;
   void fsmToolEnter(PanelEditorState_Select& state) noexcept override;
@@ -156,6 +164,8 @@ public:
   void fsmToolEnter(PanelEditorState_AddHole& state) noexcept override;
   void fsmToolEnter(
       PanelEditorState_AddFiducial& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddTab& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept override;
 
   // Operator Overloadings
   PanelTab& operator=(const PanelTab& rhs) = delete;
@@ -167,27 +177,129 @@ private:
   void applyWorkspaceSettings() noexcept;
   void requestRepaint() noexcept;
 
+  /**
+   * @brief Check whether the copper layers are shown
+   *
+   * @return True if at least one copper layer (top, inner or bottom) of
+   *         #mLayers is set visible, false if all of them are hidden.
+   */
+  bool isCopperVisible() const noexcept;
+
+  /**
+   * @brief Show or hide all copper layers
+   *
+   * Sets the visibility of every copper layer (top, inner and bottom) of
+   * #mLayers. Since every BoardProxy's hidden BoardGraphicsScene shares
+   * #mLayers, this shows/hides the copper of all placed boards at once,
+   * mirroring how ::librepcb::editor::SchematicTab toggles its pin numbers
+   * layer.
+   *
+   * @param visible   Whether the copper layers should be shown.
+   */
+  void setCopperVisible(bool visible) noexcept;
+
+  /**
+   * @brief Apply the tab markers' visibility to the scene
+   *
+   * Markers are shown if the "Tab Markers" display toggle (#mShowTabs) is
+   * on, or whenever the Add Tab tool is active (#mTabToolActive), since
+   * that tool needs them to avoid placing tabs on top of each other.
+   */
+  void updateTabsVisibility() noexcept;
+
+  /**
+   * @brief Apply the "Board Outlines" display toggle
+   *
+   * Shows/hides both the placements' reference outlines drawn by the panel
+   * (PanelGraphicsScene::setBoardOutlinesVisible()) and the boards' own
+   * outline layer (::librepcb::ColorRole::boardOutlines() in #mLayers,
+   * shared by every BoardProxy), so no board outline is drawn when off.
+   * The panel perimeter is not affected.
+   */
+  void updateBoardOutlinesVisibility() noexcept;
+
+  /**
+   * @brief Enable only the inner copper layers used by placed boards
+   *
+   * Mirrors ::librepcb::editor::Board2dTab::updateEnabledCopperLayers(),
+   * but for the union of all boards placed on the panel, so the Layers
+   * panel (see #mLayersModel) doesn't list dozens of unused inner layers.
+   */
+  void updateEnabledCopperLayers() noexcept;
+
+  /**
+   * @brief Apply the layers visibility stored in the panel
+   *
+   * Mirrors ::librepcb::editor::Board2dTab::loadLayersVisibility(): layers
+   * without a stored value keep their current visibility.
+   */
+  void loadLayersVisibility() noexcept;
+
+  /**
+   * @brief Store the current layers visibility into the panel
+   *
+   * Mirrors ::librepcb::editor::Board2dTab::storeLayersVisibility() (only
+   * enabled layers are stored); called right before the project is saved,
+   * so it ends up in the panel's `settings.user.lp`.
+   */
+  void storeLayersVisibility() noexcept;
+
+  /**
+   * @brief Rebuild the plane fragments of every board placed on the panel
+   *
+   * Calls #rebuildPlanesOfBoard() once for each distinct board design
+   * referenced by the panel's board instances. See #rebuildPlanesOfBoard()
+   * for why this is needed.
+   */
+  void rebuildPlanesOfPlacedBoards() noexcept;
+
+  /**
+   * @brief Rebuild the plane fragments of one board design
+   *
+   * Plane fragments are not stored in the project files, they are only
+   * calculated by ::librepcb::editor::BoardEditor while one of its 2D/3D
+   * tabs is active. Without this, a board which has not been shown in a
+   * Board tab yet would be rendered on the panel with empty (unfilled)
+   * planes. This forces a rebuild of all the board's planes through its
+   * BoardEditor, and repaints the panel once the fragments are updated.
+   *
+   * @param boardUuid   UUID of the board design. If no BoardEditor exists
+   *                    for it (stale reference), nothing is done.
+   */
+  void rebuildPlanesOfBoard(const Uuid& boardUuid) noexcept;
+
 private:
   // References
   ProjectEditor& mProjectEditor;
   Project& mProject;
   PanelEditor& mPanelEditor;
   Panel& mPanel;
+  std::unique_ptr<GraphicsLayerList> mLayers;
+
+  /// Model of #mLayers for the Layers side panel, only while active
+  /// (same lifetime as ::librepcb::editor::Board2dTab's).
+  std::shared_ptr<GraphicsLayersModel> mLayersModel;
   std::unique_ptr<SlintGraphicsView> mView;
 
   // State
+  std::shared_ptr<BoardGraphicsScene::Context> mBoardProxyContext;
   QPointF mSceneImagePos;
   int mFrameIndex;
   ui::EditorTool mTool;
   Features mToolFeatures;
   Qt::CursorShape mToolCursorShape;
+  QString mToolOverlayText;
   LengthEditContext mToolDiameter;
   LengthEditContext mToolClearance;
   bool mToolFlipped;
   bool mSelectHole;
   bool mSelectFiducial;
   bool mIgnorePlacementLocks;
+  bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
+  bool mTabToolActive;  ///< Whether the Add Tab tool is active
+  bool mShowBoardOutlines;  ///< "Board Outlines" display toggle
   QVector<QMetaObject::Connection> mFsmStateConnections;
+  QVector<QMetaObject::Connection> mActiveConnections;
 
   // Objects in active state
   std::unique_ptr<PanelGraphicsScene> mScene;

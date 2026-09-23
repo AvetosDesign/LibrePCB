@@ -27,6 +27,8 @@
  ******************************************************************************/
 #include "../../undocommand.h"
 
+#include <QtCore>
+
 #include <memory>
 
 /*******************************************************************************
@@ -36,6 +38,7 @@ namespace librepcb {
 
 class Panel;
 class PI_BoardInstance;
+class PI_Tab;
 
 namespace editor {
 
@@ -49,6 +52,10 @@ namespace editor {
  * Mirrors CmdPanelRemove's shape exactly (the instance object itself is
  * never destroyed, just detached/reattached from the Panel, so undo is
  * lossless).
+ *
+ * All ::librepcb::PI_Tab markers attached to the instance are removed
+ * together with it (and restored on undo), since a tab can't exist without
+ * the board placement it's attached to.
  */
 class CmdPanelBoardInstanceRemove final : public UndoCommand {
 public:
@@ -79,6 +86,7 @@ private:
   // Private Member Variables
   Panel& mPanel;
   std::shared_ptr<PI_BoardInstance> mInstance;
+  QVector<std::shared_ptr<PI_Tab>> mTabs;  ///< Attached tabs, see class doc
 };
 
 /*******************************************************************************

@@ -41,11 +41,11 @@ namespace editor {
  ******************************************************************************/
 
 PanelClipboardData::PanelClipboardData() noexcept
-  : mInstances(), mHoles(), mFiducials() {
+  : mInstances(), mHoles(), mFiducials(), mTabs() {
 }
 
 PanelClipboardData::PanelClipboardData(const SExpression& node)
-  : mInstances(node), mHoles(node), mFiducials(node) {
+  : mInstances(node), mHoles(node), mFiducials(node), mTabs(node) {
 }
 
 PanelClipboardData::~PanelClipboardData() noexcept {
@@ -64,6 +64,8 @@ std::unique_ptr<QMimeData> PanelClipboardData::toMimeData() {
   mHoles.serialize(*root);
   root->ensureLineBreak();
   mFiducials.serialize(*root);
+  root->ensureLineBreak();
+  mTabs.serialize(*root);
   root->ensureLineBreak();
 
   const QByteArray sexpr = root->toByteArray();

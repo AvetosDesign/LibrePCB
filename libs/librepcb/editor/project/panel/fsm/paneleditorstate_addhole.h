@@ -60,6 +60,11 @@ class CmdPanelHoleEdit;
  * see claude/librepcb_panelization_tool_addboard_slice.md for why panel
  * holes are a separate, simpler item type. This slice is placement-only:
  * diameter/stop-mask editing and Select-tool integration are deferred.
+ *
+ * A double click is ignored (rather than handled as a second click), since
+ * its preceding press already placed a hole - handling it too would stack
+ * a duplicate hole at the same position (same as
+ * PanelEditorState_AddBoard).
  */
 class PanelEditorState_AddHole final : public PanelEditorState {
   Q_OBJECT

@@ -57,9 +57,11 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mHeight(defaultHeight),
     mGridInterval(635000),  // 0.635 mm (same default as Board)
     mGridUnit(LengthUnit::millimeters()),
+    mDefaultTabWidth(initialDefaultTabWidth),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
     mOnHolesEditedSlot(*this, &Panel::holesEdited),
-    mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited) {
+    mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited),
+    mOnTabsEditedSlot(*this, &Panel::tabsEdited) {
   if (mDirectoryName.isEmpty()) {
     throw LogicError(__FILE__, __LINE__);
   }
@@ -67,6 +69,7 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
   mBoardInstances.onEdited.attach(mOnBoardInstancesEditedSlot);
   mHoles.onEdited.attach(mOnHolesEditedSlot);
   mFiducials.onEdited.attach(mOnFiducialsEditedSlot);
+  mTabs.onEdited.attach(mOnTabsEditedSlot);
 
   // Emit the "attributesChanged" signal when the project has emitted it.
   connect(&mProject, &Project::attributesChanged, this,
@@ -83,7 +86,7 @@ Panel::~Panel() noexcept {
 
 bool Panel::isEmpty() const noexcept {
   return mBoardInstances.isEmpty() && mHoles.isEmpty() &&
-      mFiducials.isEmpty();
+      mFiducials.isEmpty() && mTabs.isEmpty();
 }
 
 /*******************************************************************************
@@ -111,6 +114,13 @@ void Panel::setHeight(const PositiveLength& height) noexcept {
     mHeight = height;
     emit outlineChanged();
     emit mProject.attributesChanged();
+  }
+}
+
+void Panel::setDefaultTabWidth(const PositiveLength& width) noexcept {
+  if (width != mDefaultTabWidth) {
+    mDefaultTabWidth = width;
+    emit attributesChanged();
   }
 }
 
@@ -195,6 +205,47 @@ void Panel::removeFiducial(std::shared_ptr<PI_Fiducial> fiducial) {
 }
 
 /*******************************************************************************
+ *  Tab Methods
+ ******************************************************************************/
+
+QVector<std::shared_ptr<PI_Tab>> Panel::getTabsOfBoardInstance(
+    const Uuid& boardInstance) noexcept {
+  QVector<std::shared_ptr<PI_Tab>> tabs;
+  for (int i = 0; i < mTabs.count(); ++i) {
+    std::shared_ptr<PI_Tab> tab = mTabs.value(i);
+    if (tab && (tab->getBoardInstance() == boardInstance)) {
+      tabs.append(tab);
+    }
+  }
+  return tabs;
+}
+
+PositiveLength Panel::getEffectiveTabWidth(const PI_Tab& tab) const noexcept {
+  return tab.hasWidthOverride() ? PositiveLength(*tab.getWidth())
+                                : mDefaultTabWidth;
+}
+
+void Panel::addTab(std::shared_ptr<PI_Tab> tab) {
+  if (!tab) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (mTabs.contains(tab->getUuid())) {
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("There is already a tab with the UUID \"%1\"!")
+            .arg(tab->getUuid().toStr()));
+  }
+  mTabs.append(tab);
+}
+
+void Panel::removeTab(std::shared_ptr<PI_Tab> tab) {
+  if ((!tab) || (!mTabs.contains(tab->getUuid()))) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  mTabs.remove(tab->getUuid());
+}
+
+/*******************************************************************************
  *  Board Checksum Methods
  ******************************************************************************/
 
@@ -257,11 +308,16 @@ void Panel::save() {
   gridNode.appendChild("interval", mGridInterval);
   gridNode.appendChild("unit", mGridUnit);
   root->ensureLineBreak();
+  SExpression& tabDefaultsNode = root->appendList("tab_defaults");
+  tabDefaultsNode.appendChild("width", mDefaultTabWidth);
+  root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();
   mHoles.serialize(*root);
   root->ensureLineBreak();
   mFiducials.serialize(*root);
+  root->ensureLineBreak();
+  mTabs.serialize(*root);
   root->ensureLineBreak();
 
   // Board checksums, sorted by UUID for deterministic file content.
@@ -278,6 +334,21 @@ void Panel::save() {
   root->ensureLineBreak();
 
   mDirectory->write("panel.lp", root->toByteArray());
+
+  // User settings - same file name and format as Board's.
+  {
+    std::unique_ptr<SExpression> userRoot =
+        SExpression::createList("librepcb_panel_user_settings");
+    for (auto it = mLayersVisibility.begin(); it != mLayersVisibility.end();
+         it++) {
+      userRoot->ensureLineBreak();
+      SExpression& child = userRoot->appendList("layer");
+      child.appendChild(SExpression::createToken(it.key()));
+      child.appendChild("visible", it.value());
+    }
+    userRoot->ensureLineBreak();
+    mDirectory->write("settings.user.lp", userRoot->toByteArray());
+  }
 }
 
 /*******************************************************************************
@@ -338,6 +409,26 @@ void Panel::fiducialsEdited(
       break;
     case PI_FiducialList::Event::ElementRemoved:
       emit fiducialRemoved(index);
+      emit attributesChanged();
+      break;
+    default:
+      emit attributesChanged();
+      break;
+  }
+}
+
+void Panel::tabsEdited(const PI_TabList& list, int index,
+                       const std::shared_ptr<const PI_Tab>& obj,
+                       PI_TabList::Event event) noexcept {
+  Q_UNUSED(obj);
+  Q_UNUSED(list);
+  switch (event) {
+    case PI_TabList::Event::ElementAdded:
+      emit tabAdded(index);
+      emit attributesChanged();
+      break;
+    case PI_TabList::Event::ElementRemoved:
+      emit tabRemoved(index);
       emit attributesChanged();
       break;
     default:

@@ -48,7 +48,9 @@ namespace editor {
 
 PanelEditorState_AddBoard::PanelEditorState_AddBoard(
     const Context& context) noexcept
-  : PanelEditorState(context), mIsUndoCmdActive(false) {
+  : PanelEditorState(context),
+    mIsUndoCmdActive(false),
+    mCurrentBoard(nullptr) {
 }
 
 PanelEditorState_AddBoard::~PanelEditorState_AddBoard() noexcept {
@@ -84,7 +86,7 @@ bool PanelEditorState_AddBoard::exit() noexcept {
 
 bool PanelEditorState_AddBoard::processAddBoard(Board& board) noexcept {
   abortCommand(false);
-  addBoard(board);
+  addBoard(board, Angle::deg0(), false);
   return true;
 }
 
@@ -111,26 +113,45 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
     const GraphicsSceneMouseEvent& e) noexcept {
   if (!mIsUndoCmdActive) return false;
 
+  // Remember what to place next: the same board, with the same rotation
+  // and flip as the copy just placed.
+  Board* board = mCurrentBoard;
+  const Angle rotation =
+      mCurrentInstance ? mCurrentInstance->getRotation() : Angle::deg0();
+  const bool flipped =
+      mCurrentInstance ? mCurrentInstance->getFlipped() : false;
+
   Point pos = e.scenePos.mappedToGrid(getGridInterval());
-  // place the current board placement finally
-  if (mCurrentInstanceEditCmd) {
-    mCurrentInstanceEditCmd->setPosition(pos, false);
-    mContext.undoStack.appendToCmdGroup(mCurrentInstanceEditCmd.release());
+  try {
+    // place the current board placement finally
+    if (mCurrentInstanceEditCmd) {
+      mCurrentInstanceEditCmd->setPosition(pos, false);
+      mContext.undoStack.appendToCmdGroup(
+          mCurrentInstanceEditCmd.release());  // can throw
+    }
+    mContext.undoStack.commitCmdGroup();  // can throw
+    mIsUndoCmdActive = false;
+    mCurrentInstance.reset();
+    mCurrentBoard = nullptr;
+  } catch (const Exception& ex) {
+    QMessageBox::critical(parentWidget(), tr("Error"), ex.getMsg());
+    abortCommand(false);
+    return true;
   }
-  mContext.undoStack.commitCmdGroup();
-  mIsUndoCmdActive = false;
-  mCurrentInstance.reset();
 
-  // Placing finished, leave tool now.
-  emit requestLeavingState();
-
+  // Multi-placement: continue with the next copy of the same board.
+  if (board) {
+    addBoard(*board, rotation, flipped);
+  }
   return true;
 }
 
 bool PanelEditorState_AddBoard::
     processGraphicsSceneLeftMouseButtonDoubleClicked(
         const GraphicsSceneMouseEvent& e) noexcept {
-  return processGraphicsSceneLeftMouseButtonPressed(e);
+  // Ignored - the preceding press already placed a copy (see class doc).
+  Q_UNUSED(e);
+  return true;
 }
 
 bool PanelEditorState_AddBoard::processGraphicsSceneRightMouseButtonReleased(
@@ -148,28 +169,36 @@ bool PanelEditorState_AddBoard::processGraphicsSceneRightMouseButtonReleased(
  *  Private Methods
  ******************************************************************************/
 
-bool PanelEditorState_AddBoard::addBoard(Board& board) noexcept {
+bool PanelEditorState_AddBoard::addBoard(Board& board, const Angle& rotation,
+                                         bool flipped) noexcept {
   // Discard any temporary changes and release undo stack.
   abortBlockingToolsInOtherEditors();
 
-  // start a new command
-  Q_ASSERT(!mIsUndoCmdActive);
-  mContext.undoStack.beginCmdGroup(tr("Add board to panel"));
-  mIsUndoCmdActive = true;
+  try {
+    // start a new command
+    Q_ASSERT(!mIsUndoCmdActive);
+    mContext.undoStack.beginCmdGroup(tr("Add board to panel"));  // can throw
+    mIsUndoCmdActive = true;
+    mCurrentBoard = &board;
 
-  // add a new placement of the selected board to the panel
-  const Point pos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos())
-                        .mappedToGrid(getGridInterval());
-  CmdPanelBoardInstanceAdd* cmd = new CmdPanelBoardInstanceAdd(
-      mContext.panel, board.getUuid(), pos, Angle::deg0(), false);
-  mContext.undoStack.appendToCmdGroup(cmd);
-  mCurrentInstance = cmd->getInstance();
-  Q_ASSERT(mCurrentInstance);
+    // add a new placement of the selected board to the panel
+    const Point pos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos())
+                          .mappedToGrid(getGridInterval());
+    CmdPanelBoardInstanceAdd* cmd = new CmdPanelBoardInstanceAdd(
+        mContext.panel, board.getUuid(), pos, rotation, flipped);
+    mContext.undoStack.appendToCmdGroup(cmd);  // can throw
+    mCurrentInstance = cmd->getInstance();
+    Q_ASSERT(mCurrentInstance);
 
-  // add command to move the current board placement
-  mCurrentInstanceEditCmd =
-      std::make_unique<CmdPanelBoardInstanceEdit>(*mCurrentInstance);
-  return true;
+    // add command to move the current board placement
+    mCurrentInstanceEditCmd =
+        std::make_unique<CmdPanelBoardInstanceEdit>(*mCurrentInstance);
+    return true;
+  } catch (const Exception& e) {
+    QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
+    abortCommand(false);
+    return false;
+  }
 }
 
 bool PanelEditorState_AddBoard::rotateBoard(const Angle& angle) noexcept {
@@ -200,6 +229,7 @@ bool PanelEditorState_AddBoard::abortCommand(bool showErrMsgBox) noexcept {
 
     // Reset attributes, go back to idle state
     mCurrentInstance.reset();
+    mCurrentBoard = nullptr;
     return true;
   } catch (const Exception& e) {
     if (showErrMsgBox) {

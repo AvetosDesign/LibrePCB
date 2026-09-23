@@ -28,6 +28,7 @@
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/items/pi_tab.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -65,6 +66,12 @@ namespace editor {
  * root node without ambiguity, exactly like ::librepcb::Panel's own
  * serialize() already does.
  *
+ * Tab markers (#mTabs, tag "tab") are never copied on their own: they're
+ * added automatically for every copied board placement they're attached
+ * to, and re-attached to the corresponding pasted placement on paste (see
+ * ::librepcb::editor::PanelEditorState_Select::processPaste()). Their
+ * positions are board-local, so they need no offset when pasted.
+ *
  * Note: pasting a board UUID that doesn't exist in the target project (e.g.
  * pasting into a different project than the one that was copied from) is
  * intentionally not supported yet - see the slice 8 notes in the project
@@ -98,14 +105,17 @@ public:
   const PI_HoleList& getHoles() const noexcept { return mHoles; }
   PI_FiducialList& getFiducials() noexcept { return mFiducials; }
   const PI_FiducialList& getFiducials() const noexcept { return mFiducials; }
+  PI_TabList& getTabs() noexcept { return mTabs; }
+  const PI_TabList& getTabs() const noexcept { return mTabs; }
 
   /**
    * @brief Whether this clipboard data is completely empty
    *
-   * True only if all three of #mInstances/#mHoles/#mFiducials are empty.
+   * True only if all of #mInstances/#mHoles/#mFiducials/#mTabs are empty.
    */
   bool isEmpty() const noexcept {
-    return mInstances.isEmpty() && mHoles.isEmpty() && mFiducials.isEmpty();
+    return mInstances.isEmpty() && mHoles.isEmpty() && mFiducials.isEmpty() &&
+        mTabs.isEmpty();
   }
 
   // General Methods
@@ -124,6 +134,7 @@ private:  // Data
   PI_BoardInstanceList mInstances;
   PI_HoleList mHoles;
   PI_FiducialList mFiducials;
+  PI_TabList mTabs;
 };
 
 /*******************************************************************************

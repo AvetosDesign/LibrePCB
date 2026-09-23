@@ -128,6 +128,8 @@ public:
     out.set_tool_zone(l2s(cmd.toolZone, out.get_tool_zone()));
     out.set_tool_hole(l2s(cmd.toolHole, out.get_tool_hole()));
     out.set_tool_fiducial(l2s(cmd.toolFiducial, out.get_tool_fiducial()));
+    out.set_tool_panel_vcut(l2s(cmd.toolPanelVCut, out.get_tool_panel_vcut()));
+    out.set_tool_panel_tab(l2s(cmd.toolPanelTab, out.get_tool_panel_tab()));
     out.set_tool_wire(l2s(cmd.toolWire, out.get_tool_wire()));
     out.set_tool_bus(l2s(cmd.toolBus, out.get_tool_bus()));
     out.set_tool_label(l2s(cmd.toolLabel, out.get_tool_label()));

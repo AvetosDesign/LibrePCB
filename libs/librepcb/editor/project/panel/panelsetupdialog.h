@@ -56,10 +56,11 @@ class PanelSetupDialog;
  * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
  * `QDialogButtonBox`, loaded from the model on construction, applied back
  * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name and outline width/height, all applied
- * together via a single ::librepcb::editor::CmdPanelEdit. The width & height
- * fields are currently plain `QDoubleSpinBox` fields instead of a dedicated
- * length-edit widget.  It may be desirable to revise this in the future.
+ * ::librepcb::Panel today: name, outline width/height and the default tab
+ * width (::librepcb::Panel::getDefaultTabWidth()), all applied together via
+ * a single ::librepcb::editor::CmdPanelEdit. The width & height
+ * and default tab width fields are currently plain `QDoubleSpinBox` fields
+ * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
  */
 class PanelSetupDialog final : public QDialog {
   Q_OBJECT

@@ -24,6 +24,8 @@
 #include "paneleditorstate_addboard.h"
 #include "paneleditorstate_addfiducial.h"
 #include "paneleditorstate_addhole.h"
+#include "paneleditorstate_addtab.h"
+#include "paneleditorstate_addvcut.h"
 #include "paneleditorstate_select.h"
 
 #include <QtCore>
@@ -38,6 +40,8 @@ PanelEditorFsm::PanelEditorFsm(const Context& context, QObject* parent) noexcept
   mStates.insert(State::ADD_HOLE, new PanelEditorState_AddHole(context));
   mStates.insert(State::ADD_FIDUCIAL,
                  new PanelEditorState_AddFiducial(context));
+  mStates.insert(State::ADD_TAB, new PanelEditorState_AddTab(context));
+  mStates.insert(State::ADD_VCUT, new PanelEditorState_AddVCut(context));
 
   enterNextState(State::SELECT);
 
@@ -85,6 +89,14 @@ bool PanelEditorFsm::processAddHole() noexcept {
 
 bool PanelEditorFsm::processAddFiducial() noexcept {
   return setNextState(State::ADD_FIDUCIAL);
+}
+
+bool PanelEditorFsm::processAddTab() noexcept {
+  return setNextState(State::ADD_TAB);
+}
+
+bool PanelEditorFsm::processAddVCut() noexcept {
+  return setNextState(State::ADD_VCUT);
 }
 
 bool PanelEditorFsm::processRotate(const Angle& rotation) noexcept {

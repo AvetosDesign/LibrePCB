@@ -63,6 +63,9 @@ PanelSetupDialog::PanelSetupDialog(GuiApplication& app, Panel& panel,
   mUi->spbxHeight->setSuffix(" mm");
   mUi->spbxHeight->setDecimals(2);
   mUi->spbxHeight->setRange(1.0, 1000.0);
+  mUi->spbxDefaultTabWidth->setSuffix(" mm");
+  mUi->spbxDefaultTabWidth->setDecimals(2);
+  mUi->spbxDefaultTabWidth->setRange(0.1, 100.0);
 
   load();
 }
@@ -97,6 +100,7 @@ void PanelSetupDialog::load() noexcept {
   mUi->edtPanelName->setText(*mPanel.getName());
   mUi->spbxWidth->setValue(mPanel.getWidth()->toMm());
   mUi->spbxHeight->setValue(mPanel.getHeight()->toMm());
+  mUi->spbxDefaultTabWidth->setValue(mPanel.getDefaultTabWidth()->toMm());
 }
 
 bool PanelSetupDialog::apply() noexcept {
@@ -110,6 +114,8 @@ bool PanelSetupDialog::apply() noexcept {
     cmd->setHeight(
         PositiveLength(Length::fromMm(mUi->spbxHeight->value())),
         false);  // can throw
+    cmd->setDefaultTabWidth(PositiveLength(
+        Length::fromMm(mUi->spbxDefaultTabWidth->value())));  // can throw
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

@@ -179,6 +179,8 @@
         <file>status/dialog_warning.png</file>
         <file>status/info.png</file>
         <file>symbol.png</file>
+        <file>tab-tool.svg</file>
+        <file>v-cut.svg</file>
         <file>vcc.svg</file>
         <file>via.svg</file>
         <file>wizards/eagle_watermark.png</file>

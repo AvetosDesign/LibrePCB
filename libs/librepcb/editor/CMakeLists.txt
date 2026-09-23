@@ -675,6 +675,12 @@ add_library(
   project/cmd/cmdpanelholeremove.h
   project/cmd/cmdpanelremove.cpp
   project/cmd/cmdpanelremove.h
+  project/cmd/cmdpaneltabadd.cpp
+  project/cmd/cmdpaneltabadd.h
+  project/cmd/cmdpaneltabedit.cpp
+  project/cmd/cmdpaneltabedit.h
+  project/cmd/cmdpaneltabremove.cpp
+  project/cmd/cmdpaneltabremove.h
   project/cmd/cmdpasteboarditems.cpp
   project/cmd/cmdpasteboarditems.h
   project/cmd/cmdpasteschematicitems.cpp
@@ -783,6 +789,8 @@ add_library(
   project/newprojectwizard/newprojectwizardpage_metadata.cpp
   project/newprojectwizard/newprojectwizardpage_metadata.h
   project/newprojectwizard/newprojectwizardpage_metadata.ui
+  project/panel/boardproxy.cpp
+  project/panel/boardproxy.h
   project/panel/fsm/paneleditorfsm.cpp
   project/panel/fsm/paneleditorfsm.h
   project/panel/fsm/paneleditorfsmadapter.h
@@ -794,6 +802,10 @@ add_library(
   project/panel/fsm/paneleditorstate_addfiducial.h
   project/panel/fsm/paneleditorstate_addhole.cpp
   project/panel/fsm/paneleditorstate_addhole.h
+  project/panel/fsm/paneleditorstate_addtab.cpp
+  project/panel/fsm/paneleditorstate_addtab.h
+  project/panel/fsm/paneleditorstate_addvcut.cpp
+  project/panel/fsm/paneleditorstate_addvcut.h
   project/panel/fsm/paneleditorstate_select.cpp
   project/panel/fsm/paneleditorstate_select.h
   project/panel/graphicsitems/pgi_boardinstance.cpp
@@ -804,6 +816,8 @@ add_library(
   project/panel/graphicsitems/pgi_hole.h
   project/panel/graphicsitems/pgi_outline.cpp
   project/panel/graphicsitems/pgi_outline.h
+  project/panel/graphicsitems/pgi_tab.cpp
+  project/panel/graphicsitems/pgi_tab.h
   project/panel/panelclipboarddata.cpp
   project/panel/panelclipboarddata.h
   project/panel/paneleditor.cpp

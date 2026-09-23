@@ -26,6 +26,9 @@
 
 #include "paneltab.h"
 
+#include "../../graphics/graphicslayer.h"
+#include "../../graphics/graphicslayerlist.h"
+#include "../../graphics/graphicslayersmodel.h"
 #include "../../graphics/graphicsscene.h"
 #include "../../graphics/slintgraphicsview.h"
 #include "../../guiapplication.h"
@@ -40,12 +43,15 @@
 #include "fsm/paneleditorstate_addboard.h"
 #include "fsm/paneleditorstate_addfiducial.h"
 #include "fsm/paneleditorstate_addhole.h"
+#include "fsm/paneleditorstate_addtab.h"
+#include "fsm/paneleditorstate_addvcut.h"
 #include "fsm/paneleditorstate_select.h"
 #include "graphicsitems/pgi_outline.h"
 #include "paneleditor.h"
 #include "panelgraphicsscene.h"
 
 #include <librepcb/core/project/board/board.h>
+#include <librepcb/core/types/layer.h>
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/angle.h>
@@ -75,9 +81,26 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mProject(mProjectEditor.getProject()),
     mPanelEditor(editor),
     mPanel(editor.getPanel()),
+    mLayers(GraphicsLayerList::boardLayers(&app.getWorkspace().getSettings())),
     mView(new SlintGraphicsView(SlintGraphicsView::defaultBoardSceneRect(),
                                 SlintGraphicsView::defaultEditorMargins(),
                                 this)),
+    // Built the same way Board2dTab builds its own mSceneContext: a single
+    // Context, owned here and handed whole to PanelGraphicsScene, which in
+    // turn hands it to every BoardProxy it creates. tab=nullptr since these
+    // hidden per-board scenes aren't the originating tab of any
+    // cross-probe (Panel doesn't drive cross-probing itself); crossProbe
+    // must still be the project's real object, never a default-constructed
+    // null one - BoardGraphicsScene::Context::getLayerState() unconditionally
+    // calls crossProbe->isActive() the moment any item computes a layer
+    // state, which happens immediately while the hidden scene populates
+    // itself.
+    mBoardProxyContext(new BoardGraphicsScene::Context{
+        nullptr,  // tab
+        mProjectEditor.getCrossProbe(),  // cross probe
+        GraphicsLayer::State::Enabled,  // Self-probe mode
+        false,  // flip view
+    }),
     mFrameIndex(0),
     mTool(ui::EditorTool::Select),
     mToolFeatures(),
@@ -87,7 +110,10 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mToolFlipped(false),
     mSelectHole(false),
     mSelectFiducial(false),
-    mIgnorePlacementLocks(false) {
+    mIgnorePlacementLocks(false),
+    mShowTabs(true),
+    mTabToolActive(false),
+    mShowBoardOutlines(false) {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
   // Setup graphics view. Installing the event handler here is sufficient
@@ -148,6 +174,22 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
       *this,
   };
   mFsm.reset(new PanelEditorFsm(fsmContext));
+
+  // Restore client settings (same approach as SchematicTab's pin numbers).
+  QSettings cs;
+  setCopperVisible(cs.value("panel_editor/show_copper", true).toBool());
+  mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
+  mShowBoardOutlines =
+      cs.value("panel_editor/show_board_outlines", false).toBool();
+  updateBoardOutlinesVisibility();
+
+  // Load/store layers visibility, same as Board2dTab. Loaded after the
+  // display toggles above, so the visibility saved with the panel wins for
+  // the layers it covers (copper, board outlines, ...).
+  updateEnabledCopperLayers();
+  loadLayersVisibility();
+  connect(&mProjectEditor, &ProjectEditor::projectAboutToBeSaved, this,
+          &PanelTab::storeLayersVisibility);
 }
 
 PanelTab::~PanelTab() noexcept {
@@ -197,7 +239,7 @@ ui::TabData PanelTab::getUiData() const noexcept {
       q2s(mProjectEditor.getUndoStack().getRedoCmdText()),  // Redo text
       slint::SharedString(),  // Find term
       nullptr,  // Find suggestions
-      nullptr,  // Layers
+      mLayersModel,  // Layers
   };
 }
 
@@ -220,6 +262,7 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mFrameIndex,  // Frame index
       mTool,  // Tool
       q2s(mToolCursorShape),  // Tool cursor
+      q2s(mToolOverlayText),  // Tool overlay text
       mToolDiameter.getUiData(),  // Tool diameter
       mToolClearance.getUiData(),  // Tool clearance
       mToolFlipped,  // Tool bottom
@@ -229,6 +272,9 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       l2s(*mPanel.getGridInterval()),  // Grid interval
       l2s(mPanel.getGridUnit()),  // Length unit
       mIgnorePlacementLocks,  // Ignore placement locks
+      isCopperVisible(),  // Show copper
+      mShowTabs,  // Show tabs
+      mShowBoardOutlines,  // Show board outlines
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
@@ -273,6 +319,31 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // override, mirroring Board2dTab::setDerivedUiData()'s identical block.
   mIgnorePlacementLocks = data.ignore_placement_locks;
 
+  // Copper layers visibility - a per-client UI setting, mirroring
+  // SchematicTab::setDerivedUiData()'s pin numbers block.
+  if (isCopperVisible() != data.show_copper) {
+    setCopperVisible(data.show_copper);
+    QSettings cs;
+    cs.setValue("panel_editor/show_copper", data.show_copper);
+    requestRepaint();
+  }
+
+  // Tab markers visibility - also a per-client UI setting.
+  if (data.show_tabs != mShowTabs) {
+    mShowTabs = data.show_tabs;
+    QSettings cs;
+    cs.setValue("panel_editor/show_tabs", mShowTabs);
+    updateTabsVisibility();
+  }
+
+  // Board placement outlines visibility - also a per-client UI setting.
+  if (data.show_board_outlines != mShowBoardOutlines) {
+    mShowBoardOutlines = data.show_board_outlines;
+    QSettings cs;
+    cs.setValue("panel_editor/show_board_outlines", mShowBoardOutlines);
+    updateBoardOutlinesVisibility();
+  }
+
   if (data.place_board_index >= 0) {
     if (Board* board = mProject.getBoardByIndex(data.place_board_index)) {
       mFsm->processAddBoard(*board);
@@ -285,16 +356,63 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
 }
 
 void PanelTab::activate() noexcept {
-  mScene = std::make_unique<PanelGraphicsScene>(mPanel, mProject, this);
+  // Layers side panel. Changing a layer's visibility there may also change
+  // the state of the Copper Layers toggle (see isCopperVisible()).
+  updateEnabledCopperLayers();
+  mLayersModel = std::make_shared<GraphicsLayersModel>(*mLayers);
+  connect(mLayersModel.get(), &GraphicsLayersModel::layersVisibilityChanged,
+          this, [this]() {
+            onDerivedUiDataChanged.notify();
+            requestRepaint();
+          });
+
+  mScene = std::make_unique<PanelGraphicsScene>(
+      mPanel, mProject, *mLayers, mBoardProxyContext, this);
   connect(mScene.get(), &GraphicsScene::changed, this,
           &PanelTab::requestRepaint);
 
+  // Make sure the placed boards' planes are filled, also for boards
+  // placed later on. The initial rebuild is deferred to the event loop so
+  // it starts only after a previously active Board tab was deactivated
+  // (which resets its BoardEditor's plane builder, cancelling any job
+  // started before).
+  QTimer::singleShot(0, this, &PanelTab::rebuildPlanesOfPlacedBoards);
+  mActiveConnections.append(
+      connect(&mPanel, &Panel::boardInstanceAdded, this, [this](int index) {
+        auto instance = mPanel.getBoardInstances().value(index);
+        if (!instance) {
+          return;
+        }
+        // Only needed when this is the first placement of that design.
+        for (int i = 0; i < mPanel.getBoardInstances().count(); ++i) {
+          auto other = mPanel.getBoardInstances().value(i);
+          if ((i != index) && other &&
+              (other->getBoard() == instance->getBoard())) {
+            return;
+          }
+        }
+        updateEnabledCopperLayers();
+        rebuildPlanesOfBoard(instance->getBoard());
+      }));
+  mActiveConnections.append(connect(&mPanel, &Panel::boardInstanceRemoved,
+                                    this, [this]() {
+                                      updateEnabledCopperLayers();
+                                    }));
+
   applyWorkspaceSettings();
+  updateTabsVisibility();
+  // Scene part only - the board outlines layer itself keeps its current
+  // (possibly loaded or Layers-panel) state, see loadLayersVisibility().
+  mScene->setBoardOutlinesVisible(mShowBoardOutlines);
   requestRepaint();
 }
 
 void PanelTab::deactivate() noexcept {
+  while (!mActiveConnections.isEmpty()) {
+    disconnect(mActiveConnections.takeLast());
+  }
   mScene.reset();
+  mLayersModel.reset();
 }
 
 void PanelTab::trigger(ui::TabAction a) noexcept {
@@ -355,6 +473,14 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
     }
     case ui::TabAction::ToolFiducial: {
       mFsm->processAddFiducial();
+      break;
+    }
+    case ui::TabAction::ToolPanelTab: {
+      mFsm->processAddTab();
+      break;
+    }
+    case ui::TabAction::ToolPanelVcut: {
+      mFsm->processAddVCut();
       break;
     }
     case ui::TabAction::Lock: {
@@ -525,6 +651,11 @@ Point PanelTab::fsmMapGlobalPosToScenePos(const QPoint& pos) const noexcept {
   }
 }
 
+QPainterPath PanelTab::fsmCalcPosWithTolerance(
+    const Point& pos, qreal multiplier) const noexcept {
+  return mView->calcPosWithTolerance(pos, multiplier);
+}
+
 void PanelTab::fsmAbortBlockingToolsInOtherEditors() noexcept {
   emit mProjectEditor.abortBlockingToolsInOtherEditors(this);
 }
@@ -561,6 +692,13 @@ void PanelTab::fsmSetFeatures(Features features) noexcept {
   }
 }
 
+void PanelTab::fsmSetViewInfoBoxText(const QString& text) noexcept {
+  if (text != mToolOverlayText) {
+    mToolOverlayText = text;
+    onDerivedUiDataChanged.notify();
+  }
+}
+
 bool PanelTab::fsmGetIgnoreLocks() const noexcept {
   return mIgnorePlacementLocks;
 }
@@ -568,6 +706,10 @@ bool PanelTab::fsmGetIgnoreLocks() const noexcept {
 void PanelTab::fsmToolLeave() noexcept {
   while (!mFsmStateConnections.isEmpty()) {
     disconnect(mFsmStateConnections.takeLast());
+  }
+  if (mTabToolActive) {
+    mTabToolActive = false;
+    updateTabsVisibility();
   }
   mSelectHole = false;
   mSelectFiducial = false;
@@ -652,6 +794,20 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddHole& state) noexcept {
       connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
               &state, &PanelEditorState_AddHole::setDiameter));
 
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddTab& state) noexcept {
+  Q_UNUSED(state);
+  mTool = ui::EditorTool::PanelTab;
+  mTabToolActive = true;
+  updateTabsVisibility();
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddVCut& state) noexcept {
+  Q_UNUSED(state);
+  mTool = ui::EditorTool::PanelVcut;
   onDerivedUiDataChanged.notify();
 }
 
@@ -754,6 +910,11 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     const auto copperBot = scheme.getColors(ColorRole::boardCopperBot());
     mScene->setFiducialColors(copperTop.primary, copperTop.secondary,
                               copperBot.primary, copperBot.secondary);
+
+    // Tab markers use the board outline role: a tab is part of the panel's
+    // substrate outline. Selected state uses the role's secondary color,
+    // same as holes/fiducials above.
+    mScene->setTabColors(outline.primary, outline.secondary);
   }
 
   onDerivedUiDataChanged.notify();
@@ -762,6 +923,102 @@ void PanelTab::applyWorkspaceSettings() noexcept {
 void PanelTab::requestRepaint() noexcept {
   ++mFrameIndex;
   onDerivedUiDataChanged.notify();
+}
+
+bool PanelTab::isCopperVisible() const noexcept {
+  for (const auto& layer : mLayers->all()) {
+    if (ColorRole::isCopperId(layer->getRole().getId()) &&
+        layer->getVisible()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void PanelTab::rebuildPlanesOfPlacedBoards() noexcept {
+  if (!mScene) {
+    return;  // Tab has been deactivated in the meantime.
+  }
+  QSet<Uuid> boards;
+  for (int i = 0; i < mPanel.getBoardInstances().count(); ++i) {
+    if (auto instance = mPanel.getBoardInstances().value(i)) {
+      boards.insert(instance->getBoard());
+    }
+  }
+  for (const Uuid& uuid : std::as_const(boards)) {
+    rebuildPlanesOfBoard(uuid);
+  }
+}
+
+void PanelTab::rebuildPlanesOfBoard(const Uuid& boardUuid) noexcept {
+  for (const auto& editor : mProjectEditor.getBoards()) {
+    if (editor && (editor->getBoard().getUuid() == boardUuid)) {
+      // Unique connection: calling this again for the same board while
+      // this tab is active must not connect a second time (a duplicate
+      // attempt returns an invalid connection, harmless to disconnect).
+      mActiveConnections.append(
+          connect(editor.get(), &BoardEditor::planesUpdated, this,
+                  &PanelTab::requestRepaint, Qt::UniqueConnection));
+      editor->startPlanesRebuild(true);
+      return;
+    }
+  }
+}
+
+void PanelTab::updateTabsVisibility() noexcept {
+  if (mScene) {
+    mScene->setTabsVisible(mShowTabs || mTabToolActive);
+  }
+}
+
+void PanelTab::updateEnabledCopperLayers() noexcept {
+  QSet<const Layer*> used;
+  for (const Uuid& uuid : mPanel.getReferencedBoards()) {
+    if (const Board* board = mProject.getBoardByUuid(uuid)) {
+      used |= board->getCopperLayers();
+    }
+  }
+  foreach (const Layer* layer, Layer::innerCopper()) {
+    if (std::shared_ptr<GraphicsLayer> gLayer = mLayers->get(*layer)) {
+      gLayer->setEnabled(used.contains(layer));
+    }
+  }
+}
+
+void PanelTab::loadLayersVisibility() noexcept {
+  const QMap<QString, bool>& visibility = mPanel.getLayersVisibility();
+  foreach (std::shared_ptr<GraphicsLayer> layer, mLayers->all()) {
+    if (visibility.contains(layer->getRole().getId())) {
+      layer->setVisible(visibility.value(layer->getRole().getId()));
+    }
+  }
+}
+
+void PanelTab::storeLayersVisibility() noexcept {
+  QMap<QString, bool> visibility;
+  foreach (std::shared_ptr<GraphicsLayer> layer, mLayers->all()) {
+    if (layer->isEnabled()) {
+      visibility[layer->getRole().getId()] = layer->isVisible();
+    }
+  }
+  mPanel.setLayersVisibility(visibility);
+}
+
+void PanelTab::updateBoardOutlinesVisibility() noexcept {
+  if (auto layer = mLayers->get(ColorRole::boardOutlines())) {
+    layer->setVisible(mShowBoardOutlines);
+  }
+  if (mScene) {
+    mScene->setBoardOutlinesVisible(mShowBoardOutlines);
+  }
+}
+
+void PanelTab::setCopperVisible(bool visible) noexcept {
+  for (const auto& layer : mLayers->all()) {
+    if (ColorRole::isCopperId(layer->getRole().getId())) {
+      layer->setVisible(visible);
+    }
+  }
 }
 
 /*******************************************************************************

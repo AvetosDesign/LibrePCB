@@ -35,7 +35,9 @@ CmdPanelEdit::CmdPanelEdit(Panel& panel) noexcept
     mOldWidth(mPanel.getWidth()),
     mNewWidth(mOldWidth),
     mOldHeight(mPanel.getHeight()),
-    mNewHeight(mOldHeight) {
+    mNewHeight(mOldHeight),
+    mOldDefaultTabWidth(mPanel.getDefaultTabWidth()),
+    mNewDefaultTabWidth(mOldDefaultTabWidth) {
 }
 
 CmdPanelEdit::~CmdPanelEdit() noexcept {
@@ -68,12 +70,18 @@ void CmdPanelEdit::setHeight(const PositiveLength& height,
   if (immediate) mPanel.setHeight(mNewHeight);
 }
 
+void CmdPanelEdit::setDefaultTabWidth(const PositiveLength& width) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewDefaultTabWidth = width;
+}
+
 bool CmdPanelEdit::performExecute() {
   performRedo();  // can throw
 
   if (mNewName != mOldName) return true;
   if (mNewWidth != mOldWidth) return true;
   if (mNewHeight != mOldHeight) return true;
+  if (mNewDefaultTabWidth != mOldDefaultTabWidth) return true;
   return false;
 }
 
@@ -81,12 +89,14 @@ void CmdPanelEdit::performUndo() {
   mPanel.setName(mOldName);
   mPanel.setWidth(mOldWidth);
   mPanel.setHeight(mOldHeight);
+  mPanel.setDefaultTabWidth(mOldDefaultTabWidth);
 }
 
 void CmdPanelEdit::performRedo() {
   mPanel.setName(mNewName);
   mPanel.setWidth(mNewWidth);
   mPanel.setHeight(mNewHeight);
+  mPanel.setDefaultTabWidth(mNewDefaultTabWidth);
 }
 
 }  // namespace editor

@@ -26,6 +26,7 @@
 
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/items/pi_tab.h>
 
 #include <QtCore>
 
@@ -54,6 +55,7 @@ CmdPanelBoardInstanceRemove::~CmdPanelBoardInstanceRemove() noexcept {
  ******************************************************************************/
 
 bool CmdPanelBoardInstanceRemove::performExecute() {
+  mTabs = mPanel.getTabsOfBoardInstance(mInstance->getUuid());
   performRedo();  // can throw
 
   return true;
@@ -61,9 +63,16 @@ bool CmdPanelBoardInstanceRemove::performExecute() {
 
 void CmdPanelBoardInstanceRemove::performUndo() {
   mPanel.addBoardInstance(mInstance);  // can throw
+  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
+    mPanel.addTab(tab);  // can throw
+  }
 }
 
 void CmdPanelBoardInstanceRemove::performRedo() {
+  // Tabs first, so no tab ever references a missing board placement.
+  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
+    mPanel.removeTab(tab);  // can throw
+  }
   mPanel.removeBoardInstance(mInstance);  // can throw
 }
 

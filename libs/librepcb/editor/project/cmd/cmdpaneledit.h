@@ -48,8 +48,8 @@ namespace editor {
  *
  * Undo command to modify a ::librepcb::Panel's own attributes, following
  * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
- * #performExecute()). Covers the panel's name plus its outline width &
- * height. Width & height also support "immediate" application, so a single
+ * #performExecute()). Covers the panel's name, its outline width &
+ * height, and its default tab width. Width & height also support "immediate" application, so a single
  * instance of this command can be reused both for the one-shot Panel Setup
  * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
  * for a live edge-drag resize preview on the canvas 
@@ -70,6 +70,7 @@ public:
   void setName(const ElementName& name) noexcept;
   void setWidth(const PositiveLength& width, bool immediate) noexcept;
   void setHeight(const PositiveLength& height, bool immediate) noexcept;
+  void setDefaultTabWidth(const PositiveLength& width) noexcept;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
@@ -91,6 +92,8 @@ private:  // Data
   PositiveLength mNewWidth;
   PositiveLength mOldHeight;
   PositiveLength mNewHeight;
+  PositiveLength mOldDefaultTabWidth;
+  PositiveLength mNewDefaultTabWidth;
 };
 
 /*******************************************************************************

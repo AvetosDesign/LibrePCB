@@ -124,7 +124,10 @@ bool PanelEditorState_AddFiducial::processGraphicsSceneLeftMouseButtonPressed(
 bool PanelEditorState_AddFiducial::
     processGraphicsSceneLeftMouseButtonDoubleClicked(
         const GraphicsSceneMouseEvent& e) noexcept {
-  return processGraphicsSceneLeftMouseButtonPressed(e);
+  // Ignored - the preceding press already placed a fiducial, so handling
+  // this as another press would stack a duplicate at the same position.
+  Q_UNUSED(e);
+  return true;
 }
 
 /*******************************************************************************
