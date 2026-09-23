@@ -76,17 +76,14 @@
          </property>
         </widget>
        </item>
-       <item row="3" column="0" colspan="2">
-        <widget class="QLabel" name="lblSizeNotYetEditable">
-         <property name="text">
-          <string>Note: Changing the panel size here is not supported yet.</string>
-         </property>
-         <property name="wordWrap">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0" colspan="2">
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabDesign">
+      <attribute name="title">
+       <string>Design</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutDesign">
+       <item>
         <widget class="QGroupBox" name="grpTabs">
          <property name="title">
           <string>Tabs</string>
@@ -95,162 +92,137 @@
           <property name="fieldGrowthPolicy">
            <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
           </property>
-           <item row="0" column="0">
-             <widget class="QLabel" name="lblDefaultTabWidth">
-              <property name="text">
-               <string>Default Width:</string>
-              </property>
-             </widget>
-           </item>
-           <item row="0" column="1">
-             <widget class="QDoubleSpinBox" name="spbxDefaultTabWidth">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Width used by all tabs which don&apos;t override it</string>
-              </property>
-             </widget>
-           </item>
-           <item row="1" column="0" colspan="2">
-             <widget class="QCheckBox" name="cbxDefaultMouseBites">
-              <property name="text">
-               <string>Include Mouse Bites on Tabs</string>
-              </property>
-              <property name="toolTip">
-               <string>Whether tabs get mouse bite holes along their cut lines by default</string>
-              </property>
-             </widget>
-           </item>
-           <item row="2" column="0">
-             <widget class="QLabel" name="lblDefaultMouseBiteDiameter">
-              <property name="text">
-               <string>Mouse Bite Hole Size:</string>
-              </property>
-             </widget>
-           </item>
-           <item row="2" column="1">
-             <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteDiameter">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Default diameter of the mouse bite holes along the tabs&apos; cut lines</string>
-              </property>
-             </widget>
-           </item>
-           <item row="3" column="0">
-             <widget class="QLabel" name="lblDefaultMouseBiteSpacing">
-              <property name="text">
-               <string>Mouse Bite Hole Spacing:</string>
-              </property>
-             </widget>
-           </item>
-           <item row="3" column="1">
-             <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteSpacing">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Default center-to-center distance between neighboring mouse bite holes</string>
-              </property>
-             </widget>
-           </item>
-         </layout>
-        </widget>
-       </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QGroupBox" name="grpVCuts">
-         <property name="title">
-          <string>V-Cuts</string>
-         </property>
-         <layout class="QFormLayout" name="formLayoutVCuts">
-          <property name="fieldGrowthPolicy">
-           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
-          </property>
-           <item row="0" column="0">
-             <widget class="QLabel" name="lblDefaultVCutMinPanelEdgeDistance">
-              <property name="text">
-               <string>Minimum Distance to Edge of Panel:</string>
-              </property>
-             </widget>
-           </item>
-           <item row="0" column="1">
-             <widget class="QDoubleSpinBox" name="spbxDefaultVCutMinPanelEdgeDistance">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Default minimum distance between a V-cut line and the edge of the panel</string>
-              </property>
-             </widget>
-           </item>
-         </layout>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tabManufacturing">
-      <attribute name="title">
-       <string>Manufacturing</string>
-      </attribute>
-      <layout class="QVBoxLayout" name="verticalLayoutManufacturing">
-       <item>
-        <widget class="QGroupBox" name="grpRouting">
-         <property name="title">
-          <string>Routing</string>
-         </property>
-         <layout class="QFormLayout" name="formLayoutRouting">
-          <property name="fieldGrowthPolicy">
-           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
-          </property>
           <item row="0" column="0">
-           <widget class="QLabel" name="lblRouterBitSize">
+           <widget class="QLabel" name="lblDefaultTabWidth">
             <property name="text">
-             <string>Router Bit Size:</string>
+             <string>Default Width:</string>
             </property>
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QComboBox" name="cbxRouterBitSize">
-            <item>
-             <property name="text">
-              <string>1.0 mm</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>1.6 mm</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>2.0 mm</string>
-             </property>
-            </item>
+           <widget class="QDoubleSpinBox" name="spbxDefaultTabWidth">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Width used by all tabs which don't override it</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpMouseBites">
+         <property name="title">
+          <string>Mouse Bites</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutMouseBites">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+          </property>
+          <item row="0" column="0" colspan="2">
+           <widget class="QCheckBox" name="cbxDefaultMouseBites">
+            <property name="text">
+             <string>Include Mouse Bites on Tabs</string>
+            </property>
+            <property name="toolTip">
+             <string>Whether tabs get mouse bite holes along their cut lines by default</string>
+            </property>
            </widget>
           </item>
           <item row="1" column="0">
+           <widget class="QLabel" name="lblDefaultMouseBiteDiameter">
+            <property name="text">
+             <string>Default Hole Size:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteDiameter">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Default diameter of the mouse bite holes along the tabs' cut lines</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblDefaultMouseBiteSpacing">
+            <property name="text">
+             <string>Default Hole Spacing:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteSpacing">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Default center-to-center distance between neighboring mouse bite holes</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="lblDefaultMouseBiteOffset">
+            <property name="text">
+             <string>Default Offset:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDefaultMouseBiteOffset">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Default distance of the mouse bite hole centers from the board edge (negative: inside the board outline, positive: outside of it)</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="grpFraming">
+         <property name="title">
+          <string>Framing</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutFraming">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+          </property>
+          <item row="0" column="0">
            <widget class="QLabel" name="lblRoutingStyle">
             <property name="text">
              <string>Routing Style:</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="0" column="1">
            <widget class="QComboBox" name="cbxRoutingStyle">
+            <property name="toolTip">
+             <string>None: boards are not routed (V-cuts only). Open: everything except the frame and the tabs is removed. Tight: a single route around each board, interrupted by the tabs.</string>
+            </property>
+            <item>
+             <property name="text">
+              <string>None</string>
+             </property>
+            </item>
             <item>
              <property name="text">
               <string>Open</string>
@@ -263,11 +235,304 @@
             </item>
            </widget>
           </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="lblFrameWidthTopBottom">
+            <property name="text">
+             <string>Frame Width Top/Bottom:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="spbxFrameWidthTopBottom">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Width of the frame (rail) along the top and bottom panel edges, for the Open routing style (0 = no frame there)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblFrameWidthLeftRight">
+            <property name="text">
+             <string>Frame Width Left/Right:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="spbxFrameWidthLeftRight">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Width of the frame (rail) along the left and right panel edges, for the Open routing style (0 = no frame there)</string>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>
        <item>
+        <spacer name="verticalSpacerDesign">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabManufacturing">
+      <attribute name="title">
+       <string>Manufacturing</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutManufacturing">
+       <item>
+        <layout class="QFormLayout" name="formLayoutManufacturing">
+         <property name="fieldGrowthPolicy">
+          <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+         </property>
+         <item row="0" column="0">
+          <widget class="QLabel" name="lblRouterBitSize">
+           <property name="text">
+            <string>Router Bit Size:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="cbxRouterBitSize">
+           <property name="editable">
+            <bool>true</bool>
+           </property>
+           <property name="toolTip">
+            <string>Diameter of the router bit. Choose a common size or enter any value, with an optional unit (mm, in, ", mil), e.g. 0.1in</string>
+           </property>
+           <item>
+            <property name="text">
+             <string>1.0 mm</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>1.6 mm</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>2.0 mm</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
         <spacer name="verticalSpacerManufacturing">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tabDrc">
+      <attribute name="title">
+       <string>DRC Settings</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayoutDrc">
+       <item>
+        <widget class="QGroupBox" name="grpDrcVCuts">
+         <property name="title">
+          <string>V-Cuts</string>
+         </property>
+         <layout class="QFormLayout" name="formLayoutDrcVCuts">
+          <property name="fieldGrowthPolicy">
+           <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+          </property>
+          <item row="0" column="0">
+           <widget class="QLabel" name="lblDrcVCutPanelEdge">
+            <property name="text">
+             <string>Min. Distance to Panel Edge:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDrcVCutPanelEdge">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Minimum distance between a V-cut line and the edge of the panel (manufacturers typically require 5.0 mm to 20.0 mm)</string>
+            </property>
+            <property name="suffix">
+             <string> mm</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="minimum">
+             <double>5.0</double>
+            </property>
+            <property name="maximum">
+             <double>20.0</double>
+            </property>
+            <property name="singleStep">
+             <double>0.05</double>
+            </property>
+            <property name="value">
+             <double>5.0</double>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="lblDrcVCutCopper">
+            <property name="text">
+             <string>Min. Distance to Copper:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDrcVCutCopper">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Minimum distance between any copper and the V-cut centerline</string>
+            </property>
+            <property name="suffix">
+             <string> mm</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="minimum">
+             <double>0.0</double>
+            </property>
+            <property name="maximum">
+             <double>10.0</double>
+            </property>
+            <property name="singleStep">
+             <double>0.05</double>
+            </property>
+            <property name="value">
+             <double>0.4</double>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="lblDrcVCutHoles">
+            <property name="text">
+             <string>Min. Distance to Holes:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDrcVCutHoles">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Minimum distance between any hole and the V-cut centerline</string>
+            </property>
+            <property name="suffix">
+             <string> mm</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="minimum">
+             <double>0.0</double>
+            </property>
+            <property name="maximum">
+             <double>10.0</double>
+            </property>
+            <property name="singleStep">
+             <double>0.05</double>
+            </property>
+            <property name="value">
+             <double>0.5</double>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="lblDrcVCutComponents">
+            <property name="text">
+             <string>Min. Distance to Components:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="spbxDrcVCutComponents">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Minimum distance between any component and the V-cut</string>
+            </property>
+            <property name="suffix">
+             <string> mm</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="minimum">
+             <double>0.0</double>
+            </property>
+            <property name="maximum">
+             <double>20.0</double>
+            </property>
+            <property name="singleStep">
+             <double>0.05</double>
+            </property>
+            <property name="value">
+             <double>1.0</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QLabel" name="lblDrcNotImplemented">
+         <property name="text">
+          <string>Note: The panel design rule check is not implemented yet, so these settings are neither saved nor used.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacerDrc">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
          </property>
@@ -295,7 +560,6 @@
    </item>
   </layout>
  </widget>
- <resources/>
- <connections/>
+ <resources />
+ <connections />
 </ui>
-

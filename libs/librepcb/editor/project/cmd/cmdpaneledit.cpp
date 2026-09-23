@@ -46,9 +46,16 @@ CmdPanelEdit::CmdPanelEdit(Panel& panel) noexcept
     mNewDefaultMouseBiteDiameter(mOldDefaultMouseBiteDiameter),
     mOldDefaultMouseBiteSpacing(mPanel.getDefaultMouseBiteSpacing()),
     mNewDefaultMouseBiteSpacing(mOldDefaultMouseBiteSpacing),
-    mOldDefaultVCutMinPanelEdgeDistance(
-        mPanel.getDefaultVCutMinPanelEdgeDistance()),
-    mNewDefaultVCutMinPanelEdgeDistance(mOldDefaultVCutMinPanelEdgeDistance) {
+    mOldDefaultMouseBiteOffset(mPanel.getDefaultMouseBiteOffset()),
+    mNewDefaultMouseBiteOffset(mOldDefaultMouseBiteOffset),
+    mOldRoutingStyle(mPanel.getRoutingStyle()),
+    mNewRoutingStyle(mOldRoutingStyle),
+    mOldRouterBitDiameter(mPanel.getRouterBitDiameter()),
+    mNewRouterBitDiameter(mOldRouterBitDiameter),
+    mOldFrameWidthTopBottom(mPanel.getFrameWidthTopBottom()),
+    mNewFrameWidthTopBottom(mOldFrameWidthTopBottom),
+    mOldFrameWidthLeftRight(mPanel.getFrameWidthLeftRight()),
+    mNewFrameWidthLeftRight(mOldFrameWidthLeftRight) {
   for (const auto& vcut : mPanel.getVCuts().values()) {
     mVCutOldPositions.append(std::make_pair(vcut, vcut->getPosition()));
   }
@@ -113,10 +120,30 @@ void CmdPanelEdit::setDefaultMouseBiteSpacing(
   mNewDefaultMouseBiteSpacing = spacing;
 }
 
-void CmdPanelEdit::setDefaultVCutMinPanelEdgeDistance(
-    const UnsignedLength& distance) noexcept {
+void CmdPanelEdit::setDefaultMouseBiteOffset(const Length& offset) noexcept {
   Q_ASSERT(!wasEverExecuted());
-  mNewDefaultVCutMinPanelEdgeDistance = distance;
+  mNewDefaultMouseBiteOffset = offset;
+}
+
+void CmdPanelEdit::setRoutingStyle(Panel::RoutingStyle style) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewRoutingStyle = style;
+}
+
+void CmdPanelEdit::setRouterBitDiameter(
+    const PositiveLength& diameter) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewRouterBitDiameter = diameter;
+}
+
+void CmdPanelEdit::setFrameWidthTopBottom(const UnsignedLength& width) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewFrameWidthTopBottom = width;
+}
+
+void CmdPanelEdit::setFrameWidthLeftRight(const UnsignedLength& width) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewFrameWidthLeftRight = width;
 }
 
 bool CmdPanelEdit::performExecute() {
@@ -135,10 +162,11 @@ bool CmdPanelEdit::performExecute() {
   if (mNewDefaultMouseBiteSpacing != mOldDefaultMouseBiteSpacing) {
     return true;
   }
-  if (mNewDefaultVCutMinPanelEdgeDistance !=
-      mOldDefaultVCutMinPanelEdgeDistance) {
-    return true;
-  }
+  if (mNewDefaultMouseBiteOffset != mOldDefaultMouseBiteOffset) return true;
+  if (mNewRoutingStyle != mOldRoutingStyle) return true;
+  if (mNewRouterBitDiameter != mOldRouterBitDiameter) return true;
+  if (mNewFrameWidthTopBottom != mOldFrameWidthTopBottom) return true;
+  if (mNewFrameWidthLeftRight != mOldFrameWidthLeftRight) return true;
   return false;
 }
 
@@ -151,8 +179,11 @@ void CmdPanelEdit::performUndo() {
   mPanel.setDefaultMouseBitesEnabled(mOldDefaultMouseBitesEnabled);
   mPanel.setDefaultMouseBiteDiameter(mOldDefaultMouseBiteDiameter);
   mPanel.setDefaultMouseBiteSpacing(mOldDefaultMouseBiteSpacing);
-  mPanel.setDefaultVCutMinPanelEdgeDistance(
-      mOldDefaultVCutMinPanelEdgeDistance);
+  mPanel.setDefaultMouseBiteOffset(mOldDefaultMouseBiteOffset);
+  mPanel.setRoutingStyle(mOldRoutingStyle);
+  mPanel.setRouterBitDiameter(mOldRouterBitDiameter);
+  mPanel.setFrameWidthTopBottom(mOldFrameWidthTopBottom);
+  mPanel.setFrameWidthLeftRight(mOldFrameWidthLeftRight);
 }
 
 void CmdPanelEdit::performRedo() {
@@ -164,8 +195,11 @@ void CmdPanelEdit::performRedo() {
   mPanel.setDefaultMouseBitesEnabled(mNewDefaultMouseBitesEnabled);
   mPanel.setDefaultMouseBiteDiameter(mNewDefaultMouseBiteDiameter);
   mPanel.setDefaultMouseBiteSpacing(mNewDefaultMouseBiteSpacing);
-  mPanel.setDefaultVCutMinPanelEdgeDistance(
-      mNewDefaultVCutMinPanelEdgeDistance);
+  mPanel.setDefaultMouseBiteOffset(mNewDefaultMouseBiteOffset);
+  mPanel.setRoutingStyle(mNewRoutingStyle);
+  mPanel.setRouterBitDiameter(mNewRouterBitDiameter);
+  mPanel.setFrameWidthTopBottom(mNewFrameWidthTopBottom);
+  mPanel.setFrameWidthLeftRight(mNewFrameWidthLeftRight);
 }
 
 void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,
