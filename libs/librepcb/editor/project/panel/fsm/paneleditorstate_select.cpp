@@ -41,10 +41,13 @@
 #include "../../cmd/cmdpaneltabadd.h"
 #include "../../cmd/cmdpaneltabedit.h"
 #include "../../cmd/cmdpaneltabremove.h"
+#include "../../cmd/cmdpanelvcutedit.h"
+#include "../../cmd/cmdpanelvcutremove.h"
 #include "../graphicsitems/pgi_boardinstance.h"
 #include "../graphicsitems/pgi_fiducial.h"
 #include "../graphicsitems/pgi_hole.h"
 #include "../graphicsitems/pgi_tab.h"
+#include "../graphicsitems/pgi_vcut.h"
 #include "../panelclipboarddata.h"
 #include "../panelgraphicsscene.h"
 
@@ -53,6 +56,7 @@
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
+#include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/lengthunit.h>
 #include <librepcb/core/utils/toolbox.h>
@@ -78,7 +82,8 @@ PanelEditorState_Select::PanelEditorState_Select(
     mSelectionKind(SelectionKind::None),
     mCurrentDiameter(1000000),
     mCurrentCopperClearance(500000),
-    mCurrentFlipped(false) {
+    mCurrentFlipped(false),
+    mCurrentVCutVertical(false) {
 }
 
 PanelEditorState_Select::~PanelEditorState_Select() noexcept {
@@ -183,8 +188,20 @@ bool PanelEditorState_Select::processRemove() noexcept {
       }
     }
   }
+  QVector<std::shared_ptr<PI_VCut>> vCutsToRemove;
+  const auto& vCutItems = scene->getVCutItems();
+  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+        if (ignoreLocks || (!vcut->isLocked())) {
+          vCutsToRemove.append(vcut);
+        }
+      }
+    }
+  }
   if (boardsToRemove.isEmpty() && holesToRemove.isEmpty() &&
-      fiducialsToRemove.isEmpty() && tabsToRemove.isEmpty()) {
+      fiducialsToRemove.isEmpty() && tabsToRemove.isEmpty() &&
+      vCutsToRemove.isEmpty()) {
     return false;
   }
 
@@ -210,6 +227,10 @@ bool PanelEditorState_Select::processRemove() noexcept {
       mContext.undoStack.appendToCmdGroup(
           new CmdPanelFiducialRemove(mContext.panel, fiducial));
     }
+    foreach (const std::shared_ptr<PI_VCut>& vcut, vCutsToRemove) {
+      mContext.undoStack.appendToCmdGroup(
+          new CmdPanelVCutRemove(mContext.panel, vcut));
+    }
     mContext.undoStack.commitCmdGroup();
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
@@ -228,7 +249,7 @@ bool PanelEditorState_Select::processSetLocked(bool locked) noexcept {
 
 bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be rotated.
-  if (mIsUndoCmdActive && (!mDragCmds.empty())) {
+  if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()))) {
     // A drag is in progress - rotate the live preview, same as
     // right-click-during-drag (see processGraphicsSceneRightMouseButtonReleased()).
     return rotateSelection(rotation);
@@ -524,7 +545,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     return true;
   }
 
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty()) {
+  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
+      mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -565,6 +587,18 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
         mDragFiducialCmds) {
       cmd->translate(delta, true);
     }
+    for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
+      cmd->translate(delta, true);
+      // Snap to the (current) grid, so a V-cut placed with another grid
+      // interval gets aligned again as soon as it's moved - the delta is a
+      // multiple of the grid, so it stays aligned afterwards. Also keep
+      // V-cuts on the panel - they stop at the edge.
+      cmd->setPosition(
+          clampVCutToPanel(cmd->isVertical(),
+                           cmd->getPosition().mappedToGrid(*getGridInterval())),
+          true);
+    }
+    mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
     mDragLastPos = pos;
   }
   return true;
@@ -594,7 +628,7 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   foreach (QGraphicsItem* item, itemsAtPos) {
     if (dynamic_cast<PGI_BoardInstance*>(item) ||
         dynamic_cast<PGI_Hole*>(item) || dynamic_cast<PGI_Fiducial*>(item) ||
-        dynamic_cast<PGI_Tab*>(item)) {
+        dynamic_cast<PGI_Tab*>(item) || dynamic_cast<PGI_VCut*>(item)) {
       clickedItem = item;
       break;
     }
@@ -675,6 +709,10 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
       mDragFiducialCmds.clear();
+      for (std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
+        mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+      }
+      mDragVCutCmds.clear();
       mDragPasteOffsets.clear();
       mDragHolePasteOffsets.clear();
       mDragFiducialPasteOffsets.clear();
@@ -693,7 +731,7 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
     const GraphicsSceneMouseEvent& e) noexcept {
   scheduleUpdateAvailableFeatures();
 
-  if (mIsUndoCmdActive && (!mDragCmds.empty())) {
+  if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()))) {
     return rotateSelection(Angle::deg90());
   }
   if (mIsUndoCmdActive) {
@@ -766,6 +804,7 @@ bool PanelEditorState_Select::startMovingSelection(
   Q_ASSERT(mDragCmds.empty());
   Q_ASSERT(mDragHoleCmds.empty());
   Q_ASSERT(mDragFiducialCmds.empty());
+  Q_ASSERT(mDragVCutCmds.empty());
 
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
@@ -799,7 +838,16 @@ bool PanelEditorState_Select::startMovingSelection(
           it.value()->getFiducial()));
     }
   }
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty()) {
+  const auto& vCutItems = scene->getVCutItems();
+  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+    if (it.value() && it.value()->isSelected() &&
+        (ignoreLocks || (!it.value()->getVCut().isLocked()))) {
+      mDragVCutCmds.push_back(
+          std::make_unique<CmdPanelVCutEdit>(it.value()->getVCut()));
+    }
+  }
+  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
+      mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -811,6 +859,7 @@ bool PanelEditorState_Select::startMovingSelection(
     mDragCmds.clear();
     mDragHoleCmds.clear();
     mDragFiducialCmds.clear();
+    mDragVCutCmds.clear();
     return false;
   }
 
@@ -854,7 +903,8 @@ bool PanelEditorState_Select::startResizingOutline(
 }
 
 bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty()) {
+  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
+      mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -889,7 +939,22 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
     center += cmd->getPosition();
     centerCount++;
   }
-  center /= static_cast<int64_t>(centerCount);
+  if (centerCount > 0) {
+    center /= static_cast<int64_t>(centerCount);
+  } else {
+    // Only V-cuts are dragged: pivot at the (grid-snapped) cursor, so the
+    // rotated V-cut passes through the cursor.
+    center = mDragLastPos;
+  }
+
+  // V-cuts only support multiples of 90°; CmdPanelVCutEdit::rotate() ignores
+  // anything else.
+  for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
+    cmd->rotate(angle, center, true);
+    cmd->setPosition(clampVCutToPanel(cmd->isVertical(), cmd->getPosition()),
+                     true);
+  }
+  mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
 
   for (std::size_t i = 0; i < mDragCmds.size(); ++i) {
     mDragCmds[i]->rotate(angle, center, true);
@@ -1071,8 +1136,17 @@ bool PanelEditorState_Select::lockSelectedItems(bool locked) noexcept {
       }
     }
   }
+  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
+  const auto& vCutItems = scene->getVCutItems();
+  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+        selectedVCuts.append(vcut);
+      }
+    }
+  }
   if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty()) {
+      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
     return false;
   }
 
@@ -1094,6 +1168,11 @@ bool PanelEditorState_Select::lockSelectedItems(bool locked) noexcept {
     foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
+      cmd->setLocked(locked, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
+    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
+      std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
       cmd->setLocked(locked, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
@@ -1152,8 +1231,19 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       }
     }
   }
+  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
+  const auto& vCutItems = scene->getVCutItems();
+  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+        if (ignoreLocks || (!vcut->isLocked())) {
+          selectedVCuts.append(vcut);
+        }
+      }
+    }
+  }
   if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty()) {
+      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
     return false;
   }
 
@@ -1180,10 +1270,23 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
     center += fiducial->getPosition();
     centerCount++;
   }
-  center /= static_cast<int64_t>(centerCount);
+  if (centerCount > 0) {
+    center /= static_cast<int64_t>(centerCount);
+  } else {
+    // Only V-cuts are selected: V-cuts have no position of their own, so
+    // pivot at the center of their in-panel midpoints.
+    center = getVCutsCenter(selectedVCuts);
+  }
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Rotate item(s)"));  // can throw
+    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
+      std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
+      cmd->rotate(angle, center, false);  // Ignores non-90° angles.
+      cmd->setPosition(
+          clampVCutToPanel(cmd->isVertical(), cmd->getPosition()), false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
             selectedBoards) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
@@ -1209,6 +1312,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   }
 
   updateSelectionProperties();
+  mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
   return true;
 }
 
@@ -1344,13 +1448,29 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
     }
   }
   // Selected tab markers can only be removed (they follow their board for
-  // everything else, see the class doc comment).
+  // everything else, see the class doc comment). Selected V-cuts can be
+  // removed, rotated (toggles horizontal/vertical) and locked/unlocked (no
+  // Flip/Cut/Copy yet).
   if (PanelGraphicsScene* scene = getActivePanelScene()) {
     const auto& tabItems = scene->getTabItems();
     for (auto it = tabItems.begin(); it != tabItems.end(); it++) {
       if (it.value() && it.value()->isSelected()) {
         features |= PanelEditorFsmAdapter::Feature::Remove;
         break;
+      }
+    }
+    const auto& vCutItems = scene->getVCutItems();
+    for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+      if (it.value() && it.value()->isSelected()) {
+        features |= PanelEditorFsmAdapter::Feature::Remove;
+        if (getIgnoreLocks() || (!it.value()->getVCut().isLocked())) {
+          features |= PanelEditorFsmAdapter::Feature::Rotate;
+        }
+        if (it.value()->getVCut().isLocked()) {
+          hasLocked = true;
+        } else {
+          hasUnlocked = true;
+        }
       }
     }
   }
@@ -1376,7 +1496,8 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return QString();
 
-  // Only a selection consisting solely of tab markers shows info.
+  // Only a selection consisting solely of tab markers, or solely of V-cuts,
+  // shows info.
   auto anySelected = [](const auto& items) {
     for (auto it = items.begin(); it != items.end(); it++) {
       if (it.value() && it.value()->isSelected()) return true;
@@ -1395,7 +1516,16 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
       tabItems.append(it.value().get());
     }
   }
-  if (tabItems.isEmpty()) return QString();
+  QVector<PGI_VCut*> vCutItems;
+  const auto& vItems = scene->getVCutItems();
+  for (auto it = vItems.begin(); it != vItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      vCutItems.append(it.value().get());
+    }
+  }
+  if (tabItems.isEmpty() == vCutItems.isEmpty()) {
+    return QString();  // Nothing, or a mix of tab markers and V-cuts.
+  }
 
   const LengthUnit& unit = mContext.panel.getGridUnit();
   auto formatLength = [&unit](const Length& l) {
@@ -1447,6 +1577,30 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
     keyValues.append(std::make_pair(tr("Width"), value));
   }
 
+  // V-cuts: for a single V-cut, its distance to the nearest parallel panel
+  // edge. The panel spans (0,0) to (width,height), y pointing up.
+  if (vCutItems.count() == 1) {
+    const PI_VCut& vcut = vCutItems.first()->getVCut();
+    const Length pos = vcut.getPosition();
+    std::pair<Length, QString> edgeDistance;
+    if (vcut.isVertical()) {
+      const Length toRight = *mContext.panel.getWidth() - pos;
+      edgeDistance = (pos.abs() <= toRight.abs())
+          ? std::make_pair(pos, tr("to left edge"))
+          : std::make_pair(toRight, tr("to right edge"));
+    } else {
+      const Length toTop = *mContext.panel.getHeight() - pos;
+      edgeDistance = (toTop.abs() <= pos.abs())
+          ? std::make_pair(toTop, tr("to top edge"))
+          : std::make_pair(pos, tr("to bottom edge"));
+    }
+    keyValues.append(std::make_pair(
+        tr("Distance"),
+        QString("%1 %2 %3")
+            .arg(formatPosition(edgeDistance.first), unit.toShortStringTr(),
+                 edgeDistance.second)));
+  }
+
   // Build string with aligned values, same as Board's info box.
   qsizetype maxKeyLen = 0;
   for (const auto& item : keyValues) {
@@ -1483,6 +1637,16 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
       }
     }
 
+    QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
+    const auto& vCutItems = scene->getVCutItems();
+    for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+      if (it.value() && it.value()->isSelected()) {
+        if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+          selectedVCuts.append(vcut);
+        }
+      }
+    }
+
     QVector<std::shared_ptr<PI_Hole>> selectedHoles;
     const auto& holeItems = scene->getHoleItems();
     for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
@@ -1509,22 +1673,94 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
     // the secondary toolbar entirely rather than guessing which item's
     // properties to show.
     if ((!anyBoardSelected) && (!selectedHoles.isEmpty()) &&
-        selectedFiducials.isEmpty()) {
+        selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
       mSelectionKind = SelectionKind::Hole;
       mCurrentDiameter = selectedHoles.first()->getDiameter();
     } else if ((!anyBoardSelected) && (!selectedFiducials.isEmpty()) &&
-              selectedHoles.isEmpty()) {
+              selectedHoles.isEmpty() && selectedVCuts.isEmpty()) {
       mSelectionKind = SelectionKind::Fiducial;
       mCurrentDiameter = selectedFiducials.first()->getDiameter();
       mCurrentCopperClearance = selectedFiducials.first()->getCopperClearance();
       mCurrentFlipped = selectedFiducials.first()->getFlipped();
+    } else if ((!anyBoardSelected) && (!selectedVCuts.isEmpty()) &&
+               selectedHoles.isEmpty() && selectedFiducials.isEmpty()) {
+      // With mixed orientations, the first V-cut's is shown (same as the
+      // fiducial board side above).
+      mSelectionKind = SelectionKind::VCut;
+      mCurrentVCutVertical = selectedVCuts.first()->isVertical();
     }
   }
 
   emit selectionPropertiesChanged(mSelectionKind == SelectionKind::Hole,
                                   mSelectionKind == SelectionKind::Fiducial,
+                                  mSelectionKind == SelectionKind::VCut,
                                   mCurrentDiameter, mCurrentCopperClearance,
-                                  mCurrentFlipped);
+                                  mCurrentFlipped, mCurrentVCutVertical);
+}
+
+void PanelEditorState_Select::setVCutVertical(bool vertical) noexcept {
+  if (mIsUndoCmdActive) return;  // Avoid nesting inside an active drag.
+  if (mSelectionKind != SelectionKind::VCut) return;
+  // Fires on every setDerivedUiData() round-trip, see setFlipped().
+  if (vertical == mCurrentVCutVertical) return;
+
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return;
+
+  // Only the V-cuts not already in the requested orientation change. Locked
+  // ones are skipped unless locks are ignored, like rotateSelectedItems().
+  const bool ignoreLocks = getIgnoreLocks();
+  QVector<std::shared_ptr<PI_VCut>> selected;
+  const auto& items = scene->getVCutItems();
+  for (auto it = items.begin(); it != items.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+        if ((vcut->isVertical() != vertical) &&
+            (ignoreLocks || (!vcut->isLocked()))) {
+          selected.append(vcut);
+        }
+      }
+    }
+  }
+
+  if (!selected.isEmpty()) {
+    // Same as the Rotate command: turn them by 90° around the center of
+    // their in-panel midpoints.
+    const Point center = getVCutsCenter(selected);
+    try {
+      mContext.undoStack.beginCmdGroup(tr("Change V-cut orientation"));
+      foreach (const std::shared_ptr<PI_VCut>& vcut, selected) {
+        std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
+        cmd->rotate(Angle::deg90(), center, false);
+        cmd->setPosition(
+            clampVCutToPanel(cmd->isVertical(), cmd->getPosition()), false);
+        mContext.undoStack.appendToCmdGroup(cmd.release());
+      }
+      mContext.undoStack.commitCmdGroup();
+    } catch (const Exception& e) {
+      QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
+    }
+  }
+
+  // Push the actual state back to PanelTab (also reverts the toolbar if
+  // nothing could be changed, e.g. all V-cuts locked), see setFlipped().
+  updateSelectionProperties();
+  mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
+}
+
+Point PanelEditorState_Select::getVCutsCenter(
+    const QVector<std::shared_ptr<PI_VCut>>& vCuts) const noexcept {
+  const Length halfWidth = *mContext.panel.getWidth() / static_cast<int64_t>(2);
+  const Length halfHeight = *mContext.panel.getHeight() / static_cast<int64_t>(2);
+  Point center(0, 0);
+  foreach (const std::shared_ptr<PI_VCut>& vcut, vCuts) {
+    center += vcut->isVertical() ? Point(vcut->getPosition(), halfHeight)
+                                 : Point(halfWidth, vcut->getPosition());
+  }
+  if (!vCuts.isEmpty()) {
+    center /= static_cast<int64_t>(vCuts.count());
+  }
+  return center;
 }
 
 void PanelEditorState_Select::setDiameter(
@@ -1685,6 +1921,7 @@ bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
     mDragHoleCmds.clear();
     mDragFiducialCmds.clear();
     mDragTabCmd.reset();
+    mDragVCutCmds.clear();
     mDragPasteOffsets.clear();
     mDragHolePasteOffsets.clear();
     mDragFiducialPasteOffsets.clear();

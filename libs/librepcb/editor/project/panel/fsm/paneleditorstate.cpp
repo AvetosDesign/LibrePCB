@@ -27,6 +27,8 @@
 #include "../../../undostack.h"
 #include "../panelgraphicsscene.h"
 
+#include <librepcb/core/project/panel/panel.h>
+
 #include <QtCore>
 
 /*******************************************************************************
@@ -60,6 +62,25 @@ PositiveLength PanelEditorState::getGridInterval() const noexcept {
     return scene->getGridInterval();
   }
   return PositiveLength(1000000);  // Fallback, should never happen.
+}
+
+bool PanelEditorState::isVCutOnPanel(bool vertical,
+                                     const Length& position) const noexcept {
+  const Length extent =
+      vertical ? *mContext.panel.getWidth() : *mContext.panel.getHeight();
+  return (position > 0) && (position < extent);
+}
+
+Length PanelEditorState::clampVCutToPanel(
+    bool vertical, const Length& position) const noexcept {
+  if (isVCutOnPanel(vertical, position)) {
+    return position;
+  }
+  const Length extent =
+      vertical ? *mContext.panel.getWidth() : *mContext.panel.getHeight();
+  const Length inset =
+      std::min(*getGridInterval(), extent / static_cast<int64_t>(2));
+  return (position <= 0) ? inset : (extent - inset);
 }
 
 bool PanelEditorState::getIgnoreLocks() const noexcept {

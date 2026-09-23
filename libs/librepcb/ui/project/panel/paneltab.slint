@@ -3,6 +3,7 @@
 
 import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
 import { AddHoleToolBar } from "addholetoolbar.slint";
+import { AddVCutToolBar } from "addvcuttoolbar.slint";
 import { Tab } from "../../tab.slint";
 import { SceneButton, TextInput, ToolBar, ToolButton } from "../../widgets.slint";
 import {
@@ -162,12 +163,22 @@ export component PanelTab inherits Tab {
                 section: section;
             }
 
+            if tabs[index].tool == EditorTool.panel-vcut: vcut-toolbar := AddVCutToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
             if tabs[index].tool == EditorTool.select && tabs[index].select-hole: sel-hole-toolbar := AddHoleToolBar {
                 section-index: section-index;
                 section: section;
             }
 
             if tabs[index].tool == EditorTool.select && tabs[index].select-fiducial: sel-fiducial-toolbar := AddFiducialToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
+            if tabs[index].tool == EditorTool.select && tabs[index].select-vcut: sel-vcut-toolbar := AddVCutToolBar {
                 section-index: section-index;
                 section: section;
             }

@@ -36,6 +36,7 @@
 #include "items/pi_fiducial.h"
 #include "items/pi_hole.h"
 #include "items/pi_tab.h"
+#include "items/pi_vcut.h"
 
 #include <QtCore>
 
@@ -106,6 +107,32 @@ public:
    */
   static constexpr Length initialDefaultTabWidth = Length(6000000);  // 6 mm
 
+  /**
+   * @brief Initial panel-wide default mouse bite hole diameter
+   *
+   * Used to initialize #mDefaultMouseBiteDiameter in the constructor.
+   */
+  static constexpr Length initialDefaultMouseBiteDiameter =
+      Length(600000);  // 0.6 mm
+
+  /**
+   * @brief Initial panel-wide default mouse bite hole spacing
+   *
+   * Center-to-center distance between neighboring holes. Used to initialize
+   * #mDefaultMouseBiteSpacing in the constructor.
+   */
+  static constexpr Length initialDefaultMouseBiteSpacing =
+      Length(1000000);  // 1.0 mm
+
+  /**
+   * @brief Initial panel-wide default minimum V-cut to panel edge distance
+   *
+   * Used to initialize #mDefaultVCutMinPanelEdgeDistance in the
+   * constructor.
+   */
+  static constexpr Length initialDefaultVCutMinPanelEdgeDistance =
+      Length(5000000);  // 5 mm
+
   // Constructors / Destructor
   Panel() = delete;
   Panel(const Panel& other) = delete;
@@ -174,7 +201,7 @@ public:
    *
    * Used by every ::librepcb::PI_Tab without its own width override (see
    * ::librepcb::PI_Tab::getWidth()). Defaults to #initialDefaultTabWidth.
-   * Not yet editable in the UI.
+   * Editable in the Panel Setup dialog ("Tabs" group).
    */
   const PositiveLength& getDefaultTabWidth() const noexcept {
     return mDefaultTabWidth;
@@ -189,6 +216,53 @@ public:
    *         #getDefaultTabWidth().
    */
   PositiveLength getEffectiveTabWidth(const PI_Tab& tab) const noexcept;
+
+  /**
+   * @brief Check whether tabs get mouse bites by default
+   *
+   * Panel-wide default for whether mouse bite holes are generated along a
+   * tab's cut line(s). Defaults to true. Per-tab overrides are future work.
+   */
+  bool getDefaultMouseBitesEnabled() const noexcept {
+    return mDefaultMouseBitesEnabled;
+  }
+
+  /**
+   * @brief Get the panel-wide default mouse bite hole diameter
+   *
+   * Diameter of the non-plated holes drilled along a tab's cut line(s).
+   * Defaults to #initialDefaultMouseBiteDiameter. Per-tab overrides and
+   * the mouse bite geometry itself are future work (see
+   * claude/librepcb_panel_design_decisions.md, "Mouse bites").
+   */
+  const PositiveLength& getDefaultMouseBiteDiameter() const noexcept {
+    return mDefaultMouseBiteDiameter;
+  }
+
+  /**
+   * @brief Get the panel-wide default mouse bite hole spacing
+   *
+   * Center-to-center distance between neighboring mouse bite holes.
+   * Defaults to #initialDefaultMouseBiteSpacing.
+   *
+   * @see #getDefaultMouseBiteDiameter()
+   */
+  const PositiveLength& getDefaultMouseBiteSpacing() const noexcept {
+    return mDefaultMouseBiteSpacing;
+  }
+
+  /**
+   * @brief Get the panel-wide default minimum V-cut to panel edge distance
+   *
+   * Minimum distance between a V-cut line and the edge of the panel
+   * (typically specified by manufacturers as 5.0 mm to 20.0 mm).
+   * Defaults to #initialDefaultVCutMinPanelEdgeDistance. Editable in the
+   * Panel Setup dialog ("V-Cuts" group); not used yet, since V-cuts
+   * themselves are still a stub (see claude/librepcb_panel_vcut_tool.md).
+   */
+  const UnsignedLength& getDefaultVCutMinPanelEdgeDistance() const noexcept {
+    return mDefaultVCutMinPanelEdgeDistance;
+  }
 
   /**
    * @brief Get the stored visibility of the panel editor's graphics layers
@@ -212,6 +286,11 @@ public:
   }
   void setGridUnit(const LengthUnit& unit) noexcept { mGridUnit = unit; }
   void setDefaultTabWidth(const PositiveLength& width) noexcept;
+  void setDefaultMouseBitesEnabled(bool enabled) noexcept;
+  void setDefaultMouseBiteDiameter(const PositiveLength& diameter) noexcept;
+  void setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept;
+  void setDefaultVCutMinPanelEdgeDistance(
+      const UnsignedLength& distance) noexcept;
   void setLayersVisibility(const QMap<QString, bool>& visibility) noexcept {
     mLayersVisibility = visibility;
   }
@@ -284,6 +363,18 @@ public:
   void addTab(std::shared_ptr<PI_Tab> tab);
   void removeTab(std::shared_ptr<PI_Tab> tab);
 
+  // V-Cut Methods
+  PI_VCutList& getVCuts() noexcept { return mVCuts; }
+  const PI_VCutList& getVCuts() const noexcept { return mVCuts; }
+  std::shared_ptr<PI_VCut> getVCut(const Uuid& uuid) noexcept {
+    return mVCuts.find(uuid);
+  }
+  std::shared_ptr<const PI_VCut> getVCut(const Uuid& uuid) const noexcept {
+    return mVCuts.find(uuid);
+  }
+  void addVCut(std::shared_ptr<PI_VCut> vcut);
+  void removeVCut(std::shared_ptr<PI_VCut> vcut);
+
   /**
    * @brief Get the UUIDs of all distinct board designs referenced by this
    *        panel (deduplicated across placed instances)
@@ -329,6 +420,8 @@ signals:
   void fiducialRemoved(int index);
   void tabAdded(int index);
   void tabRemoved(int index);
+  void vCutAdded(int index);
+  void vCutRemoved(int index);
   void attributesChanged();
 
 private:  // Methods
@@ -344,6 +437,9 @@ private:  // Methods
   void tabsEdited(const PI_TabList& list, int index,
                   const std::shared_ptr<const PI_Tab>& obj,
                   PI_TabList::Event event) noexcept;
+  void vCutsEdited(const PI_VCutList& list, int index,
+                   const std::shared_ptr<const PI_VCut>& obj,
+                   PI_VCutList::Event event) noexcept;
 
 private:  // Data
   // General
@@ -360,6 +456,10 @@ private:  // Data
   PositiveLength mGridInterval;
   LengthUnit mGridUnit;
   PositiveLength mDefaultTabWidth;
+  bool mDefaultMouseBitesEnabled;
+  PositiveLength mDefaultMouseBiteDiameter;
+  PositiveLength mDefaultMouseBiteSpacing;
+  UnsignedLength mDefaultVCutMinPanelEdgeDistance;
 
   // User settings (saved in settings.user.lp, see #getLayersVisibility())
   QMap<QString, bool> mLayersVisibility;
@@ -375,6 +475,9 @@ private:  // Data
   // position, see PI_Tab).
   PI_TabList mTabs;
 
+  // V-cut lines across the panel.
+  PI_VCutList mVCuts;
+
   /// One checksum per referenced board UUID, not per placement instance.
   QHash<Uuid, QString> mBoardChecksums;
 
@@ -383,6 +486,7 @@ private:  // Data
   PI_HoleList::OnEditedSlot mOnHolesEditedSlot;
   PI_FiducialList::OnEditedSlot mOnFiducialsEditedSlot;
   PI_TabList::OnEditedSlot mOnTabsEditedSlot;
+  PI_VCutList::OnEditedSlot mOnVCutsEditedSlot;
 };
 
 /*******************************************************************************

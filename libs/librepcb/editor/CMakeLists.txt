@@ -681,6 +681,12 @@ add_library(
   project/cmd/cmdpaneltabedit.h
   project/cmd/cmdpaneltabremove.cpp
   project/cmd/cmdpaneltabremove.h
+  project/cmd/cmdpanelvcutadd.cpp
+  project/cmd/cmdpanelvcutadd.h
+  project/cmd/cmdpanelvcutedit.cpp
+  project/cmd/cmdpanelvcutedit.h
+  project/cmd/cmdpanelvcutremove.cpp
+  project/cmd/cmdpanelvcutremove.h
   project/cmd/cmdpasteboarditems.cpp
   project/cmd/cmdpasteboarditems.h
   project/cmd/cmdpasteschematicitems.cpp
@@ -818,6 +824,8 @@ add_library(
   project/panel/graphicsitems/pgi_outline.h
   project/panel/graphicsitems/pgi_tab.cpp
   project/panel/graphicsitems/pgi_tab.h
+  project/panel/graphicsitems/pgi_vcut.cpp
+  project/panel/graphicsitems/pgi_vcut.h
   project/panel/panelclipboarddata.cpp
   project/panel/panelclipboarddata.h
   project/panel/paneleditor.cpp

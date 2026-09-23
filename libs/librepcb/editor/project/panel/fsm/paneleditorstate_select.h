@@ -41,6 +41,9 @@
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
+
+class PI_VCut;
+
 namespace editor {
 
 class CmdPanelBoardInstanceEdit;
@@ -48,6 +51,7 @@ class CmdPanelEdit;
 class CmdPanelFiducialEdit;
 class CmdPanelHoleEdit;
 class CmdPanelTabEdit;
+class CmdPanelVCutEdit;
 class PGI_Tab;
 
 /*******************************************************************************
@@ -122,9 +126,17 @@ class PGI_Tab;
  *    the rest of the selection. Tab markers are otherwise not part of
  *    Rotate/Flip/Lock/Cut/Copy: they follow their board automatically, and
  *    copying a board placement copies its attached tabs along with it.
+ *  - V-cut lines (::librepcb::PI_VCut): click anywhere on the line to
+ *    select, drag (together with the rest of the selection) to move, Delete
+ *    to remove, and Lock/Unlock. Rotate (key, button or right-click while
+ *    dragging) toggles horizontal/vertical - while dragging only V-cuts,
+ *    the rotated line passes through the cursor. A V-cuts-only selection
+ *    also shows the Horizontal/Vertical toolbar (see #setVCutVertical()).
+ *    Not part of Flip or Cut/Copy/Paste yet.
  *  - An info box on the canvas (like ::librepcb::editor::
  *    BoardEditorState_Select's) showing the Position and Width of the
- *    selected tab marker(s) - see #buildInfoBoxText().
+ *    selected tab marker(s), or the distance to the nearest parallel panel
+ *    edge of a single selected V-cut - see #buildInfoBoxText().
  *
  * Cut/Copy/Paste (see #copySelectedItemsToClipboard()/processPaste()), Flip
  * (see #flipSelectedItems()), and Rotate (see #rotateSelectedItems()/
@@ -179,12 +191,12 @@ public:
   /**
    * @brief What kind of item the current selection is homogeneously made of
    *
-   * Only ::librepcb::PI_Hole and ::librepcb::PI_Fiducial are distinguished
-   * here (board instances aren't part of this parameter-editing feature) -
-   * #None whenever the selection is empty, mixed, or contains any board
-   * instance.
+   * Only ::librepcb::PI_Hole, ::librepcb::PI_Fiducial and
+   * ::librepcb::PI_VCut are distinguished here (board instances aren't part
+   * of this parameter-editing feature) - #None whenever the selection is
+   * empty, mixed, or contains any board instance or tab marker.
    */
-  enum class SelectionKind { None, Hole, Fiducial };
+  enum class SelectionKind { None, Hole, Fiducial, VCut };
 
   // Connection to UI - selection property editing
   SelectionKind getSelectionKind() const noexcept { return mSelectionKind; }
@@ -198,6 +210,19 @@ public:
   void setCopperClearance(const UnsignedLength& clearance) noexcept;
   bool getFlipped() const noexcept { return mCurrentFlipped; }
   void setFlipped(bool flipped) noexcept;
+  bool getVCutVertical() const noexcept { return mCurrentVCutVertical; }
+
+  /**
+   * @brief Change the orientation of the selected V-cuts
+   *
+   * Only applies to a #SelectionKind::VCut selection. The V-cuts not
+   * already in the requested orientation are turned by 90° around the
+   * center of their in-panel midpoints (same as the Rotate command), in one
+   * undo step. Locked V-cuts are skipped unless locks are ignored.
+   *
+   * @param vertical  `true` for vertical, `false` for horizontal.
+   */
+  void setVCutVertical(bool vertical) noexcept;
 
   // Operator Overloadings
   PanelEditorState_Select& operator=(const PanelEditorState_Select& rhs) =
@@ -213,10 +238,10 @@ signals:
    * ::librepcb::editor::Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
    * componentSideChanged wiring convention.
    */
-  void selectionPropertiesChanged(bool isHole, bool isFiducial,
+  void selectionPropertiesChanged(bool isHole, bool isFiducial, bool isVCut,
                                   const PositiveLength& diameter,
                                   const UnsignedLength& clearance,
-                                  bool flipped);
+                                  bool flipped, bool vCutVertical);
 
 private:
   // Private Methods
@@ -235,15 +260,35 @@ private:
   void updateSelectionProperties() noexcept;
 
   /**
+   * @brief Pivot point for rotating V-cuts that are rotated on their own
+   *
+   * A V-cut is an infinite line without a position of its own, so this
+   * averages the midpoints of the V-cuts' in-panel sections (e.g.
+   * (width/2, y) for a horizontal V-cut). A single V-cut thus turns about
+   * the panel's center line.
+   *
+   * @param vCuts  The V-cuts to rotate.
+   *
+   * @return The pivot point in panel coordinates, or (0,0) if empty.
+   */
+  Point getVCutsCenter(
+      const QVector<std::shared_ptr<PI_VCut>>& vCuts) const noexcept;
+
+  /**
    * @brief Build the info box text for the current selection
    *
    * Follows ::librepcb::editor::BoardEditorState_Select::processSelection()'s
    * format (aligned "Key: value" lines, lengths in the panel's grid unit).
-   * Only a selection consisting solely of tab markers shows anything:
+   * Only a selection consisting solely of tab markers, or solely of V-cuts,
+   * shows anything. For tab markers:
    *  - "Position": the marker's position on the panel (single marker only).
    *  - "Width": the tab's effective width, marked as coming from the panel
    *    default or from the tab's own override. Omitted if several selected
    *    tabs have different widths; the source is omitted if it differs.
+   * For V-cuts:
+   *  - "Distance": for a single selected V-cut only, its
+   *    distance to the nearest top/bottom (left/right) panel edge, e.g.
+   *    "7.5 mm to top edge".
    *
    * @return The info box text, or an empty string to hide the info box.
    */
@@ -259,6 +304,8 @@ private:
   /// Non-null only while dragging a tab marker along the board edges -
   /// mutually exclusive with the other drag commands.
   std::unique_ptr<CmdPanelTabEdit> mDragTabCmd;
+  /// V-cuts moved by an ordinary selection drag (never pasted).
+  std::vector<std::unique_ptr<CmdPanelVCutEdit>> mDragVCutCmds;
   /// Per-mDragCmds/mDragHoleCmds/mDragFiducialCmds-entry offset from the
   /// cursor, populated only for a paste-placement drag (empty for an
   /// ordinary selection drag) - see the class doc comment's Cut/Copy/Paste
@@ -280,6 +327,7 @@ private:
   PositiveLength mCurrentDiameter;
   UnsignedLength mCurrentCopperClearance;
   bool mCurrentFlipped;
+  bool mCurrentVCutVertical;
 };
 
 /*******************************************************************************

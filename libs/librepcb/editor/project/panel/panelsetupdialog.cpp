@@ -66,6 +66,27 @@ PanelSetupDialog::PanelSetupDialog(GuiApplication& app, Panel& panel,
   mUi->spbxDefaultTabWidth->setSuffix(" mm");
   mUi->spbxDefaultTabWidth->setDecimals(2);
   mUi->spbxDefaultTabWidth->setRange(0.1, 100.0);
+  mUi->spbxDefaultMouseBiteDiameter->setSuffix(" mm");
+  mUi->spbxDefaultMouseBiteDiameter->setDecimals(2);
+  mUi->spbxDefaultMouseBiteDiameter->setRange(0.1, 10.0);
+  mUi->spbxDefaultMouseBiteDiameter->setSingleStep(0.05);
+  mUi->spbxDefaultMouseBiteSpacing->setSuffix(" mm");
+  mUi->spbxDefaultMouseBiteSpacing->setDecimals(2);
+  mUi->spbxDefaultMouseBiteSpacing->setRange(0.1, 10.0);
+  mUi->spbxDefaultMouseBiteSpacing->setSingleStep(0.05);
+  mUi->spbxDefaultVCutMinPanelEdgeDistance->setSuffix(" mm");
+  mUi->spbxDefaultVCutMinPanelEdgeDistance->setDecimals(2);
+  // Manufacturers typically publish 5.0 mm to 20.0 mm.
+  mUi->spbxDefaultVCutMinPanelEdgeDistance->setRange(5.0, 20.0);
+  // Hole size/spacing only matter if mouse bites are included.
+  connect(mUi->cbxDefaultMouseBites, &QCheckBox::toggled,
+          mUi->spbxDefaultMouseBiteDiameter, &QWidget::setEnabled);
+  connect(mUi->cbxDefaultMouseBites, &QCheckBox::toggled,
+          mUi->spbxDefaultMouseBiteSpacing, &QWidget::setEnabled);
+  connect(mUi->cbxDefaultMouseBites, &QCheckBox::toggled,
+          mUi->lblDefaultMouseBiteDiameter, &QWidget::setEnabled);
+  connect(mUi->cbxDefaultMouseBites, &QCheckBox::toggled,
+          mUi->lblDefaultMouseBiteSpacing, &QWidget::setEnabled);
 
   load();
 }
@@ -101,6 +122,23 @@ void PanelSetupDialog::load() noexcept {
   mUi->spbxWidth->setValue(mPanel.getWidth()->toMm());
   mUi->spbxHeight->setValue(mPanel.getHeight()->toMm());
   mUi->spbxDefaultTabWidth->setValue(mPanel.getDefaultTabWidth()->toMm());
+  mUi->cbxDefaultMouseBites->setChecked(
+      mPanel.getDefaultMouseBitesEnabled());
+  // setChecked() only emits toggled() on a change, so sync explicitly.
+  mUi->spbxDefaultMouseBiteDiameter->setEnabled(
+      mPanel.getDefaultMouseBitesEnabled());
+  mUi->spbxDefaultMouseBiteSpacing->setEnabled(
+      mPanel.getDefaultMouseBitesEnabled());
+  mUi->lblDefaultMouseBiteDiameter->setEnabled(
+      mPanel.getDefaultMouseBitesEnabled());
+  mUi->lblDefaultMouseBiteSpacing->setEnabled(
+      mPanel.getDefaultMouseBitesEnabled());
+  mUi->spbxDefaultMouseBiteDiameter->setValue(
+      mPanel.getDefaultMouseBiteDiameter()->toMm());
+  mUi->spbxDefaultMouseBiteSpacing->setValue(
+      mPanel.getDefaultMouseBiteSpacing()->toMm());
+  mUi->spbxDefaultVCutMinPanelEdgeDistance->setValue(
+      mPanel.getDefaultVCutMinPanelEdgeDistance()->toMm());
 }
 
 bool PanelSetupDialog::apply() noexcept {
@@ -116,6 +154,13 @@ bool PanelSetupDialog::apply() noexcept {
         false);  // can throw
     cmd->setDefaultTabWidth(PositiveLength(
         Length::fromMm(mUi->spbxDefaultTabWidth->value())));  // can throw
+    cmd->setDefaultMouseBitesEnabled(mUi->cbxDefaultMouseBites->isChecked());
+    cmd->setDefaultMouseBiteDiameter(PositiveLength(Length::fromMm(
+        mUi->spbxDefaultMouseBiteDiameter->value())));  // can throw
+    cmd->setDefaultMouseBiteSpacing(PositiveLength(Length::fromMm(
+        mUi->spbxDefaultMouseBiteSpacing->value())));  // can throw
+    cmd->setDefaultVCutMinPanelEdgeDistance(UnsignedLength(Length::fromMm(
+        mUi->spbxDefaultVCutMinPanelEdgeDistance->value())));  // can throw
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

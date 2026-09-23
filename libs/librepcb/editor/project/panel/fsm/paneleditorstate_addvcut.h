@@ -27,6 +27,8 @@
  ******************************************************************************/
 #include "paneleditorstate.h"
 
+#include <librepcb/core/types/point.h>
+
 #include <QtCore>
 
 /*******************************************************************************
@@ -42,14 +44,18 @@ namespace editor {
 /**
  * @brief The "add V-cuts" state/tool of the panel editor
  *
- * **Stub only.** The tool can be selected from the tool palette (so the
- * UI/FSM plumbing is in place), but it doesn't do anything yet: entering
- * it only shows a status bar hint, and all scene events are ignored. The
- * V-cut model, placement interaction and rendering are still to be
- * designed - see claude/librepcb_panel_design_decisions.md ("V-grooves")
- * for the direction discussed so far (a straight line on a dedicated panel
- * layer, with the groove parameters living in the panel's manufacturing
- * settings).
+ * Places ::librepcb::PI_VCut lines, which are either horizontal or vertical
+ * (#isVertical(), chosen with the Horizontal/Vertical buttons in the tool's
+ * toolbar). While the tool is active, a phantom V-cut line follows the
+ * grid-snapped cursor (PanelGraphicsScene::setVCutPhantom()); each left
+ * click adds a V-cut there, and the tool stays active for placing more
+ * (multi-placement, like PanelEditorState_AddHole) until Esc or another
+ * tool is selected.
+ *
+ * Right click (or the Rotate command) toggles between horizontal and
+ * vertical, so switching doesn't need the toolbar. A double click is
+ * ignored (its preceding press already placed a V-cut), same as the other
+ * placement tools.
  */
 class PanelEditorState_AddVCut final : public PanelEditorState {
   Q_OBJECT
@@ -66,24 +72,46 @@ public:
   bool exit() noexcept override;
 
   // Event Handlers
-
-  /**
-   * @brief Handle a left click on the canvas (stub)
-   *
-   * Placeholder for the V-cut placement interaction - currently does
-   * nothing.
-   *
-   * @param e   The mouse event.
-   *
-   * @return Always true (event consumed), so clicks with this tool never
-   *         fall through to anything else.
-   */
+  bool processRotate(const Angle& rotation) noexcept override;
+  bool processGraphicsSceneMouseMoved(
+      const GraphicsSceneMouseEvent& e) noexcept override;
   bool processGraphicsSceneLeftMouseButtonPressed(
       const GraphicsSceneMouseEvent& e) noexcept override;
+  bool processGraphicsSceneLeftMouseButtonDoubleClicked(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool processGraphicsSceneRightMouseButtonReleased(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+
+  // Connection to UI
+
+  /**
+   * @brief Check whether new V-cuts are vertical
+   *
+   * @return True for vertical, false for horizontal.
+   */
+  bool isVertical() const noexcept { return mVertical; }
+
+  /**
+   * @brief Set the orientation of new V-cuts
+   *
+   * @param vertical  True for vertical, false for horizontal. Emits
+   *                  #verticalChanged() if it changed.
+   */
+  void setVertical(bool vertical) noexcept;
 
   // Operator Overloadings
   PanelEditorState_AddVCut& operator=(const PanelEditorState_AddVCut& rhs) =
       delete;
+
+signals:
+  void verticalChanged(bool vertical);
+
+private:  // Methods
+  void updatePhantom() noexcept;
+
+private:  // Data
+  bool mVertical;
+  Point mCurrentPos;  ///< Grid-snapped cursor position
 };
 
 /*******************************************************************************

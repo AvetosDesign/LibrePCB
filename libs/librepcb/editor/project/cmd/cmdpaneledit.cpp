@@ -22,6 +22,8 @@
 
 #include "cmdpaneledit.h"
 
+#include <librepcb/core/project/panel/items/pi_vcut.h>
+
 #include <QtCore>
 
 namespace librepcb {
@@ -37,7 +39,19 @@ CmdPanelEdit::CmdPanelEdit(Panel& panel) noexcept
     mOldHeight(mPanel.getHeight()),
     mNewHeight(mOldHeight),
     mOldDefaultTabWidth(mPanel.getDefaultTabWidth()),
-    mNewDefaultTabWidth(mOldDefaultTabWidth) {
+    mNewDefaultTabWidth(mOldDefaultTabWidth),
+    mOldDefaultMouseBitesEnabled(mPanel.getDefaultMouseBitesEnabled()),
+    mNewDefaultMouseBitesEnabled(mOldDefaultMouseBitesEnabled),
+    mOldDefaultMouseBiteDiameter(mPanel.getDefaultMouseBiteDiameter()),
+    mNewDefaultMouseBiteDiameter(mOldDefaultMouseBiteDiameter),
+    mOldDefaultMouseBiteSpacing(mPanel.getDefaultMouseBiteSpacing()),
+    mNewDefaultMouseBiteSpacing(mOldDefaultMouseBiteSpacing),
+    mOldDefaultVCutMinPanelEdgeDistance(
+        mPanel.getDefaultVCutMinPanelEdgeDistance()),
+    mNewDefaultVCutMinPanelEdgeDistance(mOldDefaultVCutMinPanelEdgeDistance) {
+  for (const auto& vcut : mPanel.getVCuts().values()) {
+    mVCutOldPositions.append(std::make_pair(vcut, vcut->getPosition()));
+  }
 }
 
 CmdPanelEdit::~CmdPanelEdit() noexcept {
@@ -48,6 +62,7 @@ CmdPanelEdit::~CmdPanelEdit() noexcept {
 	// since the values are already unchanged in that case.
     mPanel.setWidth(mOldWidth);
     mPanel.setHeight(mOldHeight);
+    applyVCutPositions(mOldWidth, mOldHeight);
   }
 }
 
@@ -60,19 +75,48 @@ void CmdPanelEdit::setWidth(const PositiveLength& width,
                             bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewWidth = width;
-  if (immediate) mPanel.setWidth(mNewWidth);
+  if (immediate) {
+    mPanel.setWidth(mNewWidth);
+    applyVCutPositions(mNewWidth, mPanel.getHeight());
+  }
 }
 
 void CmdPanelEdit::setHeight(const PositiveLength& height,
                              bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewHeight = height;
-  if (immediate) mPanel.setHeight(mNewHeight);
+  if (immediate) {
+    mPanel.setHeight(mNewHeight);
+    applyVCutPositions(mPanel.getWidth(), mNewHeight);
+  }
 }
 
 void CmdPanelEdit::setDefaultTabWidth(const PositiveLength& width) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewDefaultTabWidth = width;
+}
+
+void CmdPanelEdit::setDefaultMouseBitesEnabled(bool enabled) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewDefaultMouseBitesEnabled = enabled;
+}
+
+void CmdPanelEdit::setDefaultMouseBiteDiameter(
+    const PositiveLength& diameter) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewDefaultMouseBiteDiameter = diameter;
+}
+
+void CmdPanelEdit::setDefaultMouseBiteSpacing(
+    const PositiveLength& spacing) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewDefaultMouseBiteSpacing = spacing;
+}
+
+void CmdPanelEdit::setDefaultVCutMinPanelEdgeDistance(
+    const UnsignedLength& distance) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewDefaultVCutMinPanelEdgeDistance = distance;
 }
 
 bool CmdPanelEdit::performExecute() {
@@ -82,6 +126,19 @@ bool CmdPanelEdit::performExecute() {
   if (mNewWidth != mOldWidth) return true;
   if (mNewHeight != mOldHeight) return true;
   if (mNewDefaultTabWidth != mOldDefaultTabWidth) return true;
+  if (mNewDefaultMouseBitesEnabled != mOldDefaultMouseBitesEnabled) {
+    return true;
+  }
+  if (mNewDefaultMouseBiteDiameter != mOldDefaultMouseBiteDiameter) {
+    return true;
+  }
+  if (mNewDefaultMouseBiteSpacing != mOldDefaultMouseBiteSpacing) {
+    return true;
+  }
+  if (mNewDefaultVCutMinPanelEdgeDistance !=
+      mOldDefaultVCutMinPanelEdgeDistance) {
+    return true;
+  }
   return false;
 }
 
@@ -89,14 +146,42 @@ void CmdPanelEdit::performUndo() {
   mPanel.setName(mOldName);
   mPanel.setWidth(mOldWidth);
   mPanel.setHeight(mOldHeight);
+  applyVCutPositions(mOldWidth, mOldHeight);
   mPanel.setDefaultTabWidth(mOldDefaultTabWidth);
+  mPanel.setDefaultMouseBitesEnabled(mOldDefaultMouseBitesEnabled);
+  mPanel.setDefaultMouseBiteDiameter(mOldDefaultMouseBiteDiameter);
+  mPanel.setDefaultMouseBiteSpacing(mOldDefaultMouseBiteSpacing);
+  mPanel.setDefaultVCutMinPanelEdgeDistance(
+      mOldDefaultVCutMinPanelEdgeDistance);
 }
 
 void CmdPanelEdit::performRedo() {
   mPanel.setName(mNewName);
   mPanel.setWidth(mNewWidth);
   mPanel.setHeight(mNewHeight);
+  applyVCutPositions(mNewWidth, mNewHeight);
   mPanel.setDefaultTabWidth(mNewDefaultTabWidth);
+  mPanel.setDefaultMouseBitesEnabled(mNewDefaultMouseBitesEnabled);
+  mPanel.setDefaultMouseBiteDiameter(mNewDefaultMouseBiteDiameter);
+  mPanel.setDefaultMouseBiteSpacing(mNewDefaultMouseBiteSpacing);
+  mPanel.setDefaultVCutMinPanelEdgeDistance(
+      mNewDefaultVCutMinPanelEdgeDistance);
+}
+
+void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,
+                                      const PositiveLength& height) noexcept {
+  for (const auto& entry : mVCutOldPositions) {
+    const Length& oldPos = entry.second;
+    const bool vertical = entry.first->isVertical();
+    // Old/new extent across the V-cut: width for a vertical V-cut (X
+    // position), height for a horizontal one (Y position).
+    const Length oldExtent = vertical ? *mOldWidth : *mOldHeight;
+    const Length newExtent = vertical ? *width : *height;
+    const bool nearerToFarEdge = (oldPos * 2) > oldExtent;
+    entry.first->setPosition(nearerToFarEdge
+                                 ? (oldPos + (newExtent - oldExtent))
+                                 : oldPos);
+  }
 }
 
 }  // namespace editor

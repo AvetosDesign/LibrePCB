@@ -55,7 +55,7 @@ struct GraphicsSceneMouseEvent;
  *
  * Trimmed down from ::librepcb::editor::BoardEditorFsm: only six states
  * exist (`SELECT`, `ADD_BOARD`, `ADD_HOLE`, `ADD_FIDUCIAL`, `ADD_TAB`,
- * `ADD_VCUT` - the latter still a stub), since the panel editor has no
+ * `ADD_VCUT`), since the panel editor has no
  * other tools yet - see claude/librepcb_panel_design_decisions.md for
  * what's still to come. Unlike
  * `BoardEditorFsm`, there's no `mPreviousState`/`switchToPreviousState()` -

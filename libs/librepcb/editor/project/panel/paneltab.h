@@ -32,6 +32,8 @@
 #include "windowtab.h"
 #include "fsm/paneleditorfsmadapter.h"
 
+#include <librepcb/core/types/angle.h>
+
 #include <QtCore>
 
 #include <memory>
@@ -172,6 +174,7 @@ public:
 
 signals:
   void flippedRequested(bool flipped);
+  void vCutVerticalRequested(bool vertical);
 
 private:
   void applyWorkspaceSettings() noexcept;
@@ -292,11 +295,14 @@ private:
   LengthEditContext mToolDiameter;
   LengthEditContext mToolClearance;
   bool mToolFlipped;
+  bool mToolVCutVertical;  ///< Add V-Cuts tool's orientation
   bool mSelectHole;
   bool mSelectFiducial;
+  bool mSelectVCut;  ///< Select tool: selection is all V-cuts
   bool mIgnorePlacementLocks;
   bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
+  bool mVCutToolActive;  ///< Whether the Add V-Cuts tool is active
   bool mShowBoardOutlines;  ///< "Board Outlines" display toggle
   QVector<QMetaObject::Connection> mFsmStateConnections;
   QVector<QMetaObject::Connection> mActiveConnections;
