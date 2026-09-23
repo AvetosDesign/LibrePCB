@@ -47,6 +47,8 @@ class CmdPanelBoardInstanceEdit;
 class CmdPanelEdit;
 class CmdPanelFiducialEdit;
 class CmdPanelHoleEdit;
+class CmdPanelTabEdit;
+class PGI_Tab;
 
 /*******************************************************************************
  *  Class PanelEditorState_Select
@@ -111,6 +113,18 @@ class CmdPanelHoleEdit;
  *    ::librepcb::editor::BoardEditorState_Select's exact convention.
  *    Locking never affects selection or copy/paste - only drag, remove,
  *    flip, and rotate are gated.
+ *  - Tab markers (::librepcb::PI_Tab): click to select (Shift to add to
+ *    the selection, rubber-band and Select All include them too), drag to
+ *    move one along the board edges - the dragged marker snaps to the
+ *    nearest edge of *any* placed board and re-attaches to that board
+ *    (see #startMovingTab()) - and Delete to remove the selected
+ *    marker(s). A marker drag always moves just the clicked marker, never
+ *    the rest of the selection. Tab markers are otherwise not part of
+ *    Rotate/Flip/Lock/Cut/Copy: they follow their board automatically, and
+ *    copying a board placement copies its attached tabs along with it.
+ *  - An info box on the canvas (like ::librepcb::editor::
+ *    BoardEditorState_Select's) showing the Position and Width of the
+ *    selected tab marker(s) - see #buildInfoBoxText().
  *
  * Cut/Copy/Paste (see #copySelectedItemsToClipboard()/processPaste()), Flip
  * (see #flipSelectedItems()), and Rotate (see #rotateSelectedItems()/
@@ -208,6 +222,7 @@ private:
   // Private Methods
   bool clearSelection() noexcept;
   bool startMovingSelection(const Point& startPos) noexcept;
+  bool startMovingTab(PGI_Tab& item) noexcept;
   bool startResizingOutline(PGI_Outline::ResizeHandle handle,
                             const Point& startPos) noexcept;
   bool rotateSelection(const Angle& angle) noexcept;
@@ -218,6 +233,21 @@ private:
   void scheduleUpdateAvailableFeatures() noexcept;
   void updateAvailableFeatures() noexcept;
   void updateSelectionProperties() noexcept;
+
+  /**
+   * @brief Build the info box text for the current selection
+   *
+   * Follows ::librepcb::editor::BoardEditorState_Select::processSelection()'s
+   * format (aligned "Key: value" lines, lengths in the panel's grid unit).
+   * Only a selection consisting solely of tab markers shows anything:
+   *  - "Position": the marker's position on the panel (single marker only).
+   *  - "Width": the tab's effective width, marked as coming from the panel
+   *    default or from the tab's own override. Omitted if several selected
+   *    tabs have different widths; the source is omitted if it differs.
+   *
+   * @return The info box text, or an empty string to hide the info box.
+   */
+  QString buildInfoBoxText() noexcept;
   bool abortCommand(bool showErrMsgBox) noexcept;
 
   // State
@@ -226,6 +256,9 @@ private:
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
   std::vector<std::unique_ptr<CmdPanelFiducialEdit>> mDragFiducialCmds;
+  /// Non-null only while dragging a tab marker along the board edges -
+  /// mutually exclusive with the other drag commands.
+  std::unique_ptr<CmdPanelTabEdit> mDragTabCmd;
   /// Per-mDragCmds/mDragHoleCmds/mDragFiducialCmds-entry offset from the
   /// cursor, populated only for a paste-placement drag (empty for an
   /// ordinary selection drag) - see the class doc comment's Cut/Copy/Paste

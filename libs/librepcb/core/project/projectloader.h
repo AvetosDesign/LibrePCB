@@ -115,6 +115,7 @@ private:  // Methods
   void loadBoardUserSettings(Board& b);
   void loadPanels(Project& p);
   void loadPanel(Project& p, const QString& relativeFilePath);
+  void loadPanelUserSettings(Panel& panel);
   void loadProjectUserSettings(Project& p);
 
 private:  // Data

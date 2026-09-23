@@ -21,6 +21,9 @@
 
 #include "pgi_boardinstance.h"
 
+#include "../boardproxy.h"
+#include "../panelgraphicsscene.h"
+
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/length.h>
@@ -33,11 +36,14 @@ namespace librepcb {
 namespace editor {
 
 PGI_BoardInstance::PGI_BoardInstance(
-    std::shared_ptr<PI_BoardInstance> instance, Project& project) noexcept
+    std::shared_ptr<PI_BoardInstance> instance, Project& project,
+    PanelGraphicsScene& scene) noexcept
   : QGraphicsItem(),
     onEdited(*this),
     mInstance(instance),
     mProject(project),
+    mScene(scene),
+    mBoardProxy(nullptr),
     // Placeholders until PanelTab::applyWorkspaceSettings() calls
     // #setColors() with the active color scheme's real colors, which
     // happens immediately after construction - see the class doc comment.
@@ -56,6 +62,9 @@ PGI_BoardInstance::PGI_BoardInstance(
 }
 
 PGI_BoardInstance::~PGI_BoardInstance() noexcept {
+  if (mBoardProxy) {
+    mScene.releaseBoardProxy(mBoardProxy);
+  }
 }
 
 QRectF PGI_BoardInstance::boundingRect() const noexcept {
@@ -72,7 +81,32 @@ void PGI_BoardInstance::paint(QPainter* painter,
                                   QWidget* widget) {
   Q_UNUSED(widget);
   const bool selected = option && (option->state & QStyle::State_Selected);
+  const QRectF boundsPx = mOutlinePath.boundingRect();
 
+  if (mBoardProxy) {
+    // Render the board's real, live content (traces, pads, vias, planes,
+    // silkscreen, holes - everything) via the hidden BoardGraphicsScene
+    // BoardProxy owns for this design. Source and target rects are the
+    // same rect (mOutlinePath's bounds, in this item's own local
+    // coordinates) so the board's content lines up 1:1 with the outline
+    // drawn below - both were built from the same board-origin px space.
+    // A board-name label would just be visual noise on top of real
+    // content, so it's skipped here (see the "else" branch below).
+    mBoardProxy->getScene().render(painter, boundsPx, boundsPx);
+  } else {
+    // No live content available (referenced board no longer exists) -
+    // fall back to a centered board-name label so the placement isn't
+    // just a bare outline.
+    painter->setPen(QPen(mColor, 0));
+    QFont font = painter->font();
+    font.setPixelSize(qMax(1, int(boundsPx.height() / 10)));
+    painter->setFont(font);
+    painter->drawText(boundsPx, Qt::AlignCenter, mBoardName);
+  }
+
+  // Outline and selection highlight are drawn last, on top of the board
+  // content, so the selection is always clearly visible (drawn first, it
+  // would be hidden underneath e.g. copper planes).
   if (selected) {
     // Highlight the whole board area (not just its perimeter) - on the
     // Panel tab, the thing being selected is the entire placed board, so a
@@ -81,18 +115,19 @@ void PGI_BoardInstance::paint(QPainter* painter,
     // highlight matching the board's real (possibly non-rectangular) shape.
     painter->setPen(QPen(mSelectedLineColor, 0));
     painter->setBrush(QBrush(mSelectedFillColor));
-  } else {
+    painter->drawPath(mOutlinePath);
+  } else if (mOutlineShown) {
     painter->setPen(QPen(mColor, 0));
     painter->setBrush(Qt::NoBrush);
+    painter->drawPath(mOutlinePath);
   }
-  painter->drawPath(mOutlinePath);
+}
 
-  painter->setPen(QPen(mColor, 0));
-  QFont font = painter->font();
-  const QRectF boundsPx = mOutlinePath.boundingRect();
-  font.setPixelSize(qMax(1, int(boundsPx.height() / 10)));
-  painter->setFont(font);
-  painter->drawText(boundsPx, Qt::AlignCenter, mBoardName);
+void PGI_BoardInstance::setOutlineShown(bool shown) noexcept {
+  if (shown != mOutlineShown) {
+    mOutlineShown = shown;
+    update();
+  }
 }
 
 void PGI_BoardInstance::setColors(const QColor& color,
@@ -157,6 +192,11 @@ void PGI_BoardInstance::updateRotationAndFlip() noexcept {
 void PGI_BoardInstance::updateOutline() noexcept {
   prepareGeometryChange();
 
+  if (mBoardProxy) {
+    mScene.releaseBoardProxy(mBoardProxy);
+    mBoardProxy = nullptr;
+  }
+
   // A small placeholder rectangle, used whenever the referenced board has
   // no `Layer::boardOutlines()` content yet (or no longer exists at all).
   auto placeholderRect = []() {
@@ -170,6 +210,7 @@ void PGI_BoardInstance::updateOutline() noexcept {
   Board* board = mProject.getBoardByUuid(mInstance->getBoard());
   if (board) {
     mBoardName = *board->getName();
+    mBoardProxy = mScene.acquireBoardProxy(*board);
     // Use the board's real outline shape (not necessarily rectangular) -
     // it's just placement/move reference here, but should still reflect
     // the actual board perimeter rather than a generalized rectangle.

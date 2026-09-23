@@ -18,16 +18,16 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
 
-#ifndef LIBREPCB_EDITOR_PANELSETUPDIALOG_H
-#define LIBREPCB_EDITOR_PANELSETUPDIALOG_H
+#ifndef LIBREPCB_EDITOR_CMDPANELTABREMOVE_H
+#define LIBREPCB_EDITOR_CMDPANELTABREMOVE_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include <QtCore>
-#include <QtWidgets>
+#include "../../undocommand.h"
+
+#include <memory>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -35,57 +35,47 @@
 namespace librepcb {
 
 class Panel;
+class PI_Tab;
 
 namespace editor {
 
-class GuiApplication;
-class UndoStack;
-
-namespace Ui {
-class PanelSetupDialog;
-}
-
 /*******************************************************************************
- *  Class PanelSetupDialog
+ *  Class CmdPanelTabRemove
  ******************************************************************************/
 
 /**
- * @brief The PanelSetupDialog class
+ * @brief The CmdPanelTabRemove class
  *
- * Modal "Panel Setup" dialog, following ::librepcb::editor::
- * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
- * `QDialogButtonBox`, loaded from the model on construction, applied back
- * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name, outline width/height and the default tab
- * width (::librepcb::Panel::getDefaultTabWidth()), all applied together via
- * a single ::librepcb::editor::CmdPanelEdit. The width & height
- * and default tab width fields are currently plain `QDoubleSpinBox` fields
- * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
+ * Mirrors CmdPanelHoleRemove's shape exactly (the tab object itself is
+ * never destroyed, just detached/reattached from the Panel, so undo is
+ * lossless).
  */
-class PanelSetupDialog final : public QDialog {
-  Q_OBJECT
-
+class CmdPanelTabRemove final : public UndoCommand {
 public:
   // Constructors / Destructor
-  PanelSetupDialog() = delete;
-  PanelSetupDialog(const PanelSetupDialog& other) = delete;
-  PanelSetupDialog(GuiApplication& app, Panel& panel, UndoStack& undoStack,
-                   QWidget* parent = nullptr) noexcept;
-  ~PanelSetupDialog() override;
+  CmdPanelTabRemove() = delete;
+  CmdPanelTabRemove(const CmdPanelTabRemove& other) = delete;
+  CmdPanelTabRemove(Panel& panel, std::shared_ptr<PI_Tab> tab) noexcept;
+  ~CmdPanelTabRemove() noexcept override;
 
   // Operator Overloadings
-  PanelSetupDialog& operator=(const PanelSetupDialog& rhs) = delete;
+  CmdPanelTabRemove& operator=(const CmdPanelTabRemove& rhs) = delete;
 
-private:  // Methods
-  void buttonBoxClicked(QAbstractButton* button);
-  void load() noexcept;
-  bool apply() noexcept;
+private:
+  // Private Methods
 
-private:  // Data
-  GuiApplication& mApp;
+  /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
+  bool performExecute() override;
+
+  /// @copydoc ::librepcb::editor::UndoCommand::performUndo()
+  void performUndo() override;
+
+  /// @copydoc ::librepcb::editor::UndoCommand::performRedo()
+  void performRedo() override;
+
+  // Private Member Variables
   Panel& mPanel;
-  UndoStack& mUndoStack;
-  QScopedPointer<Ui::PanelSetupDialog> mUi;
+  std::shared_ptr<PI_Tab> mTab;
 };
 
 /*******************************************************************************

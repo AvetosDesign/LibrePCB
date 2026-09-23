@@ -101,7 +101,10 @@ bool PanelEditorState_AddHole::processGraphicsSceneLeftMouseButtonPressed(
 bool PanelEditorState_AddHole::
     processGraphicsSceneLeftMouseButtonDoubleClicked(
         const GraphicsSceneMouseEvent& e) noexcept {
-  return processGraphicsSceneLeftMouseButtonPressed(e);
+  // Ignored - the preceding press already placed a hole, so handling this
+  // as another press would stack a duplicate hole at the same position.
+  Q_UNUSED(e);
+  return true;
 }
 
 /*******************************************************************************

@@ -18,16 +18,20 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
 
-#ifndef LIBREPCB_EDITOR_PANELSETUPDIALOG_H
-#define LIBREPCB_EDITOR_PANELSETUPDIALOG_H
+#ifndef LIBREPCB_EDITOR_CMDPANELTABADD_H
+#define LIBREPCB_EDITOR_CMDPANELTABADD_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include <QtCore>
-#include <QtWidgets>
+#include "../../undocommand.h"
+
+#include <librepcb/core/types/length.h>
+#include <librepcb/core/types/point.h>
+#include <librepcb/core/types/uuid.h>
+
+#include <memory>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -35,57 +39,62 @@
 namespace librepcb {
 
 class Panel;
+class PI_Tab;
 
 namespace editor {
 
-class GuiApplication;
-class UndoStack;
-
-namespace Ui {
-class PanelSetupDialog;
-}
-
 /*******************************************************************************
- *  Class PanelSetupDialog
+ *  Class CmdPanelTabAdd
  ******************************************************************************/
 
 /**
- * @brief The PanelSetupDialog class
+ * @brief The CmdPanelTabAdd class
  *
- * Modal "Panel Setup" dialog, following ::librepcb::editor::
- * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
- * `QDialogButtonBox`, loaded from the model on construction, applied back
- * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name, outline width/height and the default tab
- * width (::librepcb::Panel::getDefaultTabWidth()), all applied together via
- * a single ::librepcb::editor::CmdPanelEdit. The width & height
- * and default tab width fields are currently plain `QDoubleSpinBox` fields
- * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
+ * Adds a new ::librepcb::PI_Tab (a tab marker attached to a placed board)
+ * to a ::librepcb::Panel. Mirrors CmdPanelHoleAdd's shape exactly.
  */
-class PanelSetupDialog final : public QDialog {
-  Q_OBJECT
-
+class CmdPanelTabAdd final : public UndoCommand {
 public:
   // Constructors / Destructor
-  PanelSetupDialog() = delete;
-  PanelSetupDialog(const PanelSetupDialog& other) = delete;
-  PanelSetupDialog(GuiApplication& app, Panel& panel, UndoStack& undoStack,
-                   QWidget* parent = nullptr) noexcept;
-  ~PanelSetupDialog() override;
+  CmdPanelTabAdd() = delete;
+  CmdPanelTabAdd(const CmdPanelTabAdd& other) = delete;
+
+  /**
+   * @brief Constructor
+   *
+   * @param panel           The panel to add the tab to.
+   * @param boardInstance   UUID of the ::librepcb::PI_BoardInstance the tab
+   *                        is attached to.
+   * @param position        Tab position in that board's own coordinates.
+   * @param width           Tab width override, or zero to use the panel's
+   *                        default tab width (see ::librepcb::PI_Tab).
+   */
+  CmdPanelTabAdd(Panel& panel, const Uuid& boardInstance,
+                 const Point& position,
+                 const UnsignedLength& width = UnsignedLength(0)) noexcept;
+  ~CmdPanelTabAdd() noexcept override;
+
+  // General Methods
+  std::shared_ptr<PI_Tab> getTab() const noexcept { return mTab; }
 
   // Operator Overloadings
-  PanelSetupDialog& operator=(const PanelSetupDialog& rhs) = delete;
+  CmdPanelTabAdd& operator=(const CmdPanelTabAdd& rhs) = delete;
 
-private:  // Methods
-  void buttonBoxClicked(QAbstractButton* button);
-  void load() noexcept;
-  bool apply() noexcept;
+private:
+  // Private Methods
 
-private:  // Data
-  GuiApplication& mApp;
+  /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
+  bool performExecute() override;
+
+  /// @copydoc ::librepcb::editor::UndoCommand::performUndo()
+  void performUndo() override;
+
+  /// @copydoc ::librepcb::editor::UndoCommand::performRedo()
+  void performRedo() override;
+
+  // Private Member Variables
   Panel& mPanel;
-  UndoStack& mUndoStack;
-  QScopedPointer<Ui::PanelSetupDialog> mUi;
+  std::shared_ptr<PI_Tab> mTab;
 };
 
 /*******************************************************************************

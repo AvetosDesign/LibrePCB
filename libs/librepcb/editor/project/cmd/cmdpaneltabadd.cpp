@@ -22,11 +22,10 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "cmdpanelboardinstanceremove.h"
+#include "cmdpaneltabadd.h"
 
-#include <librepcb/core/project/panel/panel.h>
-#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 
@@ -40,40 +39,33 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-CmdPanelBoardInstanceRemove::CmdPanelBoardInstanceRemove(
-    Panel& panel, std::shared_ptr<PI_BoardInstance> instance) noexcept
-  : UndoCommand(tr("Remove board from panel")),
+CmdPanelTabAdd::CmdPanelTabAdd(Panel& panel, const Uuid& boardInstance,
+                               const Point& position,
+                               const UnsignedLength& width) noexcept
+  : UndoCommand(tr("Add tab to panel")),
     mPanel(panel),
-    mInstance(instance) {
+    mTab(new PI_Tab(Uuid::createRandom(), boardInstance, position, width)) {
 }
 
-CmdPanelBoardInstanceRemove::~CmdPanelBoardInstanceRemove() noexcept {
+CmdPanelTabAdd::~CmdPanelTabAdd() noexcept {
 }
 
 /*******************************************************************************
  *  Inherited from UndoCommand
  ******************************************************************************/
 
-bool CmdPanelBoardInstanceRemove::performExecute() {
-  mTabs = mPanel.getTabsOfBoardInstance(mInstance->getUuid());
+bool CmdPanelTabAdd::performExecute() {
   performRedo();  // can throw
 
   return true;
 }
 
-void CmdPanelBoardInstanceRemove::performUndo() {
-  mPanel.addBoardInstance(mInstance);  // can throw
-  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
-    mPanel.addTab(tab);  // can throw
-  }
+void CmdPanelTabAdd::performUndo() {
+  mPanel.removeTab(mTab);  // can throw
 }
 
-void CmdPanelBoardInstanceRemove::performRedo() {
-  // Tabs first, so no tab ever references a missing board placement.
-  for (const std::shared_ptr<PI_Tab>& tab : std::as_const(mTabs)) {
-    mPanel.removeTab(tab);  // can throw
-  }
-  mPanel.removeBoardInstance(mInstance);  // can throw
+void CmdPanelTabAdd::performRedo() {
+  mPanel.addTab(mTab);  // can throw
 }
 
 /*******************************************************************************

@@ -41,6 +41,9 @@ class Project;
 
 namespace editor {
 
+class BoardProxy;
+class PanelGraphicsScene;
+
 /*******************************************************************************
  *  Class PGI_BoardInstance
  ******************************************************************************/
@@ -49,16 +52,26 @@ namespace editor {
  * @brief The PGI_BoardInstance class
  *
  * Renders one ::librepcb::PI_BoardInstance (a placed reference to a board
- * design) on the panel canvas. Deliberately a placeholder rendering for now
- * (this project's panel data model never contains real board *content*, see
- * ::librepcb::Panel - decisions 1/2 in claude/librepcb_panel_design_decisions.md):
- * the referenced ::librepcb::Board's own outline shape (via
- * `calculateOutlinePath()` - not necessarily rectangular, so a fallback
- * placeholder rectangle is used only if the board has no outline content
- * yet), plus a centered board-name label. No footprints, pads, copper, or
- * per-layer rendering - that would mean materializing the referenced
- * board's actual content into the panel scene, which is future work (and
- * arguably belongs to a later, dedicated slice, not this one).
+ * design) on the panel canvas. This panel data model never contains real
+ * board *content* itself (see ::librepcb::Panel - decisions 1/2 in
+ * claude/librepcb_panel_design_decisions.md); instead, a
+ * ::librepcb::editor::BoardProxy (acquired from
+ * ::librepcb::editor::PanelGraphicsScene::acquireBoardProxy(), one shared
+ * per distinct referenced board design) owns a hidden, live
+ * ::librepcb::editor::BoardGraphicsScene built over the project's real
+ * ::librepcb::Board, and #paint() renders that scene's real content
+ * (traces, pads, vias, planes, silkscreen, holes - everything) via
+ * `QGraphicsScene::render()`, always reflecting the board's current state
+ * live, even while it's being edited in its own Board tab. The referenced
+ * ::librepcb::Board's own outline shape (via `calculateOutlinePath()` -
+ * not necessarily rectangular, so a fallback placeholder rectangle is used
+ * only if the board has no outline content yet, or no longer exists) is
+ * drawn on top as the placement/move reference border (only while the Panel
+ * tab's "Board Outlines" display toggle is on, see #setOutlineShown()), as
+ * is the selection highlight (always, so neither can be hidden by the
+ * board's content, e.g. copper planes); see the next paragraph for its
+ * color. A centered board-name label is drawn only as a
+ * fallback when there's no real content to show (missing board).
  *
  * Selectable only for now - not movable. Dragging isn't wired up yet because
  * there is no FSM/undo-command plumbing in this slice to commit a moved
@@ -98,7 +111,8 @@ public:
   PGI_BoardInstance() = delete;
   PGI_BoardInstance(const PGI_BoardInstance& other) = delete;
   PGI_BoardInstance(std::shared_ptr<PI_BoardInstance> instance,
-                         Project& project) noexcept;
+                         Project& project,
+                         PanelGraphicsScene& scene) noexcept;
   ~PGI_BoardInstance() noexcept override;
 
   // General Methods
@@ -119,6 +133,17 @@ public:
    */
   void setColors(const QColor& color, const QColor& selectedLineColor,
                  const QColor& selectedFillColor) noexcept;
+
+  /**
+   * @brief Show or hide the (unselected) placement outline
+   *
+   * Driven by the Panel tab's "Board Outlines" display toggle. Only the
+   * normal-state reference outline is affected - a selected placement
+   * always draws its selection highlight, so the selection stays visible.
+   *
+   * @param shown   Whether the outline should be drawn when not selected.
+   */
+  void setOutlineShown(bool shown) noexcept;
 
   /**
    * @brief Get the outline's current geometric center, in scene coordinates
@@ -156,11 +181,14 @@ private:  // Methods
 private:  // Data
   std::shared_ptr<PI_BoardInstance> mInstance;
   Project& mProject;
+  PanelGraphicsScene& mScene;
+  BoardProxy* mBoardProxy;  ///< Non-owning; see PanelGraphicsScene::acquireBoardProxy().
   QPainterPath mOutlinePath;
   QString mBoardName;
   QColor mColor;
   QColor mSelectedLineColor;
   QColor mSelectedFillColor;
+  bool mOutlineShown = false;  ///< See #setOutlineShown()
 
   // Slots
   PI_BoardInstance::OnEditedSlot mOnEditedSlot;
