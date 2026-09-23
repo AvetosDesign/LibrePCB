@@ -46,8 +46,8 @@ namespace editor {
 /**
  * @brief The CmdPanelTabEdit class
  *
- * Edits a ::librepcb::PI_Tab's attachment (which board placement it
- * belongs to) and its board-local position, following CmdPanelHoleEdit's
+ * Edits a ::librepcb::PI_Tab's attachment (which board design it belongs
+ * to) and its board-local position, following CmdPanelHoleEdit's
  * "immediate" live-preview convention: changes applied with
  * `immediate=true` are reverted by the destructor if the command is never
  * executed (e.g. an aborted drag).
@@ -66,17 +66,17 @@ public:
   // General Methods
 
   /**
-   * @brief Move the tab to a (possibly different) board placement
+   * @brief Move the tab to a (possibly different) board design
    *
    * Both values are set together since a board-local position is only
-   * meaningful relative to its board placement.
+   * meaningful relative to its board.
    *
-   * @param boardInstance   UUID of the new ::librepcb::PI_BoardInstance.
+   * @param board           UUID of the new ::librepcb::Board (design).
    * @param position        New position in that board's own coordinates.
    * @param immediate       Whether to apply the change to the model right
    *                        away (for a live preview).
    */
-  void setAnchor(const Uuid& boardInstance, const Point& position,
+  void setAnchor(const Uuid& board, const Point& position,
                  bool immediate) noexcept;
 
   // Operator Overloadings
@@ -96,8 +96,8 @@ private:
 
   // Private Member Variables
   PI_Tab& mTab;
-  Uuid mOldBoardInstance;
-  Uuid mNewBoardInstance;
+  Uuid mOldBoard;
+  Uuid mNewBoard;
   Point mOldPos;
   Point mNewPos;
 };

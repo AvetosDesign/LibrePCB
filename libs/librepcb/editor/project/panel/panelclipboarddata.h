@@ -66,9 +66,11 @@ namespace editor {
  * root node without ambiguity, exactly like ::librepcb::Panel's own
  * serialize() already does.
  *
- * Tab markers (#mTabs, tag "tab") are never copied on their own: they're
- * added automatically for every copied board placement they're attached
- * to, and re-attached to the corresponding pasted placement on paste (see
+ * Tab markers (#mTabs, tag "tab") are never copied on their own: the tabs
+ * of every copied board placement's board design are added automatically
+ * (once per design). On paste they are only added where the target panel
+ * doesn't have them yet, since tabs belong to the board design and are
+ * shared by all its copies (see
  * ::librepcb::editor::PanelEditorState_Select::processPaste()). Their
  * positions are board-local, so they need no offset when pasted.
  *

@@ -26,7 +26,6 @@
 
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/panel/boardedgesnap.h>
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/utils/transform.h>
 
@@ -43,14 +42,15 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-PGI_Tab::PGI_Tab(std::shared_ptr<PI_Tab> tab, Panel& panel,
+PGI_Tab::PGI_Tab(std::shared_ptr<PI_Tab> tab,
+                 std::shared_ptr<PI_BoardInstance> boardInstance,
                  Project& project) noexcept
   : QGraphicsItem(),
     mTab(tab),
-    mPanel(panel),
+    mBoardInstance(boardInstance),
     mProject(project),
-    mBoardInstance(nullptr),
     mShown(true),
+    mHighlighted(false),
     // Placeholder until PanelTab::applyWorkspaceSettings() calls
     // #setColors() with the active color scheme's real colors.
     mColor(Qt::gray),
@@ -67,6 +67,7 @@ PGI_Tab::PGI_Tab(std::shared_ptr<PI_Tab> tab, Panel& panel,
   mShapePx = markerShapePx();
 
   mTab->onEdited.attach(mOnTabEditedSlot);
+  mBoardInstance->onEdited.attach(mOnBoardInstanceEditedSlot);
   updateGeometry();
 }
 
@@ -109,20 +110,7 @@ void PGI_Tab::setColors(const QColor& color,
 }
 
 void PGI_Tab::updateGeometry() noexcept {
-  // (Re-)attach to the board placement, which may have changed.
-  std::shared_ptr<PI_BoardInstance> instance =
-      mPanel.getBoardInstance(mTab->getBoardInstance());
-  if (instance != mBoardInstance) {
-    if (mBoardInstance) {
-      mBoardInstance->onEdited.detach(mOnBoardInstanceEditedSlot);
-    }
-    mBoardInstance = instance;
-    if (mBoardInstance) {
-      mBoardInstance->onEdited.attach(mOnBoardInstanceEditedSlot);
-    }
-  }
-
-  const Board* board = mBoardInstance
+  const Board* board = (mBoardInstance->getBoard() == mTab->getBoard())
       ? mProject.getBoardByUuid(mBoardInstance->getBoard())
       : nullptr;
   const std::optional<QVector<Path>> outlines =
@@ -159,6 +147,13 @@ void PGI_Tab::setMarkerShown(bool shown) noexcept {
   }
 }
 
+void PGI_Tab::setHighlighted(bool highlighted) noexcept {
+  if (highlighted != mHighlighted) {
+    mHighlighted = highlighted;
+    update();
+  }
+}
+
 /*******************************************************************************
  *  Inherited from QGraphicsItem
  ******************************************************************************/
@@ -174,7 +169,8 @@ QPainterPath PGI_Tab::shape() const noexcept {
 void PGI_Tab::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
                     QWidget* widget) {
   Q_UNUSED(widget);
-  const bool selected = option && (option->state & QStyle::State_Selected);
+  const bool selected =
+      mHighlighted || (option && (option->state & QStyle::State_Selected));
   painter->setPen(Qt::NoPen);
   painter->setBrush(QBrush(selected ? mSelectedColor : mColor));
   painter->drawPath(mShapePx);

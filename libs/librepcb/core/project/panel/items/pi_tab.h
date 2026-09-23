@@ -55,12 +55,17 @@ class SExpression;
  * class only stores the marker itself; the tab's actual solid geometry
  * (and any mouse bites) will be generated from it at build time.
  *
- * A tab is always attached to exactly one ::librepcb::PI_BoardInstance
- * (#getBoardInstance()), and its #getPosition() is stored in that board's
- * *own* coordinate system (the same coordinates as the board's
- * `board.lp`), not in panel coordinates. So when the board instance is
- * moved, rotated or flipped, the tab automatically stays at the same place
- * on the board's perimeter without the tab itself being modified.
+ * A tab belongs to a board *design* (#getBoard(), the UUID of the
+ * referenced ::librepcb::Board), not to a single placed copy of it: every
+ * ::librepcb::PI_BoardInstance of that board on the panel gets the tab, at
+ * the same place (the KiKit Viewer model - simpler tabification, and all
+ * copies end up with identical mouse bites and thus identical copper). Its
+ * #getPosition() is stored in the board's *own* coordinate system (the
+ * same coordinates as the board's `board.lp`), not in panel coordinates.
+ * So when a board instance is moved, rotated or flipped, the tab
+ * automatically stays at the same place on its perimeter without the tab
+ * itself being modified. A tab whose board currently has no placed copy
+ * is kept (it reappears when the board is placed again).
  *
  * The position is expected to lie on the board outline, but that is not
  * enforced here (the outline can change at any time, since it's edited in
@@ -80,7 +85,7 @@ class PI_Tab final {
 public:
   // Signals
   enum class Event {
-    BoardInstanceChanged,
+    BoardChanged,
     PositionChanged,
     WidthChanged,
   };
@@ -91,7 +96,7 @@ public:
   PI_Tab() = delete;
   PI_Tab(const PI_Tab& other) noexcept;
   explicit PI_Tab(const SExpression& node);
-  PI_Tab(const Uuid& uuid, const Uuid& boardInstance, const Point& position,
+  PI_Tab(const Uuid& uuid, const Uuid& board, const Point& position,
          const UnsignedLength& width = UnsignedLength(0)) noexcept;
   ~PI_Tab() noexcept;
 
@@ -103,10 +108,13 @@ public:
   const Uuid& getUuid() const noexcept { return mUuid; }
 
   /**
-   * @brief Get the UUID of the ::librepcb::PI_BoardInstance this tab is
-   *        attached to
+   * @brief Get the UUID of the ::librepcb::Board (design) this tab belongs
+   *        to
+   *
+   * All placed copies (::librepcb::PI_BoardInstance) of this board get the
+   * tab, see the class description.
    */
-  const Uuid& getBoardInstance() const noexcept { return mBoardInstance; }
+  const Uuid& getBoard() const noexcept { return mBoard; }
 
   /**
    * @brief Get the tab position in the attached board's own coordinates
@@ -132,7 +140,7 @@ public:
   bool hasWidthOverride() const noexcept { return mWidth->toNm() > 0; }
 
   // Setters
-  void setBoardInstance(const Uuid& boardInstance) noexcept;
+  void setBoard(const Uuid& board) noexcept;
   void setPosition(const Point& position) noexcept;
   void setWidth(const UnsignedLength& width) noexcept;
 
@@ -150,7 +158,7 @@ public:
 
 private:  // Data
   Uuid mUuid;
-  Uuid mBoardInstance;
+  Uuid mBoard;
   Point mPosition;
   UnsignedLength mWidth;  ///< Zero = use the panel default, see #getWidth()
 };

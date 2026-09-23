@@ -55,8 +55,9 @@ namespace editor {
  * a tab only exists attached to a board edge, so a click is resolved
  * directly to the nearest edge of any placed board (see
  * PanelGraphicsScene::findNearestBoardEdge()), within a small screen-space
- * tolerance. Clicks away from any edge, or on an existing tab marker, add
- * nothing. The cursor position is used as-is (never snapped to the grid),
+ * tolerance. The tab belongs to that board's design, so it appears on
+ * every placed copy of the board. Clicks away from any edge, or on an
+ * existing tab marker, add nothing. The cursor position is used as-is (never snapped to the grid),
  * since the tab slides continuously along the edge.
  *
  * Instead, whenever a click *would* add a tab, a semi-transparent "phantom"

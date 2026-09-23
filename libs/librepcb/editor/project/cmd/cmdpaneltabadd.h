@@ -50,7 +50,8 @@ namespace editor {
 /**
  * @brief The CmdPanelTabAdd class
  *
- * Adds a new ::librepcb::PI_Tab (a tab marker attached to a placed board)
+ * Adds a new ::librepcb::PI_Tab (a tab marker of a board design, shown on
+ * every placed copy of that board)
  * to a ::librepcb::Panel. Mirrors CmdPanelHoleAdd's shape exactly.
  */
 class CmdPanelTabAdd final : public UndoCommand {
@@ -63,13 +64,13 @@ public:
    * @brief Constructor
    *
    * @param panel           The panel to add the tab to.
-   * @param boardInstance   UUID of the ::librepcb::PI_BoardInstance the tab
-   *                        is attached to.
+   * @param board           UUID of the ::librepcb::Board (design) the tab
+   *                        belongs to.
    * @param position        Tab position in that board's own coordinates.
    * @param width           Tab width override, or zero to use the panel's
    *                        default tab width (see ::librepcb::PI_Tab).
    */
-  CmdPanelTabAdd(Panel& panel, const Uuid& boardInstance,
+  CmdPanelTabAdd(Panel& panel, const Uuid& board,
                  const Point& position,
                  const UnsignedLength& width = UnsignedLength(0)) noexcept;
   ~CmdPanelTabAdd() noexcept override;

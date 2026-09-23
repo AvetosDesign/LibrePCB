@@ -143,7 +143,8 @@ bool PanelEditorState_AddTab::addTab(const Point& pos) noexcept {
 
   try {
     abortBlockingToolsInOtherEditors();
-    execCmd(new CmdPanelTabAdd(mContext.panel, hit->boardInstance,
+    // The tab belongs to the board design, so it appears on all copies.
+    execCmd(new CmdPanelTabAdd(mContext.panel, hit->board,
                                hit->boardPos));  // can throw
     return true;
   } catch (const Exception& e) {
