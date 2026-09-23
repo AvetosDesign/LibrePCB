@@ -58,10 +58,15 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mGridInterval(635000),  // 0.635 mm (same default as Board)
     mGridUnit(LengthUnit::millimeters()),
     mDefaultTabWidth(initialDefaultTabWidth),
+    mDefaultMouseBitesEnabled(true),
+    mDefaultMouseBiteDiameter(initialDefaultMouseBiteDiameter),
+    mDefaultMouseBiteSpacing(initialDefaultMouseBiteSpacing),
+    mDefaultVCutMinPanelEdgeDistance(initialDefaultVCutMinPanelEdgeDistance),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
     mOnHolesEditedSlot(*this, &Panel::holesEdited),
     mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited),
-    mOnTabsEditedSlot(*this, &Panel::tabsEdited) {
+    mOnTabsEditedSlot(*this, &Panel::tabsEdited),
+    mOnVCutsEditedSlot(*this, &Panel::vCutsEdited) {
   if (mDirectoryName.isEmpty()) {
     throw LogicError(__FILE__, __LINE__);
   }
@@ -70,6 +75,7 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
   mHoles.onEdited.attach(mOnHolesEditedSlot);
   mFiducials.onEdited.attach(mOnFiducialsEditedSlot);
   mTabs.onEdited.attach(mOnTabsEditedSlot);
+  mVCuts.onEdited.attach(mOnVCutsEditedSlot);
 
   // Emit the "attributesChanged" signal when the project has emitted it.
   connect(&mProject, &Project::attributesChanged, this,
@@ -86,7 +92,7 @@ Panel::~Panel() noexcept {
 
 bool Panel::isEmpty() const noexcept {
   return mBoardInstances.isEmpty() && mHoles.isEmpty() &&
-      mFiducials.isEmpty() && mTabs.isEmpty();
+      mFiducials.isEmpty() && mTabs.isEmpty() && mVCuts.isEmpty();
 }
 
 /*******************************************************************************
@@ -120,6 +126,36 @@ void Panel::setHeight(const PositiveLength& height) noexcept {
 void Panel::setDefaultTabWidth(const PositiveLength& width) noexcept {
   if (width != mDefaultTabWidth) {
     mDefaultTabWidth = width;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setDefaultMouseBitesEnabled(bool enabled) noexcept {
+  if (enabled != mDefaultMouseBitesEnabled) {
+    mDefaultMouseBitesEnabled = enabled;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setDefaultMouseBiteDiameter(
+    const PositiveLength& diameter) noexcept {
+  if (diameter != mDefaultMouseBiteDiameter) {
+    mDefaultMouseBiteDiameter = diameter;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept {
+  if (spacing != mDefaultMouseBiteSpacing) {
+    mDefaultMouseBiteSpacing = spacing;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setDefaultVCutMinPanelEdgeDistance(
+    const UnsignedLength& distance) noexcept {
+  if (distance != mDefaultVCutMinPanelEdgeDistance) {
+    mDefaultVCutMinPanelEdgeDistance = distance;
     emit attributesChanged();
   }
 }
@@ -246,6 +282,30 @@ void Panel::removeTab(std::shared_ptr<PI_Tab> tab) {
 }
 
 /*******************************************************************************
+ *  V-Cut Methods
+ ******************************************************************************/
+
+void Panel::addVCut(std::shared_ptr<PI_VCut> vcut) {
+  if (!vcut) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (mVCuts.contains(vcut->getUuid())) {
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("There is already a V-cut with the UUID \"%1\"!")
+            .arg(vcut->getUuid().toStr()));
+  }
+  mVCuts.append(vcut);
+}
+
+void Panel::removeVCut(std::shared_ptr<PI_VCut> vcut) {
+  if ((!vcut) || (!mVCuts.contains(vcut->getUuid()))) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  mVCuts.remove(vcut->getUuid());
+}
+
+/*******************************************************************************
  *  Board Checksum Methods
  ******************************************************************************/
 
@@ -310,6 +370,13 @@ void Panel::save() {
   root->ensureLineBreak();
   SExpression& tabDefaultsNode = root->appendList("tab_defaults");
   tabDefaultsNode.appendChild("width", mDefaultTabWidth);
+  tabDefaultsNode.appendChild("mouse_bites", mDefaultMouseBitesEnabled);
+  tabDefaultsNode.appendChild("mouse_bite_diameter", mDefaultMouseBiteDiameter);
+  tabDefaultsNode.appendChild("mouse_bite_spacing", mDefaultMouseBiteSpacing);
+  root->ensureLineBreak();
+  SExpression& vcutDefaultsNode = root->appendList("vcut_defaults");
+  vcutDefaultsNode.appendChild("min_panel_edge_distance",
+                               mDefaultVCutMinPanelEdgeDistance);
   root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();
@@ -318,6 +385,8 @@ void Panel::save() {
   mFiducials.serialize(*root);
   root->ensureLineBreak();
   mTabs.serialize(*root);
+  root->ensureLineBreak();
+  mVCuts.serialize(*root);
   root->ensureLineBreak();
 
   // Board checksums, sorted by UUID for deterministic file content.
@@ -429,6 +498,26 @@ void Panel::tabsEdited(const PI_TabList& list, int index,
       break;
     case PI_TabList::Event::ElementRemoved:
       emit tabRemoved(index);
+      emit attributesChanged();
+      break;
+    default:
+      emit attributesChanged();
+      break;
+  }
+}
+
+void Panel::vCutsEdited(const PI_VCutList& list, int index,
+                        const std::shared_ptr<const PI_VCut>& obj,
+                        PI_VCutList::Event event) noexcept {
+  Q_UNUSED(obj);
+  Q_UNUSED(list);
+  switch (event) {
+    case PI_VCutList::Event::ElementAdded:
+      emit vCutAdded(index);
+      emit attributesChanged();
+      break;
+    case PI_VCutList::Event::ElementRemoved:
+      emit vCutRemoved(index);
       emit attributesChanged();
       break;
     default:

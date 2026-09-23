@@ -108,11 +108,14 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mToolDiameter(app.getWorkspace().getSettings()),
     mToolClearance(app.getWorkspace().getSettings()),
     mToolFlipped(false),
+    mToolVCutVertical(false),
     mSelectHole(false),
     mSelectFiducial(false),
+    mSelectVCut(false),
     mIgnorePlacementLocks(false),
     mShowTabs(true),
     mTabToolActive(false),
+    mVCutToolActive(false),
     mShowBoardOutlines(false) {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
@@ -266,8 +269,10 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mToolDiameter.getUiData(),  // Tool diameter
       mToolClearance.getUiData(),  // Tool clearance
       mToolFlipped,  // Tool bottom
+      mToolVCutVertical,  // Tool V-cut vertical
       mSelectHole,  // Select hole
       mSelectFiducial,  // Select fiducial
+      mSelectVCut,  // Select V-cut
       l2s(mApp.getWorkspace().getSettings().boardGridStyle.get()),  // Grid
       l2s(*mPanel.getGridInterval()),  // Grid interval
       l2s(mPanel.getGridUnit()),  // Length unit
@@ -287,6 +292,14 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // Tool board side - mirrors Board2dTab::setDerivedUiData()'s unconditional
   // componentSideRequested emit exactly.
   emit flippedRequested(data.tool_bottom);
+
+  // V-cut orientation (Add V-Cuts tool, or the Select tool's V-cuts-only
+  // selection). Only emitted on an actual change, since this is called on
+  // every UI round-trip.
+  if (data.tool_vcut_vertical != mToolVCutVertical) {
+    mToolVCutVertical = data.tool_vcut_vertical;
+    emit vCutVerticalRequested(mToolVCutVertical);
+  }
 
   // Grid style is a workspace-wide setting shared with Board (see
   // Board2dTab::setDerivedUiData()'s identical block and its doc comment
@@ -401,6 +414,7 @@ void PanelTab::activate() noexcept {
 
   applyWorkspaceSettings();
   updateTabsVisibility();
+  mScene->setVCutsForcedVisible(mVCutToolActive);
   // Scene part only - the board outlines layer itself keeps its current
   // (possibly loaded or Layers-panel) state, see loadLayersVisibility().
   mScene->setBoardOutlinesVisible(mShowBoardOutlines);
@@ -711,8 +725,13 @@ void PanelTab::fsmToolLeave() noexcept {
     mTabToolActive = false;
     updateTabsVisibility();
   }
+  if (mVCutToolActive) {
+    mVCutToolActive = false;
+    if (mScene) mScene->setVCutsForcedVisible(false);
+  }
   mSelectHole = false;
   mSelectFiducial = false;
+  mSelectVCut = false;
   fsmSetFeatures(Features());
   onDerivedUiDataChanged.notify();
 }
@@ -736,11 +755,16 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
   // Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
   // setComponentSide lambda convention.
   auto syncSelectionProperties = [this](bool isHole, bool isFiducial,
+                                        bool isVCut,
                                         const PositiveLength& diameter,
                                         const UnsignedLength& clearance,
-                                        bool flipped) {
+                                        bool flipped, bool vCutVertical) {
     mSelectHole = isHole;
     mSelectFiducial = isFiducial;
+    mSelectVCut = isVCut;
+    if (isVCut) {
+      mToolVCutVertical = vCutVertical;
+    }
     if (isHole || isFiducial) {
       mToolDiameter.setValuePositive(diameter);
     }
@@ -755,7 +779,9 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
           PanelEditorState_Select::SelectionKind::Hole,
       state.getSelectionKind() ==
           PanelEditorState_Select::SelectionKind::Fiducial,
-      state.getDiameter(), state.getCopperClearance(), state.getFlipped());
+      state.getSelectionKind() == PanelEditorState_Select::SelectionKind::VCut,
+      state.getDiameter(), state.getCopperClearance(), state.getFlipped(),
+      state.getVCutVertical());
 
   mFsmStateConnections.append(connect(
       &state, &PanelEditorState_Select::selectionPropertiesChanged, this,
@@ -769,6 +795,9 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
   mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested,
                                       &state,
                                       &PanelEditorState_Select::setFlipped));
+  mFsmStateConnections.append(
+      connect(this, &PanelTab::vCutVerticalRequested, &state,
+              &PanelEditorState_Select::setVCutVertical));
 
   onDerivedUiDataChanged.notify();
 }
@@ -806,8 +835,25 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddTab& state) noexcept {
 }
 
 void PanelTab::fsmToolEnter(PanelEditorState_AddVCut& state) noexcept {
-  Q_UNUSED(state);
   mTool = ui::EditorTool::PanelVcut;
+
+  // Placed V-cuts are always shown while this tool is active, regardless of
+  // the Documentation layer, so new ones can be placed relative to them.
+  mVCutToolActive = true;
+  if (mScene) mScene->setVCutsForcedVisible(true);
+
+  // Orientation - the state reports changes (e.g. right-click toggle), the
+  // toolbar's Horizontal/Vertical buttons request changes.
+  mToolVCutVertical = state.isVertical();
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddVCut::verticalChanged, this,
+              [this](bool vertical) {
+                mToolVCutVertical = vertical;
+                onDerivedUiDataChanged.notify();
+              }));
+  mFsmStateConnections.append(
+      connect(this, &PanelTab::vCutVerticalRequested, &state,
+              &PanelEditorState_AddVCut::setVertical));
   onDerivedUiDataChanged.notify();
 }
 
@@ -915,6 +961,12 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     // substrate outline. Selected state uses the role's secondary color,
     // same as holes/fiducials above.
     mScene->setTabColors(outline.primary, outline.secondary);
+
+    // V-cuts are a manufacturing annotation drawn across the panel, so they
+    // use the board documentation role (distinct from outlines and copper).
+    const auto documentation =
+        scheme.getColors(ColorRole::boardDocumentation());
+    mScene->setVCutColors(documentation.primary, documentation.secondary);
   }
 
   onDerivedUiDataChanged.notify();

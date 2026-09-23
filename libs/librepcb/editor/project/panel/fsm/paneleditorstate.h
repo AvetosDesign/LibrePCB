@@ -149,6 +149,32 @@ signals:
 protected:  // Methods
   PanelGraphicsScene* getActivePanelScene() noexcept;
   PositiveLength getGridInterval() const noexcept;
+
+  /**
+   * @brief Check whether a V-cut position lies on the panel
+   *
+   * @param vertical  Orientation of the V-cut.
+   * @param position  X (vertical) or Y (horizontal) coordinate of the V-cut.
+   *
+   * @return `true` if the V-cut lies strictly inside the panel (a V-cut on
+   *         or beyond the panel edge is not allowed).
+   */
+  bool isVCutOnPanel(bool vertical, const Length& position) const noexcept;
+
+  /**
+   * @brief Clamp a V-cut position onto the panel
+   *
+   * Positions already on the panel (see #isVCutOnPanel()) are returned as
+   * is. Others are moved one grid interval inside the nearer panel edge
+   * (at most to the panel's center, for a panel smaller than two grid
+   * intervals).
+   *
+   * @param vertical  Orientation of the V-cut.
+   * @param position  X (vertical) or Y (horizontal) coordinate of the V-cut.
+   *
+   * @return The clamped position.
+   */
+  Length clampVCutToPanel(bool vertical, const Length& position) const noexcept;
   bool getIgnoreLocks() const noexcept;
   void abortBlockingToolsInOtherEditors() noexcept;
   void openBoardEditor(const Uuid& boardUuid) noexcept;

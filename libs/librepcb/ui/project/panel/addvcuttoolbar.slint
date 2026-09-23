@@ -1,0 +1,43 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
+import {
+    ToolBarButton,
+} from "../../widgets.slint";
+import {
+    PanelTabData,
+    WindowSectionData,
+} from "../../api.slint";
+
+// Toolbar of the Panel's Add V-Cuts tool (also shown for a V-cuts-only
+// selection in the Select tool): V-cuts are either horizontal or
+// vertical (arbitrary angles aren't manufacturable), chosen with these two
+// mutually exclusive buttons.
+export component AddVCutToolBar inherits HorizontalLayout {
+    in property <int> section-index;
+    in-out property <WindowSectionData> section;
+    property <[PanelTabData]> tabs: section.panel-tabs;
+
+    spacing: 2px;
+
+    horizontal-btn := ToolBarButton {
+        icon: @image-url("../../../../font-awesome/svgs/solid/grip-lines.svg");
+        tooltip: @tr("Horizontal");
+        checkable: true;
+        checked: !tabs[section.current-tab-index].tool-vcut-vertical;
+
+        clicked => {
+            tabs[section.current-tab-index].tool-vcut-vertical = false;
+        }
+    }
+
+    vertical-btn := ToolBarButton {
+        icon: @image-url("../../../../font-awesome/svgs/solid/grip-lines-vertical.svg");
+        tooltip: @tr("Vertical");
+        checkable: true;
+        checked: tabs[section.current-tab-index].tool-vcut-vertical;
+
+        clicked => {
+            tabs[section.current-tab-index].tool-vcut-vertical = true;
+        }
+    }
+}

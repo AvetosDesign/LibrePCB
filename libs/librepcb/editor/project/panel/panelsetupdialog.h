@@ -56,10 +56,16 @@ class PanelSetupDialog;
  * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
  * `QDialogButtonBox`, loaded from the model on construction, applied back
  * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name, outline width/height and the default tab
- * width (::librepcb::Panel::getDefaultTabWidth()), all applied together via
- * a single ::librepcb::editor::CmdPanelEdit. The width & height
- * and default tab width fields are currently plain `QDoubleSpinBox` fields
+ * ::librepcb::Panel today: name, outline width/height and the tab defaults
+ * (width, whether mouse bites are included, mouse bite hole size and
+ * spacing - see ::librepcb::Panel::getDefaultTabWidth()) and the V-cut
+ * defaults (minimum distance to the panel edge, in a "V-Cuts" group after
+ * "Tabs"), all applied together via a single
+ * ::librepcb::editor::CmdPanelEdit. The tab defaults are grouped in a
+ * "Tabs" group box, named like the short noun section headings of
+ * ::librepcb::editor::BoardSetupDialog ("Clearances", "Minimum Sizes") and
+ * this dialog's own "Routing" group. The width & height
+ * and tab default fields are currently plain `QDoubleSpinBox` fields
  * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
  */
 class PanelSetupDialog final : public QDialog {

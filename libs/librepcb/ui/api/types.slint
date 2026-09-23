@@ -1431,6 +1431,8 @@ export struct PanelTabData {
     tool-bottom: bool,  // Add Fiducial tool's board side (false=top, true=bottom),
                         // or the Select tool's homogeneous fiducial
                         // selection's board side
+    tool-vcut-vertical: bool,  // Add V-Cuts tool's orientation
+                               // (false=horizontal, true=vertical)
     select-hole: bool,  // Select tool: true when the selection is
                         // homogeneously all holes (shows the same
                         // diameter field as the Add Hole tool's toolbar)
@@ -1438,6 +1440,10 @@ export struct PanelTabData {
                             // homogeneously all fiducials (shows the same
                             // diameter/clearance/side fields as the Add
                             // Fiducial tool's toolbar)
+    select-vcut: bool,  // Select tool: true when the selection is
+                        // homogeneously all V-cuts (shows the same
+                        // Horizontal/Vertical buttons as the Add V-Cuts
+                        // tool's toolbar, bound to tool-vcut-vertical)
 
     // Grid settings. grid-style is shared across Board and Panel tabs (a
     // workspace setting, see Board2dTabData.grid-style), while

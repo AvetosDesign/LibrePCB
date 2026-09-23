@@ -21,18 +21,21 @@
 
 #include "panelgraphicsscene.h"
 
+#include "../../graphics/graphicslayerlist.h"
 #include "boardproxy.h"
 #include "graphicsitems/pgi_outline.h"
 #include "graphicsitems/pgi_boardinstance.h"
 #include "graphicsitems/pgi_fiducial.h"
 #include "graphicsitems/pgi_hole.h"
 #include "graphicsitems/pgi_tab.h"
+#include "graphicsitems/pgi_vcut.h"
 
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/panel/boardedgesnap.h>
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/utils/transform.h>
+#include <librepcb/core/workspace/colorrole.h>
 
 #include <QtCore>
 
@@ -54,7 +57,13 @@ PanelGraphicsScene::PanelGraphicsScene(
     // unconditionally calls crossProbe->isActive() the moment any item
     // computes a layer state, which happens immediately while a
     // BoardProxy's hidden scene populates itself.
-    mBoardProxyContext(boardProxyContext) {
+    mBoardProxyContext(boardProxyContext),
+    mVCutLayer(layers.get(ColorRole::boardDocumentation())),
+    mOnVCutLayerEditedSlot(*this, &PanelGraphicsScene::vCutLayerEdited) {
+  if (mVCutLayer) {
+    mVCutLayer->onEdited.attach(mOnVCutLayerEditedSlot);
+  }
+
   mOutlineItem = std::make_shared<PGI_Outline>(mPanel);
   addItem(*mOutlineItem);
 
@@ -66,6 +75,14 @@ PanelGraphicsScene::PanelGraphicsScene(
   mTabPhantomItem->setZValue(11);
   mTabPhantomItem->setVisible(false);
   addItem(*mTabPhantomItem);
+
+  // Phantom V-cut line - hidden until the Add V-Cuts tool shows it. Not
+  // selectable, and above the real V-cuts (PGI_VCut uses Z=9).
+  mVCutPhantomItem = std::make_unique<QGraphicsPathItem>();
+  mVCutPhantomItem->setBrush(Qt::NoBrush);
+  mVCutPhantomItem->setZValue(9.5);
+  mVCutPhantomItem->setVisible(false);
+  addItem(*mVCutPhantomItem);
 
   for (int i = 0; i < mPanel.getBoardInstances().count(); ++i) {
     if (auto instance = mPanel.getBoardInstances().value(i)) {
@@ -87,6 +104,11 @@ PanelGraphicsScene::PanelGraphicsScene(
       addTabItem(tab);
     }
   }
+  for (int i = 0; i < mPanel.getVCuts().count(); ++i) {
+    if (auto vcut = mPanel.getVCuts().value(i)) {
+      addVCutItem(vcut);
+    }
+  }
 
   connect(&mPanel, &Panel::outlineChanged, this,
           &PanelGraphicsScene::outlineChanged);
@@ -104,9 +126,19 @@ PanelGraphicsScene::PanelGraphicsScene(
           &PanelGraphicsScene::fiducialRemoved);
   connect(&mPanel, &Panel::tabAdded, this, &PanelGraphicsScene::tabAdded);
   connect(&mPanel, &Panel::tabRemoved, this, &PanelGraphicsScene::tabRemoved);
+  connect(&mPanel, &Panel::vCutAdded, this, &PanelGraphicsScene::vCutAdded);
+  connect(&mPanel, &Panel::vCutRemoved, this,
+          &PanelGraphicsScene::vCutRemoved);
 }
 
 PanelGraphicsScene::~PanelGraphicsScene() noexcept {
+  if (mVCutPhantomItem) {
+    removeItem(*mVCutPhantomItem);
+    mVCutPhantomItem.reset();
+  }
+  foreach (const Uuid& uuid, mVCutItems.keys()) {
+    removeVCutItem(uuid);
+  }
   if (mTabPhantomItem) {
     removeItem(*mTabPhantomItem);
     mTabPhantomItem.reset();
@@ -146,6 +178,9 @@ void PanelGraphicsScene::selectAll() noexcept {
   foreach (const auto& item, mTabItems) {
     if (item && item->isVisible()) item->setSelected(true);
   }
+  foreach (const auto& item, mVCutItems) {
+    if (item && item->isVisible()) item->setSelected(true);
+  }
 }
 
 void PanelGraphicsScene::selectItemsInRect(const Point& p1,
@@ -168,6 +203,12 @@ void PanelGraphicsScene::selectItemsInRect(const Point& p1,
     }
   }
   foreach (const auto& item, mTabItems) {
+    if (item) {
+      item->setSelected(item->isVisible() &&
+                        item->mapToScene(item->shape()).intersects(rectPx));
+    }
+  }
+  foreach (const auto& item, mVCutItems) {
     if (item) {
       item->setSelected(item->isVisible() &&
                         item->mapToScene(item->shape()).intersects(rectPx));
@@ -262,6 +303,33 @@ void PanelGraphicsScene::setTabColors(const QColor& color,
   }
 }
 
+void PanelGraphicsScene::setVCutColors(const QColor& color,
+                                       const QColor& selectedColor) noexcept {
+  mVCutColor = color;
+  mVCutSelectedColor = selectedColor;
+  foreach (const auto& item, mVCutItems) {
+    if (item) item->setColors(mVCutColor, mVCutSelectedColor);
+  }
+  if (mVCutPhantomItem) {
+    QColor phantomColor = mVCutColor;
+    phantomColor.setAlphaF(phantomColor.alphaF() * 0.6);
+    mVCutPhantomItem->setPen(QPen(phantomColor, PGI_VCut::lineWidth().toPx(),
+                                  Qt::SolidLine, Qt::RoundCap,
+                                  Qt::RoundJoin));
+  }
+}
+
+void PanelGraphicsScene::setVCutPhantom(bool vertical,
+                                        const Length& position) noexcept {
+  mVCutPhantom = std::make_pair(vertical, position);
+  updateVCutPhantom();
+}
+
+void PanelGraphicsScene::clearVCutPhantom() noexcept {
+  mVCutPhantom = std::nullopt;
+  updateVCutPhantom();
+}
+
 void PanelGraphicsScene::setTabsVisible(bool visible) noexcept {
   mTabsVisible = visible;
   foreach (const auto& item, mTabItems) {
@@ -300,6 +368,11 @@ void PanelGraphicsScene::outlineChanged() noexcept {
   if (mOutlineItem) {
     mOutlineItem->updateOutline();
   }
+  // V-cut lines span the whole panel, so their extent depends on its size.
+  foreach (const auto& item, mVCutItems) {
+    if (item) item->updateGeometry();
+  }
+  updateVCutPhantom();
 }
 
 void PanelGraphicsScene::boardInstanceAdded(int index) noexcept {
@@ -483,6 +556,72 @@ void PanelGraphicsScene::addTabItem(std::shared_ptr<PI_Tab> tab) noexcept {
 void PanelGraphicsScene::removeTabItem(const Uuid& uuid) noexcept {
   if (std::shared_ptr<PGI_Tab> item = mTabItems.take(uuid)) {
     removeItem(*item);
+  }
+}
+
+void PanelGraphicsScene::vCutAdded(int index) noexcept {
+  if (auto vcut = mPanel.getVCuts().value(index)) {
+    addVCutItem(vcut);
+  }
+}
+
+void PanelGraphicsScene::vCutRemoved(int index) noexcept {
+  Q_UNUSED(index);
+  const QList<Uuid> currentUuids = mVCutItems.keys();
+  foreach (const Uuid& uuid, currentUuids) {
+    if (!mPanel.getVCut(uuid)) {
+      removeVCutItem(uuid);
+    }
+  }
+}
+
+void PanelGraphicsScene::addVCutItem(std::shared_ptr<PI_VCut> vcut) noexcept {
+  Q_ASSERT(vcut);
+  Q_ASSERT(!mVCutItems.contains(vcut->getUuid()));
+  std::shared_ptr<PGI_VCut> item = std::make_shared<PGI_VCut>(vcut, mPanel);
+  item->setColors(mVCutColor, mVCutSelectedColor);
+  item->setVisible(mVCutsForcedVisible || (!mVCutLayer) ||
+                   mVCutLayer->isVisible());
+  addItem(*item);
+  mVCutItems.insert(vcut->getUuid(), item);
+}
+
+void PanelGraphicsScene::setVCutsForcedVisible(bool forced) noexcept {
+  mVCutsForcedVisible = forced;
+  updateVCutsVisibility();
+}
+
+void PanelGraphicsScene::updateVCutsVisibility() noexcept {
+  const bool visible =
+      mVCutsForcedVisible || (!mVCutLayer) || mVCutLayer->isVisible();
+  foreach (const auto& item, mVCutItems) {
+    if (item) item->setVisible(visible);
+  }
+}
+
+void PanelGraphicsScene::vCutLayerEdited(const GraphicsLayer& layer,
+                                         GraphicsLayer::Event event) noexcept {
+  Q_UNUSED(layer);
+  if ((event == GraphicsLayer::Event::VisibleChanged) ||
+      (event == GraphicsLayer::Event::EnabledChanged)) {
+    updateVCutsVisibility();
+  }
+}
+
+void PanelGraphicsScene::removeVCutItem(const Uuid& uuid) noexcept {
+  if (std::shared_ptr<PGI_VCut> item = mVCutItems.take(uuid)) {
+    removeItem(*item);
+  }
+}
+
+void PanelGraphicsScene::updateVCutPhantom() noexcept {
+  if (!mVCutPhantomItem) return;
+  if (mVCutPhantom) {
+    mVCutPhantomItem->setPath(PGI_VCut::buildPathPx(
+        mPanel, mVCutPhantom->first, mVCutPhantom->second));
+    mVCutPhantomItem->setVisible(true);
+  } else {
+    mVCutPhantomItem->setVisible(false);
   }
 }
 
