@@ -35,6 +35,7 @@
 #include "items/pi_boardinstance.h"
 #include "items/pi_fiducial.h"
 #include "items/pi_hole.h"
+#include "items/pi_tab.h"
 
 #include <QtCore>
 
@@ -96,6 +97,14 @@ public:
    * @see #defaultWidth
    */
   static constexpr Length defaultHeight = Length(100000000);  // 100 mm
+
+  /**
+   * @brief Initial panel-wide default tab width for newly created panels
+   *
+   * Used to initialize #mDefaultTabWidth in the constructor. Each
+   * ::librepcb::PI_Tab can override it (see ::librepcb::PI_Tab::getWidth()).
+   */
+  static constexpr Length initialDefaultTabWidth = Length(6000000);  // 6 mm
 
   // Constructors / Destructor
   Panel() = delete;
@@ -160,6 +169,40 @@ public:
    */
   const LengthUnit& getGridUnit() const noexcept { return mGridUnit; }
 
+  /**
+   * @brief Get the panel-wide default tab width
+   *
+   * Used by every ::librepcb::PI_Tab without its own width override (see
+   * ::librepcb::PI_Tab::getWidth()). Defaults to #initialDefaultTabWidth.
+   * Not yet editable in the UI.
+   */
+  const PositiveLength& getDefaultTabWidth() const noexcept {
+    return mDefaultTabWidth;
+  }
+
+  /**
+   * @brief Get the effective width of a tab
+   *
+   * @param tab   A tab of this panel.
+   *
+   * @return The tab's width override if it has one, otherwise
+   *         #getDefaultTabWidth().
+   */
+  PositiveLength getEffectiveTabWidth(const PI_Tab& tab) const noexcept;
+
+  /**
+   * @brief Get the stored visibility of the panel editor's graphics layers
+   *
+   * Same as ::librepcb::Board::getLayersVisibility(): a per-user view
+   * setting (keyed by ::librepcb::ColorRole ID), saved in the panel's
+   * `settings.user.lp` rather than in `panel.lp`. The panel editor tab
+   * loads it when opened and stores it back right before the project is
+   * saved.
+   */
+  const QMap<QString, bool>& getLayersVisibility() const noexcept {
+    return mLayersVisibility;
+  }
+
   // Setters: Attributes
   void setName(const ElementName& name) noexcept;
   void setWidth(const PositiveLength& width) noexcept;
@@ -168,6 +211,10 @@ public:
     mGridInterval = interval;
   }
   void setGridUnit(const LengthUnit& unit) noexcept { mGridUnit = unit; }
+  void setDefaultTabWidth(const PositiveLength& width) noexcept;
+  void setLayersVisibility(const QMap<QString, bool>& visibility) noexcept {
+    mLayersVisibility = visibility;
+  }
 
   // Board Instance Methods
   PI_BoardInstanceList& getBoardInstances() noexcept {
@@ -214,6 +261,29 @@ public:
   void addFiducial(std::shared_ptr<PI_Fiducial> fiducial);
   void removeFiducial(std::shared_ptr<PI_Fiducial> fiducial);
 
+  // Tab Methods
+  PI_TabList& getTabs() noexcept { return mTabs; }
+  const PI_TabList& getTabs() const noexcept { return mTabs; }
+  std::shared_ptr<PI_Tab> getTab(const Uuid& uuid) noexcept {
+    return mTabs.find(uuid);
+  }
+  std::shared_ptr<const PI_Tab> getTab(const Uuid& uuid) const noexcept {
+    return mTabs.find(uuid);
+  }
+
+  /**
+   * @brief Get all tabs attached to a specific board placement
+   *
+   * @param boardInstance   UUID of the ::librepcb::PI_BoardInstance.
+   *
+   * @return The attached tabs, in list order.
+   */
+  QVector<std::shared_ptr<PI_Tab>> getTabsOfBoardInstance(
+      const Uuid& boardInstance) noexcept;
+
+  void addTab(std::shared_ptr<PI_Tab> tab);
+  void removeTab(std::shared_ptr<PI_Tab> tab);
+
   /**
    * @brief Get the UUIDs of all distinct board designs referenced by this
    *        panel (deduplicated across placed instances)
@@ -257,6 +327,8 @@ signals:
   void holeRemoved(int index);
   void fiducialAdded(int index);
   void fiducialRemoved(int index);
+  void tabAdded(int index);
+  void tabRemoved(int index);
   void attributesChanged();
 
 private:  // Methods
@@ -269,6 +341,9 @@ private:  // Methods
   void fiducialsEdited(const PI_FiducialList& list, int index,
                        const std::shared_ptr<const PI_Fiducial>& obj,
                        PI_FiducialList::Event event) noexcept;
+  void tabsEdited(const PI_TabList& list, int index,
+                  const std::shared_ptr<const PI_Tab>& obj,
+                  PI_TabList::Event event) noexcept;
 
 private:  // Data
   // General
@@ -284,6 +359,10 @@ private:  // Data
   PositiveLength mHeight;
   PositiveLength mGridInterval;
   LengthUnit mGridUnit;
+  PositiveLength mDefaultTabWidth;
+
+  // User settings (saved in settings.user.lp, see #getLayersVisibility())
+  QMap<QString, bool> mLayersVisibility;
 
   // Content - references only, never board data (see class docs above).
   PI_BoardInstanceList mBoardInstances;
@@ -292,6 +371,10 @@ private:  // Data
   PI_HoleList mHoles;
   PI_FiducialList mFiducials;
 
+  // Tab markers, each attached to one of mBoardInstances (board-local
+  // position, see PI_Tab).
+  PI_TabList mTabs;
+
   /// One checksum per referenced board UUID, not per placement instance.
   QHash<Uuid, QString> mBoardChecksums;
 
@@ -299,6 +382,7 @@ private:  // Data
   PI_BoardInstanceList::OnEditedSlot mOnBoardInstancesEditedSlot;
   PI_HoleList::OnEditedSlot mOnHolesEditedSlot;
   PI_FiducialList::OnEditedSlot mOnFiducialsEditedSlot;
+  PI_TabList::OnEditedSlot mOnTabsEditedSlot;
 };
 
 /*******************************************************************************

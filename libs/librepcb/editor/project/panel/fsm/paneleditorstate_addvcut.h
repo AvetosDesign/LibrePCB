@@ -18,74 +18,72 @@
  */
 
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
 
-#ifndef LIBREPCB_EDITOR_PANELSETUPDIALOG_H
-#define LIBREPCB_EDITOR_PANELSETUPDIALOG_H
+#ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDVCUT_H
+#define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDVCUT_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "paneleditorstate.h"
+
 #include <QtCore>
-#include <QtWidgets>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
-
-class Panel;
-
 namespace editor {
 
-class GuiApplication;
-class UndoStack;
-
-namespace Ui {
-class PanelSetupDialog;
-}
-
 /*******************************************************************************
- *  Class PanelSetupDialog
+ *  Class PanelEditorState_AddVCut
  ******************************************************************************/
 
 /**
- * @brief The PanelSetupDialog class
+ * @brief The "add V-cuts" state/tool of the panel editor
  *
- * Modal "Panel Setup" dialog, following ::librepcb::editor::
- * BoardSetupDialog's overall shape (a `QDialog` with an Apply/Cancel/OK
- * `QDialogButtonBox`, loaded from the model on construction, applied back
- * to it through an undo command) but scoped down to just what exists on
- * ::librepcb::Panel today: name, outline width/height and the default tab
- * width (::librepcb::Panel::getDefaultTabWidth()), all applied together via
- * a single ::librepcb::editor::CmdPanelEdit. The width & height
- * and default tab width fields are currently plain `QDoubleSpinBox` fields
- * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
+ * **Stub only.** The tool can be selected from the tool palette (so the
+ * UI/FSM plumbing is in place), but it doesn't do anything yet: entering
+ * it only shows a status bar hint, and all scene events are ignored. The
+ * V-cut model, placement interaction and rendering are still to be
+ * designed - see claude/librepcb_panel_design_decisions.md ("V-grooves")
+ * for the direction discussed so far (a straight line on a dedicated panel
+ * layer, with the groove parameters living in the panel's manufacturing
+ * settings).
  */
-class PanelSetupDialog final : public QDialog {
+class PanelEditorState_AddVCut final : public PanelEditorState {
   Q_OBJECT
 
 public:
   // Constructors / Destructor
-  PanelSetupDialog() = delete;
-  PanelSetupDialog(const PanelSetupDialog& other) = delete;
-  PanelSetupDialog(GuiApplication& app, Panel& panel, UndoStack& undoStack,
-                   QWidget* parent = nullptr) noexcept;
-  ~PanelSetupDialog() override;
+  PanelEditorState_AddVCut() = delete;
+  PanelEditorState_AddVCut(const PanelEditorState_AddVCut& other) = delete;
+  explicit PanelEditorState_AddVCut(const Context& context) noexcept;
+  ~PanelEditorState_AddVCut() noexcept override;
+
+  // General Methods
+  bool entry() noexcept override;
+  bool exit() noexcept override;
+
+  // Event Handlers
+
+  /**
+   * @brief Handle a left click on the canvas (stub)
+   *
+   * Placeholder for the V-cut placement interaction - currently does
+   * nothing.
+   *
+   * @param e   The mouse event.
+   *
+   * @return Always true (event consumed), so clicks with this tool never
+   *         fall through to anything else.
+   */
+  bool processGraphicsSceneLeftMouseButtonPressed(
+      const GraphicsSceneMouseEvent& e) noexcept override;
 
   // Operator Overloadings
-  PanelSetupDialog& operator=(const PanelSetupDialog& rhs) = delete;
-
-private:  // Methods
-  void buttonBoxClicked(QAbstractButton* button);
-  void load() noexcept;
-  bool apply() noexcept;
-
-private:  // Data
-  GuiApplication& mApp;
-  Panel& mPanel;
-  UndoStack& mUndoStack;
-  QScopedPointer<Ui::PanelSetupDialog> mUi;
+  PanelEditorState_AddVCut& operator=(const PanelEditorState_AddVCut& rhs) =
+      delete;
 };
 
 /*******************************************************************************

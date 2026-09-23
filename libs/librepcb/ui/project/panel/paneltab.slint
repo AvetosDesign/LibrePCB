@@ -4,7 +4,7 @@
 import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
 import { AddHoleToolBar } from "addholetoolbar.slint";
 import { Tab } from "../../tab.slint";
-import { SceneButton, ToolBar, ToolButton } from "../../widgets.slint";
+import { SceneButton, TextInput, ToolBar, ToolButton } from "../../widgets.slint";
 import {
     Backend,
     Data,
@@ -16,8 +16,8 @@ import {
 } from "../../api.slint";
 
 // Panel editor tab: a pannable/zoomable canvas with a left-side tool column
-// (Select / Add Hole / Add Fiducial), following Board2dTab's toolbuttons-l
-// pattern.
+// (Select / Add Hole / Add Fiducial / Add Tab / Add V-Cuts), following
+// Board2dTab's toolbuttons-l pattern.
 export component PanelTab inherits Tab {
     in property <int> section-index;
     in-out property <WindowSectionData> section;
@@ -66,6 +66,33 @@ export component PanelTab inherits Tab {
         height: 100%;
         mouse-cursor: tabs[index].tool-cursor;
 
+        // Info box for the current selection - same as Board2dTab's
+        // overlay. Shown only if the text is not empty.
+        if !tabs[index].tool-overlay-text.is-empty: Rectangle {
+            x: 2 * toolbuttons-l.x + toolbuttons-l.width;
+            y: toolbuttons-l.y;
+            width: min(self.preferred-width, 0.5 * parent.width);
+            height: self.preferred-height;
+            background: Data.theme.control;
+            border-radius: 3px;
+            border-width: 1px;
+            border-color: Data.theme.control-border;
+            clip: true;
+
+            VerticalLayout {
+                padding: 6px;
+
+                overlay-txt := TextInput {
+                    horizontal-alignment: left;
+                    vertical-alignment: top;
+                    font-family: "Noto Sans Mono";
+                    color: Data.theme.control-text;
+                    text: tabs[index].tool-overlay-text;
+                    read-only: true;
+                }
+            }
+        }
+
         toolbuttons-l := VerticalLayout {
             x: 7px;
             y: 7px + toolbutton-offset-y;
@@ -98,6 +125,24 @@ export component PanelTab inherits Tab {
 
                 clicked => {
                     Backend.trigger-tab(section-index, index, TabAction.tool-fiducial);
+                }
+            }
+
+            tool-panel-tab-btn := ToolButton {
+                cmd: Cmd.tool-panel-tab;
+                checked: tabs[index].tool == EditorTool.panel-tab;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-panel-tab);
+                }
+            }
+
+            tool-panel-vcut-btn := ToolButton {
+                cmd: Cmd.tool-panel-vcut;
+                checked: tabs[index].tool == EditorTool.panel-vcut;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-panel-vcut);
                 }
             }
         }
@@ -160,6 +205,46 @@ export component PanelTab inherits Tab {
 
                 clicked => {
                     Backend.trigger-tab(section-index, index, TabAction.zoom-out);
+                }
+            }
+
+            show-copper-btn := SceneButton {
+                icon: @image-url("../../../../../img/show-copper-layers.svg");
+                tooltip: @tr("Copper Layers");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                style: checkbox;
+                checked: tabs[index].show-copper;
+
+                clicked => {
+                    tabs[index].show-copper = !self.checked;
+                }
+            }
+
+            show-tabs-btn := SceneButton {
+                icon: @image-url("../../../../../img/show-tab-markers.svg");
+                tooltip: @tr("Tab Markers");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                style: checkbox;
+                checked: tabs[index].show-tabs;
+
+                clicked => {
+                    tabs[index].show-tabs = !self.checked;
+                }
+            }
+
+            // Placeholder icon (Font Awesome "square").
+            show-board-outlines-btn := SceneButton {
+                icon: @image-url("../../../../font-awesome/svgs/regular/square.svg");
+                tooltip: @tr("Board Outlines");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                style: checkbox;
+                checked: tabs[index].show-board-outlines;
+
+                clicked => {
+                    tabs[index].show-board-outlines = !self.checked;
                 }
             }
         }

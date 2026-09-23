@@ -364,6 +364,8 @@ export enum EditorTool {
     image,
     hole,
     fiducial,
+    panel-tab,
+    panel-vcut,
     pin,
     pad-tht,
     pad-smt,
@@ -848,6 +850,8 @@ export enum TabAction {
     tool-image,
     tool-hole,
     tool-fiducial,
+    tool-panel-tab,
+    tool-panel-vcut,
     tool-pin,
     tool-pad-tht,
     tool-pad-smt,
@@ -1417,6 +1421,7 @@ export struct PanelTabData {
     // Data about the currently active tool.
     tool: EditorTool,
     tool-cursor: MouseCursor,
+    tool-overlay-text: string,  // Info box text (Select tool), empty = hidden
     tool-diameter: LengthEditData,  // Add Fiducial/Add Hole tool's diameter,
                                     // or the Select tool's homogeneous
                                     // hole/fiducial selection's diameter
@@ -1447,6 +1452,18 @@ export struct PanelTabData {
     // should be treated as unlocked for drag/rotate/flip/remove, mirroring
     // Board2dTabData.ignore-placement-locks exactly.
     ignore-placement-locks: bool,
+
+    // Whether the boards' copper layers (top, inner and bottom) are shown
+    // on the panel canvas, mirroring SchematicTabData.show-pin-numbers.
+    show-copper: bool,
+
+    // Whether tab markers are shown on the panel canvas. Ignored while the
+    // Add Tab tool is active (markers are always shown then).
+    show-tabs: bool,
+
+    // Whether the outlines of the individual board placements are shown
+    // (not the panel perimeter).
+    show-board-outlines: bool,
 
     // Write-only: setting this to a valid index into the project's boards
     // triggers placing that board onto the panel, then C++ resets it back

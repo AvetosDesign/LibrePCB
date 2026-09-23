@@ -44,6 +44,8 @@ namespace editor {
 class PanelEditorState_AddBoard;
 class PanelEditorState_AddFiducial;
 class PanelEditorState_AddHole;
+class PanelEditorState_AddTab;
+class PanelEditorState_AddVCut;
 class PanelEditorState_Select;
 class PanelGraphicsScene;
 
@@ -80,11 +82,40 @@ public:
   virtual void fsmSetViewCursor(
       const std::optional<Qt::CursorShape>& shape) noexcept = 0;
   virtual Point fsmMapGlobalPosToScenePos(const QPoint& pos) const noexcept = 0;
+
+  /**
+   * @brief Get a circular area around a scene position, sized in screen
+   *        pixels
+   *
+   * Mirrors ::librepcb::editor::BoardEditorFsmAdapter::
+   * fsmCalcPosWithTolerance() (backed by
+   * ::librepcb::editor::SlintGraphicsView::calcPosWithTolerance()), so hit
+   * tolerances stay constant on screen at any zoom level.
+   *
+   * @param pos         Center, in scene coordinates.
+   * @param multiplier  Scales the default screen pixel tolerance.
+   *
+   * @return Circle around @p pos, in scene pixels.
+   */
+  virtual QPainterPath fsmCalcPosWithTolerance(
+      const Point& pos, qreal multiplier = 1) const noexcept = 0;
   virtual void fsmAbortBlockingToolsInOtherEditors() noexcept = 0;
   virtual void fsmOpenBoardEditor(const Uuid& boardUuid) noexcept = 0;
   virtual void fsmSetStatusBarMessage(const QString& message,
                                       int timeoutMs = -1) noexcept = 0;
   virtual void fsmSetFeatures(Features features) noexcept = 0;
+
+  /**
+   * @brief Set the text of the info box shown on the canvas
+   *
+   * Mirrors ::librepcb::editor::BoardEditorFsmAdapter::
+   * fsmSetViewInfoBoxText(), used by the Select tool to show properties of
+   * the current selection.
+   *
+   * @param text  Text to show (one "Key: value" per line), or an empty
+   *              string to hide the info box.
+   */
+  virtual void fsmSetViewInfoBoxText(const QString& text) noexcept = 0;
 
   /**
    * @brief Whether locked panel items should be treated as unlocked
@@ -101,6 +132,8 @@ public:
   virtual void fsmToolEnter(PanelEditorState_AddHole& state) noexcept = 0;
   virtual void fsmToolEnter(
       PanelEditorState_AddFiducial& state) noexcept = 0;
+  virtual void fsmToolEnter(PanelEditorState_AddTab& state) noexcept = 0;
+  virtual void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept = 0;
 };
 
 /*******************************************************************************

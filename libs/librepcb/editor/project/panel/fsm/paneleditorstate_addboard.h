@@ -51,12 +51,21 @@ class CmdPanelBoardInstanceEdit;
 /**
  * @brief The "add board" state/tool of the panel editor
  *
- * A single-shot placement tool, cloned from BoardEditorState_AddDevice's
+ * A multi-placement tool, cloned from BoardEditorState_AddDevice's
  * behavioral pattern: the triggering call creates the placement immediately
  * (no library-copy step is needed here, unlike CmdAddDeviceToBoard, since a
  * panel never duplicates board content - see CmdPanelBoardInstanceAdd),
- * mouse movement previews the position, a left click commits it and leaves
- * the tool, and a right click rotates the pending placement by 90°.
+ * mouse movement previews the position, a right click rotates the pending
+ * placement by 90°, and a left click commits it and immediately starts
+ * placing another copy of the same board (keeping the current rotation and
+ * flip), like the Add Hole/Add Tab tools. Placing ends with Esc (or right
+ * click when nothing is pending), or by switching to another tool;
+ * choosing a different board from the Place Boards panel discards the
+ * pending copy and continues with the newly chosen board.
+ *
+ * A double click is ignored (rather than handled as a second click), since
+ * its preceding press already placed a copy - handling it too would stack
+ * a duplicate placement at the same position.
  */
 class PanelEditorState_AddBoard final : public PanelEditorState {
   Q_OBJECT
@@ -91,13 +100,17 @@ public:
 
 private:
   // Private Methods
-  bool addBoard(Board& board) noexcept;
+  bool addBoard(Board& board, const Angle& rotation, bool flipped) noexcept;
   bool rotateBoard(const Angle& angle) noexcept;
   bool flipBoard() noexcept;
   bool abortCommand(bool showErrMsgBox) noexcept;
 
   // State
   bool mIsUndoCmdActive;
+
+  /// The board being placed (for placing the next copy after a click).
+  /// Only valid if mIsUndoCmdActive == true.
+  Board* mCurrentBoard;
 
   // Information about the current placement in progress. Only valid if
   // mIsUndoCmdActive == true.
