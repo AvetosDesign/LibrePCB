@@ -297,6 +297,9 @@ private:
 
   // State
   bool mIsUndoCmdActive;
+  /// Whether the next move step of a selection drag still has to align the
+  /// dragged group to the current grid (see processGraphicsSceneMouseMoved())
+  bool mDragSnapPending;
   Point mDragLastPos;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
