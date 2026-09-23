@@ -50,7 +50,8 @@ namespace editor {
  * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
  * #performExecute()). Covers the panel's name, its outline width &
  * height, its tab defaults (width, mouse bites enabled, mouse bite hole
- * diameter/spacing), and its V-cut defaults (minimum distance to the panel edge). Width & height also support "immediate" application, so a single
+ * diameter/spacing/offset), and its routing settings (style, router bit diameter, frame
+ * widths). Width & height also support "immediate" application, so a single
  * instance of this command can be reused both for the one-shot Panel Setup
  * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
  * for a live edge-drag resize preview on the canvas 
@@ -82,8 +83,11 @@ public:
   void setDefaultMouseBitesEnabled(bool enabled) noexcept;
   void setDefaultMouseBiteDiameter(const PositiveLength& diameter) noexcept;
   void setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept;
-  void setDefaultVCutMinPanelEdgeDistance(
-      const UnsignedLength& distance) noexcept;
+  void setDefaultMouseBiteOffset(const Length& offset) noexcept;
+  void setRoutingStyle(Panel::RoutingStyle style) noexcept;
+  void setRouterBitDiameter(const PositiveLength& diameter) noexcept;
+  void setFrameWidthTopBottom(const UnsignedLength& width) noexcept;
+  void setFrameWidthLeftRight(const UnsignedLength& width) noexcept;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
@@ -113,8 +117,16 @@ private:  // Data
   PositiveLength mNewDefaultMouseBiteDiameter;
   PositiveLength mOldDefaultMouseBiteSpacing;
   PositiveLength mNewDefaultMouseBiteSpacing;
-  UnsignedLength mOldDefaultVCutMinPanelEdgeDistance;
-  UnsignedLength mNewDefaultVCutMinPanelEdgeDistance;
+  Length mOldDefaultMouseBiteOffset;
+  Length mNewDefaultMouseBiteOffset;
+  Panel::RoutingStyle mOldRoutingStyle;
+  Panel::RoutingStyle mNewRoutingStyle;
+  PositiveLength mOldRouterBitDiameter;
+  PositiveLength mNewRouterBitDiameter;
+  UnsignedLength mOldFrameWidthTopBottom;
+  UnsignedLength mNewFrameWidthTopBottom;
+  UnsignedLength mOldFrameWidthLeftRight;
+  UnsignedLength mNewFrameWidthLeftRight;
 
   /// All V-cuts with their original positions, captured on construction
   QVector<std::pair<std::shared_ptr<PI_VCut>, Length>> mVCutOldPositions;

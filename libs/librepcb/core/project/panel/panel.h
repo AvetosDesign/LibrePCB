@@ -28,6 +28,7 @@
  ******************************************************************************/
 #include "../../fileio/filepath.h"
 #include "../../fileio/transactionaldirectory.h"
+#include "../../serialization/sexpression.h"
 #include "../../types/elementname.h"
 #include "../../types/length.h"
 #include "../../types/lengthunit.h"
@@ -80,15 +81,35 @@ class Panel final : public QObject {
 
 public:
   /**
+   * @brief How the material around the placed boards is routed
+   *
+   * Decides what the area outside the placed boards becomes when the panel
+   * outline (the tool paths and the resulting cutouts) is calculated:
+   *  - #None: board outlines aren't routed at all - the whole panel
+   *    rectangle stays solid and the boards are separated by V-cuts only.
+   *    Cutouts inside the boards are still routed.
+   *  - #Open: most material is removed, except a frame along the panel
+   *    edges (see #getFrameWidthTopBottom()/#getFrameWidthLeftRight()) and
+   *    the tabs.
+   *  - #Tight: a single route (one router bit wide) runs around the
+   *    perimeter of each placed board, interrupted by the tabs; everything
+   *    else stays solid.
+   *
+   * See claude/librepcb_panel_toolpath_investigation.md.
+   */
+  enum class RoutingStyle {
+    None,
+    Open,
+    Tight,
+  };
+
+  /**
    * @brief Default width for newly created panels
    *
    * Used to initialize ::librepcb::Panel::mWidth in the constructor.
-   * Panels are assumed rectangular (see #setWidth()/#setHeight()). Not yet
-   * exposed as a user-configurable setting - a named constant here (rather
-   * than a magic number in the constructor) is specifically so this is a
-   * single, easy edit point once a real setting (e.g. in a future Panel
-   * settings dialog) exists to replace it. See
-   * claude/librepcb_panel_design_decisions.md.
+   * Panels are assumed rectangular (see #setWidth()/#setHeight()). The
+   * size of an existing panel can be changed in the Panel Setup dialog or
+   * by dragging the outline's resize handles in the panel editor.
    */
   static constexpr Length defaultWidth = Length(100000000);  // 100 mm
 
@@ -125,13 +146,30 @@ public:
       Length(1000000);  // 1.0 mm
 
   /**
-   * @brief Initial panel-wide default minimum V-cut to panel edge distance
+   * @brief Initial panel-wide default mouse bite offset
    *
-   * Used to initialize #mDefaultVCutMinPanelEdgeDistance in the
-   * constructor.
+   * Distance of the mouse bite hole centers from the board edge; negative
+   * values are inside the board outline. Used to initialize
+   * #mDefaultMouseBiteOffset in the constructor.
    */
-  static constexpr Length initialDefaultVCutMinPanelEdgeDistance =
-      Length(5000000);  // 5 mm
+  static constexpr Length initialDefaultMouseBiteOffset =
+      Length(-250000);  // -0.25 mm (into the board)
+
+  /**
+   * @brief Initial router bit diameter for newly created panels
+   *
+   * Fabs typically stock 1.0 mm, 1.6 mm and 2.0 mm bits for routing board
+   * outlines. Used to initialize #mRouterBitDiameter in the constructor.
+   */
+  static constexpr Length initialRouterBitDiameter = Length(2000000);  // 2 mm
+
+  /**
+   * @brief Initial frame width for newly created panels
+   *
+   * Used to initialize both #mFrameWidthTopBottom and
+   * #mFrameWidthLeftRight in the constructor.
+   */
+  static constexpr Length initialFrameWidth = Length(5000000);  // 5 mm
 
   // Constructors / Destructor
   Panel() = delete;
@@ -252,16 +290,54 @@ public:
   }
 
   /**
-   * @brief Get the panel-wide default minimum V-cut to panel edge distance
+   * @brief Get the panel-wide default mouse bite offset
    *
-   * Minimum distance between a V-cut line and the edge of the panel
-   * (typically specified by manufacturers as 5.0 mm to 20.0 mm).
-   * Defaults to #initialDefaultVCutMinPanelEdgeDistance. Editable in the
-   * Panel Setup dialog ("V-Cuts" group); not used yet, since V-cuts
-   * themselves are still a stub (see claude/librepcb_panel_vcut_tool.md).
+   * Distance of the mouse bite hole centers from the edge of the board the
+   * tab is attached to: negative values place the holes inside the board
+   * outline, positive values outside of it. Defaults to
+   * #initialDefaultMouseBiteOffset.
    */
-  const UnsignedLength& getDefaultVCutMinPanelEdgeDistance() const noexcept {
-    return mDefaultVCutMinPanelEdgeDistance;
+  const Length& getDefaultMouseBiteOffset() const noexcept {
+    return mDefaultMouseBiteOffset;
+  }
+
+  /**
+   * @brief Get the routing style
+   *
+   * @see ::librepcb::Panel::RoutingStyle
+   */
+  RoutingStyle getRoutingStyle() const noexcept { return mRoutingStyle; }
+
+  /**
+   * @brief Get the router bit diameter
+   *
+   * Width of the milled routes. Also, all inside corners of the calculated
+   * panel outline get a radius of half this diameter, since a router bit
+   * can't mill sharper inside corners. Defaults to
+   * #initialRouterBitDiameter.
+   */
+  const PositiveLength& getRouterBitDiameter() const noexcept {
+    return mRouterBitDiameter;
+  }
+
+  /**
+   * @brief Get the width of the frame along the top and bottom panel edges
+   *
+   * Only used with ::librepcb::Panel::RoutingStyle::Open. Zero means no
+   * frame (rail) along the top and bottom edges. Defaults to
+   * #initialFrameWidth.
+   */
+  const UnsignedLength& getFrameWidthTopBottom() const noexcept {
+    return mFrameWidthTopBottom;
+  }
+
+  /**
+   * @brief Get the width of the frame along the left and right panel edges
+   *
+   * @see #getFrameWidthTopBottom()
+   */
+  const UnsignedLength& getFrameWidthLeftRight() const noexcept {
+    return mFrameWidthLeftRight;
   }
 
   /**
@@ -289,8 +365,11 @@ public:
   void setDefaultMouseBitesEnabled(bool enabled) noexcept;
   void setDefaultMouseBiteDiameter(const PositiveLength& diameter) noexcept;
   void setDefaultMouseBiteSpacing(const PositiveLength& spacing) noexcept;
-  void setDefaultVCutMinPanelEdgeDistance(
-      const UnsignedLength& distance) noexcept;
+  void setDefaultMouseBiteOffset(const Length& offset) noexcept;
+  void setRoutingStyle(RoutingStyle style) noexcept;
+  void setRouterBitDiameter(const PositiveLength& diameter) noexcept;
+  void setFrameWidthTopBottom(const UnsignedLength& width) noexcept;
+  void setFrameWidthLeftRight(const UnsignedLength& width) noexcept;
   void setLayersVisibility(const QMap<QString, bool>& visibility) noexcept {
     mLayersVisibility = visibility;
   }
@@ -463,7 +542,11 @@ private:  // Data
   bool mDefaultMouseBitesEnabled;
   PositiveLength mDefaultMouseBiteDiameter;
   PositiveLength mDefaultMouseBiteSpacing;
-  UnsignedLength mDefaultVCutMinPanelEdgeDistance;
+  Length mDefaultMouseBiteOffset;
+  RoutingStyle mRoutingStyle;
+  PositiveLength mRouterBitDiameter;
+  UnsignedLength mFrameWidthTopBottom;
+  UnsignedLength mFrameWidthLeftRight;
 
   // User settings (saved in settings.user.lp, see #getLayersVisibility())
   QMap<QString, bool> mLayersVisibility;
@@ -492,6 +575,16 @@ private:  // Data
   PI_TabList::OnEditedSlot mOnTabsEditedSlot;
   PI_VCutList::OnEditedSlot mOnVCutsEditedSlot;
 };
+
+/*******************************************************************************
+ *  Non-Member Functions
+ ******************************************************************************/
+
+template <>
+std::unique_ptr<SExpression> serialize(const Panel::RoutingStyle& obj);
+
+template <>
+Panel::RoutingStyle deserialize(const SExpression& node);
 
 /*******************************************************************************
  *  End of File
