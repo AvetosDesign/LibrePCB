@@ -40,7 +40,6 @@
  ******************************************************************************/
 namespace librepcb {
 
-class Panel;
 class Project;
 
 namespace editor {
@@ -52,19 +51,27 @@ namespace editor {
 /**
  * @brief The PGI_Tab class
  *
- * Renders one ::librepcb::PI_Tab as a tab marker: a dot on the board edge
+ * Renders one ::librepcb::PI_Tab on one placed copy of its board
+ * (::librepcb::PI_BoardInstance) as a tab marker: a dot on the board edge
  * with an arrow pointing perpendicular to the edge, away from the board
  * (the direction the tab material will extend), following the KiKit
- * Viewer's tab marker.
+ * Viewer's tab marker. Since a tab belongs to a board design and applies
+ * to all its copies, the scene creates one item per (tab, board instance)
+ * pair - see PanelGraphicsScene.
  *
  * The tab's stored position is board-local (see ::librepcb::PI_Tab), so
- * this item looks up the ::librepcb::PI_BoardInstance it's attached to,
- * projects the stored position onto that board's current outline with
- * ::librepcb::BoardEdgeSnap, and maps the result through the placement's
- * position/rotation/flip. It listens to both the tab and the board
- * placement, so the marker follows the board whenever the board is moved,
- * rotated or flipped. If the placement or its board (or the board's
- * outline) doesn't exist, the item is hidden.
+ * this item projects the stored position onto the board's current outline
+ * with ::librepcb::BoardEdgeSnap, and maps the result through its
+ * placement's position/rotation/flip. It listens to both the tab and the
+ * board placement, so the marker follows the board whenever the board is
+ * moved, rotated or flipped. If the board (or its outline) doesn't exist,
+ * or the tab currently belongs to another board than this placement (a
+ * transient state while a tab is dragged onto another board design), the
+ * item is hidden.
+ *
+ * Selecting the marker on one copy highlights the markers of the same tab
+ * on all other copies (see #setHighlighted()), since they are all the same
+ * tab.
  *
  * The marker is drawn on top of everything else on the panel (see the
  * constructor's Z value) so it's never hidden under a board's rendering,
@@ -79,12 +86,15 @@ public:
   // Constructors / Destructor
   PGI_Tab() = delete;
   PGI_Tab(const PGI_Tab& other) = delete;
-  PGI_Tab(std::shared_ptr<PI_Tab> tab, Panel& panel,
+  PGI_Tab(std::shared_ptr<PI_Tab> tab,
+          std::shared_ptr<PI_BoardInstance> boardInstance,
           Project& project) noexcept;
   ~PGI_Tab() noexcept override;
 
   // General Methods
   PI_Tab& getTab() noexcept { return *mTab; }
+  const std::shared_ptr<PI_Tab>& getTabPtr() const noexcept { return mTab; }
+  PI_BoardInstance& getBoardInstance() noexcept { return *mBoardInstance; }
 
   /**
    * @brief Get the marker's position on the panel
@@ -142,6 +152,17 @@ public:
    */
   void setMarkerShown(bool shown) noexcept;
 
+  /**
+   * @brief Draw the marker highlighted, like a selected one
+   *
+   * Used for the markers of a selected tab on the *other* copies of the
+   * board (they aren't selected themselves, so selection-based actions
+   * don't see them twice).
+   *
+   * @param highlighted   Whether to draw the marker highlighted.
+   */
+  void setHighlighted(bool highlighted) noexcept;
+
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
@@ -158,15 +179,13 @@ private:  // Methods
 
 private:  // Data
   std::shared_ptr<PI_Tab> mTab;
-  Panel& mPanel;
-  Project& mProject;
-
-  /// The board placement currently observed (may be nullptr)
   std::shared_ptr<PI_BoardInstance> mBoardInstance;
+  Project& mProject;
 
   QPainterPath mShapePx;
   std::optional<Point> mScenePos;  ///< See #getScenePosition()
   bool mShown;  ///< See #setMarkerShown()
+  bool mHighlighted;  ///< See #setHighlighted()
   QColor mColor;
   QColor mSelectedColor;
 

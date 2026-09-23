@@ -38,7 +38,6 @@ namespace librepcb {
 
 class Panel;
 class PI_BoardInstance;
-class PI_Tab;
 
 namespace editor {
 
@@ -53,9 +52,9 @@ namespace editor {
  * never destroyed, just detached/reattached from the Panel, so undo is
  * lossless).
  *
- * All ::librepcb::PI_Tab markers attached to the instance are removed
- * together with it (and restored on undo), since a tab can't exist without
- * the board placement it's attached to.
+ * Tabs (::librepcb::PI_Tab) belong to the board design, not to a placed
+ * copy, so they are kept - even when the last copy of a board is removed
+ * (they reappear when the board is placed again).
  */
 class CmdPanelBoardInstanceRemove final : public UndoCommand {
 public:
@@ -86,7 +85,6 @@ private:
   // Private Member Variables
   Panel& mPanel;
   std::shared_ptr<PI_BoardInstance> mInstance;
-  QVector<std::shared_ptr<PI_Tab>> mTabs;  ///< Attached tabs, see class doc
 };
 
 /*******************************************************************************

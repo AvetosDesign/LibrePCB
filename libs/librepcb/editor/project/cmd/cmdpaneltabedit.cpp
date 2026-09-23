@@ -41,15 +41,15 @@ namespace editor {
 CmdPanelTabEdit::CmdPanelTabEdit(PI_Tab& tab) noexcept
   : UndoCommand(tr("Edit tab")),
     mTab(tab),
-    mOldBoardInstance(mTab.getBoardInstance()),
-    mNewBoardInstance(mOldBoardInstance),
+    mOldBoard(mTab.getBoard()),
+    mNewBoard(mOldBoard),
     mOldPos(mTab.getPosition()),
     mNewPos(mOldPos) {
 }
 
 CmdPanelTabEdit::~CmdPanelTabEdit() noexcept {
   if (!wasEverExecuted()) {
-    mTab.setBoardInstance(mOldBoardInstance);
+    mTab.setBoard(mOldBoard);
     mTab.setPosition(mOldPos);
   }
 }
@@ -58,14 +58,13 @@ CmdPanelTabEdit::~CmdPanelTabEdit() noexcept {
  *  General Methods
  ******************************************************************************/
 
-void CmdPanelTabEdit::setAnchor(const Uuid& boardInstance,
-                                const Point& position,
+void CmdPanelTabEdit::setAnchor(const Uuid& board, const Point& position,
                                 bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
-  mNewBoardInstance = boardInstance;
+  mNewBoard = board;
   mNewPos = position;
   if (immediate) {
-    mTab.setBoardInstance(mNewBoardInstance);
+    mTab.setBoard(mNewBoard);
     mTab.setPosition(mNewPos);
   }
 }
@@ -77,16 +76,16 @@ void CmdPanelTabEdit::setAnchor(const Uuid& boardInstance,
 bool CmdPanelTabEdit::performExecute() {
   performRedo();  // can throw
 
-  return (mNewBoardInstance != mOldBoardInstance) || (mNewPos != mOldPos);
+  return (mNewBoard != mOldBoard) || (mNewPos != mOldPos);
 }
 
 void CmdPanelTabEdit::performUndo() {
-  mTab.setBoardInstance(mOldBoardInstance);
+  mTab.setBoard(mOldBoard);
   mTab.setPosition(mOldPos);
 }
 
 void CmdPanelTabEdit::performRedo() {
-  mTab.setBoardInstance(mNewBoardInstance);
+  mTab.setBoard(mNewBoard);
   mTab.setPosition(mNewPos);
 }
 

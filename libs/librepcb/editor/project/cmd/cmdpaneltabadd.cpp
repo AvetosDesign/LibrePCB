@@ -39,12 +39,12 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-CmdPanelTabAdd::CmdPanelTabAdd(Panel& panel, const Uuid& boardInstance,
+CmdPanelTabAdd::CmdPanelTabAdd(Panel& panel, const Uuid& board,
                                const Point& position,
                                const UnsignedLength& width) noexcept
   : UndoCommand(tr("Add tab to panel")),
     mPanel(panel),
-    mTab(new PI_Tab(Uuid::createRandom(), boardInstance, position, width)) {
+    mTab(new PI_Tab(Uuid::createRandom(), board, position, width)) {
 }
 
 CmdPanelTabAdd::~CmdPanelTabAdd() noexcept {
