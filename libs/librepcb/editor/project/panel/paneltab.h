@@ -62,7 +62,6 @@ class PanelEditorState_AddVCut;
 class PanelGraphicsScene;
 class ProjectEditor;
 class SlintGraphicsView;
-struct SpaceMouseMotionEvent;
 
 /*******************************************************************************
  *  Class PanelTab
@@ -127,8 +126,6 @@ public:
       const slint::language::KeyEvent& e) noexcept override;
   bool processSceneKeyReleased(
       const slint::language::KeyEvent& e) noexcept override;
-  void processSpaceMouseEvent(const SpaceMouseMotionEvent& e,
-                             qreal dtSeconds) noexcept override;
 
   // IF_GraphicsViewEventHandler
   bool graphicsSceneKeyPressed(

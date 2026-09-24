@@ -33,7 +33,6 @@
 #include "../../graphics/slintgraphicsview.h"
 #include "../../guiapplication.h"
 #include "../../mainwindow.h"
-#include "../../spacemouse/spacemousemotionmapper.h"
 #include "../../undostack.h"
 #include "../../utils/slinthelpers.h"
 #include "../../utils/uihelpers.h"
@@ -638,12 +637,6 @@ bool PanelTab::processSceneKeyReleased(
     const slint::language::KeyEvent& e) noexcept {
   mProjectEditor.setCurrentTab(this);
   return mView->keyReleased(e);
-}
-
-void PanelTab::processSpaceMouseEvent(const SpaceMouseMotionEvent& e,
-                                      qreal dtSeconds) noexcept {
-  const SpaceMouseMotion2d motion = toSpaceMouseMotion2d(e, dtSeconds);
-  mView->applyContinuousMotion(motion.panDelta, motion.zoomFactor);
 }
 
 /*******************************************************************************
