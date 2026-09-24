@@ -1193,7 +1193,7 @@ public:
   };
   EditorCommand toolPanelVCut{
       "tool_panel_vcut",  // clang-format break
-      QT_TR_NOOP("Add V-Cuts"),
+      QT_TR_NOOP("Add V-Cut"),
       QT_TR_NOOP("Add V-cut (V-score) lines to the panel"),
       ":/img/v-cut.svg",
       EditorCommand::Flags(),

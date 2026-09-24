@@ -936,6 +936,10 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
       panel->setFrameWidthLeftRight(deserialize<UnsignedLength>(
           routing->getChild("frame_width_left_right/@0")));
     }
+    if (routing->tryGetChild("backbone_width")) {
+      panel->setBackboneWidth(deserialize<UnsignedLength>(
+          routing->getChild("backbone_width/@0")));
+    }
   }
 
   // Note: panel.lp files from development builds may contain a

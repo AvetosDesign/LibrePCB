@@ -55,7 +55,9 @@ CmdPanelEdit::CmdPanelEdit(Panel& panel) noexcept
     mOldFrameWidthTopBottom(mPanel.getFrameWidthTopBottom()),
     mNewFrameWidthTopBottom(mOldFrameWidthTopBottom),
     mOldFrameWidthLeftRight(mPanel.getFrameWidthLeftRight()),
-    mNewFrameWidthLeftRight(mOldFrameWidthLeftRight) {
+    mNewFrameWidthLeftRight(mOldFrameWidthLeftRight),
+    mOldBackboneWidth(mPanel.getBackboneWidth()),
+    mNewBackboneWidth(mOldBackboneWidth) {
   for (const auto& vcut : mPanel.getVCuts().values()) {
     mVCutOldPositions.append(std::make_pair(vcut, vcut->getPosition()));
   }
@@ -146,6 +148,11 @@ void CmdPanelEdit::setFrameWidthLeftRight(const UnsignedLength& width) noexcept 
   mNewFrameWidthLeftRight = width;
 }
 
+void CmdPanelEdit::setBackboneWidth(const UnsignedLength& width) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewBackboneWidth = width;
+}
+
 bool CmdPanelEdit::performExecute() {
   performRedo();  // can throw
 
@@ -167,6 +174,7 @@ bool CmdPanelEdit::performExecute() {
   if (mNewRouterBitDiameter != mOldRouterBitDiameter) return true;
   if (mNewFrameWidthTopBottom != mOldFrameWidthTopBottom) return true;
   if (mNewFrameWidthLeftRight != mOldFrameWidthLeftRight) return true;
+  if (mNewBackboneWidth != mOldBackboneWidth) return true;
   return false;
 }
 
@@ -184,6 +192,7 @@ void CmdPanelEdit::performUndo() {
   mPanel.setRouterBitDiameter(mOldRouterBitDiameter);
   mPanel.setFrameWidthTopBottom(mOldFrameWidthTopBottom);
   mPanel.setFrameWidthLeftRight(mOldFrameWidthLeftRight);
+  mPanel.setBackboneWidth(mOldBackboneWidth);
 }
 
 void CmdPanelEdit::performRedo() {
@@ -200,6 +209,7 @@ void CmdPanelEdit::performRedo() {
   mPanel.setRouterBitDiameter(mNewRouterBitDiameter);
   mPanel.setFrameWidthTopBottom(mNewFrameWidthTopBottom);
   mPanel.setFrameWidthLeftRight(mNewFrameWidthLeftRight);
+  mPanel.setBackboneWidth(mNewBackboneWidth);
 }
 
 void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,

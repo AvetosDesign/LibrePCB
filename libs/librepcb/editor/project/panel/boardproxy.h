@@ -27,6 +27,10 @@
  ******************************************************************************/
 #include "../board/boardgraphicsscene.h"
 
+#include <librepcb/core/project/board/items/bi_plane.h>
+#include <librepcb/core/types/length.h>
+#include <librepcb/core/types/point.h>
+
 #include <QtCore>
 
 #include <memory>
@@ -37,6 +41,7 @@
 namespace librepcb {
 
 class Board;
+class BoardPlaneFragmentsBuilder;
 
 namespace editor {
 
@@ -78,27 +83,115 @@ class GraphicsLayerList;
  * Owned and reference-counted by ::librepcb::editor::PanelGraphicsScene
  * (#acquireBoardProxy()/#releaseBoardProxy()), one instance shared across
  * every placed instance of the same board design on a panel, not one per
- * placement.
+ * placement. Flipped placements (::librepcb::PI_BoardInstance::getFlipped())
+ * get their own `BoardProxy` with its bottom side facing up (see #Side),
+ * whose scene shows the board flipped over: every item's layer is looked up
+ * on the opposite side of the board
+ * (::librepcb::editor::GraphicsLayerList::flippedView()), so what's on the
+ * board's top side is drawn as (and shown/hidden with) the bottom side and
+ * vice versa, and the scene's context has
+ * ::librepcb::editor::BoardGraphicsScene::Context::flipView set, so the
+ * stacking order is reversed and pad/via labels stay readable once the
+ * placement reverses the rendered content left-to-right.
+ *
+ * The planes are shown as they are in the board, unless the panel adds
+ * mouse bite holes to this board design (#setMouseBites()): then they are
+ * recalculated in the background with these holes cut into the board edge
+ * (see ::librepcb::BoardPlaneFragmentsBuilder::startWithEdgeHoles()) and
+ * shown instead of the board's own fragments
+ * (::librepcb::editor::BGI_Plane::setFragmentsOverride()). The board
+ * itself is never modified. The recalculation is repeated whenever the
+ * board's own planes change.
  */
 class BoardProxy final {
 public:
+  // Types
+
+  /**
+   * @brief Which side of the board faces up
+   */
+  enum class Side {
+    Top,  ///< As designed (not flipped)
+    Bottom,  ///< Flipped over
+  };
+
   // Constructors / Destructor
   BoardProxy() = delete;
   BoardProxy(const BoardProxy& other) = delete;
+  /**
+   * @brief Constructor
+   *
+   * @param board     The board to show.
+   * @param layers    The panel's graphics layers.
+   * @param context   The panel's board scene context (copied with
+   *                  `flipView` set for Side::Bottom).
+   * @param side      Which side of the board faces up (see class
+   *                  description).
+   */
   BoardProxy(Board& board, const GraphicsLayerList& layers,
-            std::shared_ptr<BoardGraphicsScene::Context> context) noexcept;
+             std::shared_ptr<BoardGraphicsScene::Context> context,
+             Side side) noexcept;
   ~BoardProxy() noexcept;
 
   // Getters
   Board& getBoard() noexcept { return mBoard; }
+  Side getSide() const noexcept { return mSide; }
   BoardGraphicsScene& getScene() noexcept { return *mScene; }
+
+  // General Methods
+
+  /**
+   * @brief Set the panel's mouse bite holes of this board design
+   *
+   * If they differ from the current ones, the planes are recalculated in
+   * the background with these holes (or shown as in the board again, if
+   * there are no holes).
+   *
+   * @param positions   Hole centers in the board's own coordinates.
+   * @param diameter    Diameter of all holes.
+   */
+  void setMouseBites(const QVector<Point>& positions,
+                     const PositiveLength& diameter) noexcept;
 
   // Operator Overloadings
   BoardProxy& operator=(const BoardProxy& rhs) = delete;
 
+private:  // Methods
+  /**
+   * @brief Start recalculating the planes with the mouse bite holes
+   *
+   * Without mouse bite holes, the board's own fragments are shown again.
+   */
+  void startPlanesRebuild() noexcept;
+
+  /**
+   * @brief Show recalculated plane fragments
+   *
+   * @param planes  Fragments per plane UUID, or `nullptr` to show the
+   *                board's own fragments.
+   */
+  void applyPlanes(const QHash<Uuid, QVector<Path>>* planes) noexcept;
+
+  /**
+   * @brief Schedule a recalculation when one of the board's planes changed
+   */
+  void planeEdited(const BI_Plane& obj, BI_Plane::Event event) noexcept;
+
 private:  // Data
   Board& mBoard;
+  const Side mSide;
+  /// Flipped view of the panel's layers (only for Side::Bottom), must be
+  /// declared before #mScene since the scene refers to it.
+  std::unique_ptr<GraphicsLayerList> mFlippedLayers;
   std::unique_ptr<BoardGraphicsScene> mScene;
+
+  // Planes with mouse bite holes
+  QVector<Point> mMouseBites;  ///< Board coordinates
+  PositiveLength mMouseBiteDiameter;
+  QTimer mPlanesRebuildTimer;  ///< Debounces changes of the board's planes
+  QElapsedTimer mPlanesRebuildDuration;  ///< For the log output
+  BI_Plane::OnEditedSlot mOnPlaneEditedSlot;
+  std::unique_ptr<BoardPlaneFragmentsBuilder> mPlanesBuilder;
 };
 
 /*******************************************************************************

@@ -171,6 +171,13 @@ public:
    */
   static constexpr Length initialFrameWidth = Length(5000000);  // 5 mm
 
+  /**
+   * @brief Initial backbone width for newly created panels
+   *
+   * Used to initialize #mBackboneWidth in the constructor.
+   */
+  static constexpr Length initialBackboneWidth = Length(3000000);  // 3 mm
+
   // Constructors / Destructor
   Panel() = delete;
   Panel(const Panel& other) = delete;
@@ -341,6 +348,25 @@ public:
   }
 
   /**
+   * @brief Get the backbone width
+   *
+   * Only used with ::librepcb::Panel::RoutingStyle::Open: a backbone is a
+   * strip of this width along the midline of the gap between two boards,
+   * continuing past the boards until it runs into the frame or another
+   * board. It's only created where the gap fits the backbone plus a route
+   * of the router bit's width on each side; narrower gaps are left open
+   * (the boards' tabs then meet at the midline). Backbones without any tab
+   * attached are dropped. Zero means no backbones at all. Defaults to
+   * #initialBackboneWidth.
+   *
+   * (With ::librepcb::Panel::RoutingStyle::Tight, backbones are simply the
+   * residual material between the routes, independent of this setting.)
+   */
+  const UnsignedLength& getBackboneWidth() const noexcept {
+    return mBackboneWidth;
+  }
+
+  /**
    * @brief Get the stored visibility of the panel editor's graphics layers
    *
    * Same as ::librepcb::Board::getLayersVisibility(): a per-user view
@@ -370,6 +396,7 @@ public:
   void setRouterBitDiameter(const PositiveLength& diameter) noexcept;
   void setFrameWidthTopBottom(const UnsignedLength& width) noexcept;
   void setFrameWidthLeftRight(const UnsignedLength& width) noexcept;
+  void setBackboneWidth(const UnsignedLength& width) noexcept;
   void setLayersVisibility(const QMap<QString, bool>& visibility) noexcept {
     mLayersVisibility = visibility;
   }
@@ -547,6 +574,7 @@ private:  // Data
   PositiveLength mRouterBitDiameter;
   UnsignedLength mFrameWidthTopBottom;
   UnsignedLength mFrameWidthLeftRight;
+  UnsignedLength mBackboneWidth;
 
   // User settings (saved in settings.user.lp, see #getLayersVisibility())
   QMap<QString, bool> mLayersVisibility;

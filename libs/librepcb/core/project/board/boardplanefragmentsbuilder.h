@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_CORE_BOARDPLANEFRAGMENTSBUILDER_H
 #define LIBREPCB_CORE_BOARDPLANEFRAGMENTSBUILDER_H
 
@@ -113,6 +115,30 @@ public:
    *                a rebuild.
    */
   bool start(Board& board, const QSet<const Layer*>* layers = nullptr) noexcept;
+
+  /**
+   * @brief Start building all plane fragments asynchronously, with
+   *        additional round holes in the board edge
+   *
+   * Used by the panel editor for the mouse bite holes of a board: each hole
+   * is removed from the board area (so planes keep their board clearance to
+   * it) and treated as a non-plated hole (so planes keep their NPTH
+   * clearance to it). All planes are calculated, independent of the
+   * layers scheduled for a rebuild (the board's schedule is not touched).
+   *
+   * @note The result is NOT meant to be applied to the board (see
+   *       ::librepcb::BoardPlaneFragmentsBuilder::Result::planes), since the
+   *       holes don't exist in the board itself.
+   *
+   * @param board   The board to calculate the planes of.
+   * @param holes   Additional holes (center, diameter) in board coordinates.
+   *
+   * @retval true   If the build started.
+   * @retval false  If the board has no planes, thus did not start.
+   */
+  bool startWithEdgeHoles(
+      Board& board,
+      const QVector<std::pair<Point, PositiveLength>>& holes) noexcept;
 
   /**
    * @brief Wait until the asynchronous operation is finished
@@ -214,6 +240,7 @@ private:  // Methods
     QList<PadData> pads;
     QList<std::tuple<Transform, PositiveLength, NonEmptyPath>> holes;
     QList<TraceData> traces;  // Converted to polygons after preprocessing.
+    QList<std::pair<Point, PositiveLength>> edgeHoles;  // Cut into boardArea
     std::shared_ptr<ClipperLib::Paths> boardArea;  // Populated in preprocessing
   };
 
@@ -223,7 +250,8 @@ private:  // Methods
   };
 
   std::shared_ptr<JobData> createJob(Board& board,
-                                     const QSet<const Layer*>* filter) noexcept;
+                                     const QSet<const Layer*>* filter,
+                                     bool takeScheduledLayers = true) noexcept;
   Result run(QPointer<Board> board, std::shared_ptr<JobData> data) noexcept;
   LayerJobResult runLayer(std::shared_ptr<const JobData> data,
                           const Layer* layer) noexcept;

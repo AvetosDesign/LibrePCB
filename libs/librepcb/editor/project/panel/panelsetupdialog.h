@@ -60,7 +60,7 @@ class PanelSetupDialog;
  * width/height), "Design" (groups "Tabs": default width - see
  * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bites": whether mouse
  * bites are included, default hole size, spacing and offset; "Framing": routing
- * style and frame widths) and "Manufacturing" (router bit size), all
+ * style, frame widths and backbone width) and "Manufacturing" (router bit size), all
  * applied together via a single
  * ::librepcb::editor::CmdPanelEdit, plus "DRC Settings". DRC rules (e.g.
  * the minimum V-cut distances to the panel edge, copper, holes and
@@ -93,7 +93,8 @@ private:  // Methods
   bool apply() noexcept;
 
   /**
-   * @brief Enable the frame width fields only for the Open routing style
+   * @brief Enable the frame and backbone width fields only for the Open
+   *        routing style
    */
   void updateFrameWidthsEnabled() noexcept;
 
