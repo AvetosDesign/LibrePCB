@@ -161,8 +161,13 @@ void PGI_BoardInstance::instanceEdited(
       updatePosition();
       break;
     case PI_BoardInstance::Event::RotationChanged:
-    case PI_BoardInstance::Event::FlippedChanged:
       updateRotationAndFlip();
+      break;
+    case PI_BoardInstance::Event::FlippedChanged:
+      // A flipped board is rendered by another BoardProxy (see
+      // BoardProxy::Side).
+      updateRotationAndFlip();
+      updateOutline();
       break;
     default:
       break;
@@ -210,7 +215,9 @@ void PGI_BoardInstance::updateOutline() noexcept {
   Board* board = mProject.getBoardByUuid(mInstance->getBoard());
   if (board) {
     mBoardName = *board->getName();
-    mBoardProxy = mScene.acquireBoardProxy(*board);
+    mBoardProxy = mScene.acquireBoardProxy(
+        *board, mInstance->getFlipped() ? BoardProxy::Side::Bottom
+                                        : BoardProxy::Side::Top);
     // Use the board's real outline shape (not necessarily rectangular) -
     // it's just placement/move reference here, but should still reflect
     // the actual board perimeter rather than a generalized rectangle.

@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_EDITOR_BGI_PLANE_H
 #define LIBREPCB_EDITOR_BGI_PLANE_H
 
@@ -33,6 +35,7 @@
 #include <QtWidgets>
 
 #include <memory>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -85,6 +88,20 @@ public:
   BI_Plane& getPlane() noexcept { return mPlane; }
   void updateContext() noexcept;
 
+  /**
+   * @brief Show other fragments than the plane's own ones
+   *
+   * Used by the panel editor to show the planes as recalculated with the
+   * mouse bite holes of the panel (see
+   * ::librepcb::BoardPlaneFragmentsBuilder::startWithEdgeHoles()), without
+   * modifying the board.
+   *
+   * @param fragments   The fragments to show, or `std::nullopt` to show the
+   *                    plane's own fragments again.
+   */
+  void setFragmentsOverride(
+      const std::optional<QVector<Path>>& fragments) noexcept;
+
   // Inherited from QGraphicsItem
   QVariant itemChange(GraphicsItemChange change,
                       const QVariant& value) noexcept override;
@@ -122,6 +139,7 @@ private:  // Data
   QPainterPath mShape;
   QPainterPath mOutline;
   QVector<QPainterPath> mAreas;
+  std::optional<QVector<Path>> mFragmentsOverride;
   qreal mLineWidthPx;
   qreal mVertexHandleRadiusPx;
   struct VertexHandle {

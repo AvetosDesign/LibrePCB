@@ -132,6 +132,17 @@ public:
    */
   void setColors(const QColor& color, const QColor& colorHighlighted) noexcept;
 
+  /**
+   * @brief Show or hide the panel rectangle itself
+   *
+   * The resize handles are always shown. Used to replace the rectangle by
+   * the calculated panel outline preview (see
+   * PanelGraphicsScene::setOutlinePreview()).
+   *
+   * @param shown   Whether the rectangle should be drawn.
+   */
+  void setRectShown(bool shown) noexcept;
+
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
@@ -147,6 +158,7 @@ private:  // Data
   qreal mHandleRadiusPx;
   QColor mColor;
   QColor mColorHighlighted;
+  bool mRectShown;  ///< See #setRectShown()
 };
 
 /*******************************************************************************

@@ -28,7 +28,9 @@
 #include "../../graphics/graphicslayer.h"
 #include "../../graphics/graphicsscene.h"
 #include "../board/boardgraphicsscene.h"
+#include "boardproxy.h"
 
+#include <librepcb/core/geometry/path.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/types/angle.h>
@@ -186,7 +188,7 @@ public:
   /**
    * @brief Draw a selection rectangle and select every item it intersects
    *
-   * Mirrors ::librepcb::editor::BoardGraphicsScene::selectItemsInRect()'s
+   * Follows ::librepcb::editor::BoardGraphicsScene::selectItemsInRect()'s
    * exact shape: draws the rectangle itself via the inherited
    * GraphicsScene::setSelectionRect(), then recomputes every board
    * instance/hole/fiducial item's selected state from scratch on each call
@@ -265,7 +267,7 @@ public:
   /**
    * @brief Force the placed V-cuts visible, regardless of their layer
    *
-   * Used while the Add V-Cuts tool is active. Otherwise, placed V-cuts
+   * Used while the Add V-Cut tool is active. Otherwise, placed V-cuts
    * follow the Documentation layer's visibility (see
    * #updateVCutsVisibility()).
    *
@@ -314,6 +316,40 @@ public:
   void setBoardOutlinesVisible(bool visible) noexcept;
 
   /**
+   * @brief Show (or hide) the calculated panel outline preview
+   *
+   * The preview (see ::librepcb::PanelOutlineBuilder) replaces the panel
+   * rectangle (PGI_Outline::setRectShown(); its resize handles stay) while
+   * it's shown. The boards' own outlines are hidden by
+   * ::librepcb::editor::PanelTab.
+   *
+   * @param outlines  The calculated outline rings (even-odd), or
+   *                  `std::nullopt` to hide the preview.
+   */
+  void setOutlinePreview(
+      const std::optional<QVector<Path>>& outlines) noexcept;
+
+  /**
+   * @brief Set the color of the panel outline preview
+   *
+   * @param color   ::librepcb::ColorRole::boardOutlines()'s primary color.
+   */
+  void setOutlinePreviewColor(const QColor& color) noexcept;
+
+  /**
+   * @brief Set the mouse bite holes of all board designs
+   *
+   * Passed on to each board design's BoardProxy (also to ones created
+   * later), which recalculates its planes with these holes (see
+   * BoardProxy::setMouseBites()).
+   *
+   * @param bites     Hole centers per board UUID, in board coordinates.
+   * @param diameter  Diameter of all holes.
+   */
+  void setMouseBites(const QHash<Uuid, QVector<Point>>& bites,
+                     const PositiveLength& diameter) noexcept;
+
+  /**
    * @brief Show the "phantom" tab marker at a board edge position
    *
    * The phantom is a non-selectable preview with the same shape as a real
@@ -336,6 +372,9 @@ public:
   /**
    * @brief Get (creating if needed) the shared BoardProxy for a board
    *
+   * Flipped and unflipped placements of a board use separate proxies (see
+   * BoardProxy::Side).
+   *
    * Reference-counted: every PGI_BoardInstance placement of the same
    * board design shares one BoardProxy (and thus one hidden
    * BoardGraphicsScene), rather than each placement building its own
@@ -346,7 +385,8 @@ public:
    * looseness about public API scope for its own tightly-coupled
    * PGI_* item collaborators (e.g. #setBoardInstanceColors()).
    */
-  BoardProxy* acquireBoardProxy(Board& board) noexcept;
+  BoardProxy* acquireBoardProxy(Board& board,
+                                BoardProxy::Side side) noexcept;
 
   /**
    * @brief Release a previously-#acquireBoardProxy()'d BoardProxy
@@ -412,7 +452,7 @@ private:  // Methods
    * (::librepcb::ColorRole::boardDocumentation()), so toggling that layer in
    * the Layers panel shows/hides them - unless forced visible, see
    * #setVCutsForcedVisible(). Hidden V-cuts can't be clicked or
-   * selected (Qt also deselects an item when hiding it). The Add V-Cuts
+   * selected (Qt also deselects an item when hiding it). The Add V-Cut
    * tool's phantom line is not affected.
    */
   void updateVCutsVisibility() noexcept;
@@ -430,8 +470,12 @@ private:  // Data
   // the same class of issue as the QVector<std::unique_ptr<...>> one
   // documented for slice 3c's mDragCmds. Uuid already provides
   // operator<(), so std::map needs no new hash specialization.
-  std::map<Uuid, std::unique_ptr<BoardProxy>> mBoardProxies;
-  QHash<Uuid, int> mBoardProxyRefCounts;
+  // Key: board UUID and side facing up (see BoardProxy::Side).
+  std::map<std::pair<Uuid, BoardProxy::Side>, std::unique_ptr<BoardProxy>>
+      mBoardProxies;
+  std::map<std::pair<Uuid, BoardProxy::Side>, int> mBoardProxyRefCounts;
+  QHash<Uuid, QVector<Point>> mMouseBites;  ///< See #setMouseBites()
+  PositiveLength mMouseBiteDiameter;  ///< See #setMouseBites()
   std::shared_ptr<PGI_Outline> mOutlineItem;
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
@@ -470,8 +514,12 @@ private:  // Data
   PI_TabList::OnElementEditedSlot mOnTabListEditedSlot;
   PI_BoardInstanceList::OnElementEditedSlot mOnBoardInstanceListEditedSlot;
 
-  /// Preview line for the Add V-Cuts tool, see #setVCutPhantom()
+  /// Preview line for the Add V-Cut tool, see #setVCutPhantom()
   std::unique_ptr<QGraphicsPathItem> mVCutPhantomItem;
+
+  /// Calculated panel outline, see #setOutlinePreview()
+  std::unique_ptr<QGraphicsPathItem> mOutlinePreviewItem;
+  QColor mOutlinePreviewColor;
   std::optional<std::pair<bool, Length>> mVCutPhantom;  ///< Current preview
 
   /// Preview marker for the Add Tab tool, see #setTabPhantom()

@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -200,6 +202,15 @@ void BGI_Plane::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
   }
 }
 
+void BGI_Plane::setFragmentsOverride(
+    const std::optional<QVector<Path>>& fragments) noexcept {
+  if (fragments != mFragmentsOverride) {
+    mFragmentsOverride = fragments;
+    updateOutlineAndFragments();
+    update();
+  }
+}
+
 /*******************************************************************************
  *  Private Methods
  ******************************************************************************/
@@ -277,7 +288,9 @@ void BGI_Plane::updateOutlineAndFragments() noexcept {
 
   // get areas
   mAreas.clear();
-  for (const Path& r : mPlane.getFragments()) {
+  const QVector<Path>& fragments =
+      mFragmentsOverride ? (*mFragmentsOverride) : mPlane.getFragments();
+  for (const Path& r : fragments) {
     mAreas.append(r.toQPainterPathPx());
     mBoundingRect = mBoundingRect.united(mAreas.last().boundingRect());
   }

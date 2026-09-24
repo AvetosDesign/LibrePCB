@@ -63,7 +63,7 @@ namespace editor {
  *
  * The whole line (plus a little tolerance) is clickable - see #shape().
  * Drawn above placed boards and below tab markers. The same geometry is
- * used for the Add V-Cuts tool's phantom line (see #buildPathPx()).
+ * used for the Add V-Cut tool's phantom line (see #buildPathPx()).
  */
 class PGI_VCut final : public QGraphicsItem {
 public:
