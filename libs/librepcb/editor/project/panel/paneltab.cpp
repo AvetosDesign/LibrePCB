@@ -50,9 +50,11 @@
 #include "paneleditor.h"
 #include "panelgraphicsscene.h"
 
+#include <librepcb/core/exceptions.h>
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/types/layer.h>
 #include <librepcb/core/project/panel/panel.h>
+#include <librepcb/core/project/panel/paneloutlinebuilder.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/uuid.h>
@@ -116,7 +118,13 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mShowTabs(true),
     mTabToolActive(false),
     mVCutToolActive(false),
-    mShowBoardOutlines(false) {
+    mShowOutlinePreview(false),
+    mOutlinePreviewSuspended(false),
+    mBoardOutlinesHiddenByPreview(false),
+    mBoardOutlinesBeforePreview(true),
+    mOnBoardOutlinesLayerEditedSlot(*this,
+                                    &PanelTab::boardOutlinesLayerEdited),
+    mPanelGeometryTimer() {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
   // Setup graphics view. Installing the event handler here is sufficient
@@ -180,17 +188,29 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
 
   // Restore client settings (same approach as SchematicTab's pin numbers).
   QSettings cs;
-  setCopperVisible(cs.value("panel_editor/show_copper", true).toBool());
   mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
-  mShowBoardOutlines =
-      cs.value("panel_editor/show_board_outlines", false).toBool();
-  updateBoardOutlinesVisibility();
+  mShowOutlinePreview =
+      cs.value("panel_editor/show_outline_preview", false).toBool();
+
+  // Mouse bite planes and outline preview: recalculated shortly after
+  // changes.
+  mPanelGeometryTimer.setSingleShot(true);
+  mPanelGeometryTimer.setInterval(300);
+  connect(&mPanelGeometryTimer, &QTimer::timeout, this,
+          &PanelTab::updatePanelGeometry);
 
   // Load/store layers visibility, same as Board2dTab. Loaded after the
   // display toggles above, so the visibility saved with the panel wins for
   // the layers it covers (copper, board outlines, ...).
   updateEnabledCopperLayers();
   loadLayersVisibility();
+
+  // The board outlines layer (Layers panel) also controls the placements'
+  // outlines, and is hidden while the outline preview is shown.
+  if (auto layer = mLayers->get(ColorRole::boardOutlines())) {
+    layer->onEdited.attach(mOnBoardOutlinesLayerEditedSlot);
+  }
+  updateBoardOutlinesForPreview();
   connect(&mProjectEditor, &ProjectEditor::projectAboutToBeSaved, this,
           &PanelTab::storeLayersVisibility);
 }
@@ -277,9 +297,8 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       l2s(*mPanel.getGridInterval()),  // Grid interval
       l2s(mPanel.getGridUnit()),  // Length unit
       mIgnorePlacementLocks,  // Ignore placement locks
-      isCopperVisible(),  // Show copper
       mShowTabs,  // Show tabs
-      mShowBoardOutlines,  // Show board outlines
+      mShowOutlinePreview,  // Show outline preview
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
@@ -293,7 +312,7 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // componentSideRequested emit exactly.
   emit flippedRequested(data.tool_bottom);
 
-  // V-cut orientation (Add V-Cuts tool, or the Select tool's V-cuts-only
+  // V-cut orientation (Add V-Cut tool, or the Select tool's V-cuts-only
   // selection). Only emitted on an actual change, since this is called on
   // every UI round-trip.
   if (data.tool_vcut_vertical != mToolVCutVertical) {
@@ -332,15 +351,6 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // override, mirroring Board2dTab::setDerivedUiData()'s identical block.
   mIgnorePlacementLocks = data.ignore_placement_locks;
 
-  // Copper layers visibility - a per-client UI setting, mirroring
-  // SchematicTab::setDerivedUiData()'s pin numbers block.
-  if (isCopperVisible() != data.show_copper) {
-    setCopperVisible(data.show_copper);
-    QSettings cs;
-    cs.setValue("panel_editor/show_copper", data.show_copper);
-    requestRepaint();
-  }
-
   // Tab markers visibility - also a per-client UI setting.
   if (data.show_tabs != mShowTabs) {
     mShowTabs = data.show_tabs;
@@ -349,12 +359,13 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
     updateTabsVisibility();
   }
 
-  // Board placement outlines visibility - also a per-client UI setting.
-  if (data.show_board_outlines != mShowBoardOutlines) {
-    mShowBoardOutlines = data.show_board_outlines;
+  // Panel outline preview - also a per-client UI setting.
+  if (data.show_outline_preview != mShowOutlinePreview) {
+    mShowOutlinePreview = data.show_outline_preview;
     QSettings cs;
-    cs.setValue("panel_editor/show_board_outlines", mShowBoardOutlines);
-    updateBoardOutlinesVisibility();
+    cs.setValue("panel_editor/show_outline_preview", mShowOutlinePreview);
+    updateBoardOutlinesForPreview();
+    updateOutlinePreview();
   }
 
   if (data.place_board_index >= 0) {
@@ -369,8 +380,7 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
 }
 
 void PanelTab::activate() noexcept {
-  // Layers side panel. Changing a layer's visibility there may also change
-  // the state of the Copper Layers toggle (see isCopperVisible()).
+  // Layers side panel.
   updateEnabledCopperLayers();
   mLayersModel = std::make_shared<GraphicsLayersModel>(*mLayers);
   connect(mLayersModel.get(), &GraphicsLayersModel::layersVisibilityChanged,
@@ -415,13 +425,24 @@ void PanelTab::activate() noexcept {
   applyWorkspaceSettings();
   updateTabsVisibility();
   mScene->setVCutsForcedVisible(mVCutToolActive);
-  // Scene part only - the board outlines layer itself keeps its current
-  // (possibly loaded or Layers-panel) state, see loadLayersVisibility().
-  mScene->setBoardOutlinesVisible(mShowBoardOutlines);
+  // The placements' outlines follow the board outlines layer (see
+  // boardOutlinesLayerEdited()).
+  if (auto layer = mLayers->get(ColorRole::boardOutlines())) {
+    mScene->setBoardOutlinesVisible(layer->getVisible());
+  }
+
+  // Mouse bite planes and outline preview: recalculate on every
+  // modification (the undo stack covers the panel as well as the referenced
+  // boards).
+  mActiveConnections.append(connect(&mProjectEditor.getUndoStack(),
+                                    &UndoStack::stateModified, this,
+                                    &PanelTab::schedulePanelGeometryUpdate));
+  updatePanelGeometry();
   requestRepaint();
 }
 
 void PanelTab::deactivate() noexcept {
+  mPanelGeometryTimer.stop();
   while (!mActiveConnections.isEmpty()) {
     disconnect(mActiveConnections.takeLast());
   }
@@ -548,6 +569,33 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       if (mFsm) mFsm->processFlip();
       break;
     }
+    case ui::TabAction::LayersTop:
+    case ui::TabAction::LayersBottom:
+    case ui::TabAction::LayersTopBottom:
+    case ui::TabAction::LayersAll:
+    case ui::TabAction::LayersNone: {
+      // Layers panel presets, same as Board2dTab::trigger().
+      if (a == ui::TabAction::LayersTop) {
+        mLayers->showTop();
+      } else if (a == ui::TabAction::LayersBottom) {
+        mLayers->showBottom();
+      } else if (a == ui::TabAction::LayersTopBottom) {
+        mLayers->showTopAndBottom();
+      } else if (a == ui::TabAction::LayersAll) {
+        mLayers->showAll();
+      } else {
+        mLayers->showNone();
+      }
+      // While the outline preview is shown, it keeps hiding the board
+      // outlines; the preset's choice is restored when the preview is
+      // turned off.
+      if (isOutlinePreviewShown()) {
+        mBoardOutlinesHiddenByPreview = false;
+        updateBoardOutlinesForPreview();
+      }
+      onDerivedUiDataChanged.notify();
+      break;
+    }
     default: {
       WindowTab::trigger(a);
       break;
@@ -614,7 +662,14 @@ bool PanelTab::graphicsSceneKeyReleased(
 
 bool PanelTab::graphicsSceneMouseMoved(
     const GraphicsSceneMouseEvent& e) noexcept {
-  return mFsm->processGraphicsSceneMouseMoved(e);
+  const bool result = mFsm->processGraphicsSceneMouseMoved(e);
+  // While dragging, the items are modified without undo stack events until
+  // the mouse is released, so the recalculation is scheduled here. Every
+  // move restarts the timer, so it happens once the mouse pauses.
+  if (e.buttons.testFlag(Qt::LeftButton)) {
+    schedulePanelGeometryUpdate();
+  }
+  return result;
 }
 
 bool PanelTab::graphicsSceneLeftMouseButtonPressed(
@@ -729,6 +784,11 @@ void PanelTab::fsmToolLeave() noexcept {
     mVCutToolActive = false;
     if (mScene) mScene->setVCutsForcedVisible(false);
   }
+  if (mOutlinePreviewSuspended) {
+    mOutlinePreviewSuspended = false;
+    updateBoardOutlinesForPreview();
+    updateOutlinePreview();
+  }
   mSelectHole = false;
   mSelectFiducial = false;
   mSelectVCut = false;
@@ -804,6 +864,16 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
 
 void PanelTab::fsmToolEnter(PanelEditorState_AddBoard& state) noexcept {
   Q_UNUSED(state);
+
+  // The outline preview is suspended while a board is being placed (it
+  // would be recalculated for every intermediate position of the new
+  // board) and restored when the tool is left (see fsmToolLeave()). The
+  // toggle itself is not changed.
+  if (!mOutlinePreviewSuspended) {
+    mOutlinePreviewSuspended = true;
+    updateBoardOutlinesForPreview();
+    updateOutlinePreview();
+  }
   onDerivedUiDataChanged.notify();
 }
 
@@ -926,6 +996,7 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     if (auto outlineItem = mScene->getOutlineItem()) {
       outlineItem->setColors(outline.primary, outline.secondary);
     }
+    mScene->setOutlinePreviewColor(outline.primary);
 	
     // Individual board instances are placement references only in the
     // Panel tool's context.  Also see PGI_BoardInstance's class doc comment.
@@ -975,16 +1046,6 @@ void PanelTab::applyWorkspaceSettings() noexcept {
 void PanelTab::requestRepaint() noexcept {
   ++mFrameIndex;
   onDerivedUiDataChanged.notify();
-}
-
-bool PanelTab::isCopperVisible() const noexcept {
-  for (const auto& layer : mLayers->all()) {
-    if (ColorRole::isCopperId(layer->getRole().getId()) &&
-        layer->getVisible()) {
-      return true;
-    }
-  }
-  return false;
 }
 
 void PanelTab::rebuildPlanesOfPlacedBoards() noexcept {
@@ -1053,23 +1114,101 @@ void PanelTab::storeLayersVisibility() noexcept {
       visibility[layer->getRole().getId()] = layer->isVisible();
     }
   }
+  // While the outline preview hides the board outlines layer (see
+  // updateBoardOutlinesForPreview()), store its state from before.
+  if (mBoardOutlinesHiddenByPreview) {
+    visibility[ColorRole::boardOutlines().getId()] =
+        mBoardOutlinesBeforePreview;
+  }
   mPanel.setLayersVisibility(visibility);
 }
 
-void PanelTab::updateBoardOutlinesVisibility() noexcept {
-  if (auto layer = mLayers->get(ColorRole::boardOutlines())) {
-    layer->setVisible(mShowBoardOutlines);
+void PanelTab::updateBoardOutlinesForPreview() noexcept {
+  std::shared_ptr<GraphicsLayer> layer =
+      mLayers->get(ColorRole::boardOutlines());
+  if (!layer) {
+    return;
   }
-  if (mScene) {
-    mScene->setBoardOutlinesVisible(mShowBoardOutlines);
+  const bool preview = isOutlinePreviewShown();
+  if (preview && (!mBoardOutlinesHiddenByPreview)) {
+    mBoardOutlinesBeforePreview = layer->getVisible();
+    mBoardOutlinesHiddenByPreview = true;
+    layer->setVisible(false);
+  } else if ((!preview) && mBoardOutlinesHiddenByPreview) {
+    mBoardOutlinesHiddenByPreview = false;
+    layer->setVisible(mBoardOutlinesBeforePreview);
   }
 }
 
-void PanelTab::setCopperVisible(bool visible) noexcept {
-  for (const auto& layer : mLayers->all()) {
-    if (ColorRole::isCopperId(layer->getRole().getId())) {
-      layer->setVisible(visible);
+void PanelTab::boardOutlinesLayerEdited(const GraphicsLayer& layer,
+                                        GraphicsLayer::Event event) noexcept {
+  if (event != GraphicsLayer::Event::VisibleChanged) {
+    return;
+  }
+  // Shown explicitly (e.g. in the Layers panel) while the preview hides it:
+  // the user's choice wins, don't restore the old state later.
+  if (layer.getVisible() && mBoardOutlinesHiddenByPreview) {
+    mBoardOutlinesHiddenByPreview = false;
+  }
+  if (mScene) {
+    mScene->setBoardOutlinesVisible(layer.getVisible());
+  }
+}
+
+void PanelTab::schedulePanelGeometryUpdate() noexcept {
+  mPanelGeometryTimer.start();
+}
+
+void PanelTab::updatePanelGeometry() noexcept {
+  mPanelGeometryTimer.stop();
+  updateMouseBitePlanes();
+  updateOutlinePreview();
+}
+
+void PanelTab::updateMouseBitePlanes() noexcept {
+  if (!mScene) {
+    return;  // Tab is not active.
+  }
+  try {
+    mScene->setMouseBites(
+        PanelOutlineBuilder(mPanel, mProject).buildMouseBites(),
+        mPanel.getDefaultMouseBiteDiameter());  // can throw
+  } catch (const Exception& e) {
+    qCritical().noquote() << "Failed to calculate the mouse bites:"
+                          << e.getMsg();
+    mScene->setMouseBites({}, mPanel.getDefaultMouseBiteDiameter());
+  }
+}
+
+void PanelTab::updateOutlinePreview() noexcept {
+  if (!mScene) {
+    return;  // Tab is not active.
+  }
+  if (!isOutlinePreviewShown()) {
+    mScene->setOutlinePreview(std::nullopt);
+    return;
+  }
+  try {
+    QElapsedTimer timer;
+    timer.start();
+    const PanelOutlineBuilder::Result result =
+        PanelOutlineBuilder(mPanel, mProject).build();  // can throw
+    qInfo().noquote() << QString(
+                             "Panel outline calculated in %1 ms (%2 mouse "
+                             "bite holes, %3 unreached tabs).")
+                             .arg(timer.elapsed())
+                             .arg(result.mouseBites.count())
+                             .arg(result.unreachedTabs.count());
+    // Mouse bite holes are drawn as circles along with the outline.
+    QVector<Path> paths = result.outlines;
+    for (const Point& pos : result.mouseBites) {
+      paths.append(Path::circle(result.mouseBiteDiameter).translated(pos));
     }
+    mScene->setOutlinePreview(paths);
+  } catch (const Exception& e) {
+    qCritical().noquote() << "Failed to calculate the panel outline:"
+                          << e.getMsg();
+    mScene->setOutlinePreview(std::nullopt);
   }
 }
 

@@ -143,6 +143,9 @@ PanelSetupDialog::PanelSetupDialog(GuiApplication& app, Panel& panel,
   mUi->spbxFrameWidthLeftRight->setSuffix(" mm");
   mUi->spbxFrameWidthLeftRight->setDecimals(2);
   mUi->spbxFrameWidthLeftRight->setRange(0.0, 100.0);
+  mUi->spbxBackboneWidth->setSuffix(" mm");
+  mUi->spbxBackboneWidth->setDecimals(2);
+  mUi->spbxBackboneWidth->setRange(0.0, 100.0);
   // The frame widths only matter for the Open routing style.
   connect(mUi->cbxRoutingStyle,
           static_cast<void (QComboBox::*)(int)>(
@@ -234,6 +237,7 @@ void PanelSetupDialog::load() noexcept {
       mPanel.getFrameWidthTopBottom()->toMm());
   mUi->spbxFrameWidthLeftRight->setValue(
       mPanel.getFrameWidthLeftRight()->toMm());
+  mUi->spbxBackboneWidth->setValue(mPanel.getBackboneWidth()->toMm());
   updateFrameWidthsEnabled();
 }
 
@@ -244,6 +248,8 @@ void PanelSetupDialog::updateFrameWidthsEnabled() noexcept {
   mUi->lblFrameWidthTopBottom->setEnabled(open);
   mUi->spbxFrameWidthLeftRight->setEnabled(open);
   mUi->lblFrameWidthLeftRight->setEnabled(open);
+  mUi->spbxBackboneWidth->setEnabled(open);
+  mUi->lblBackboneWidth->setEnabled(open);
 }
 
 bool PanelSetupDialog::apply() noexcept {
@@ -286,6 +292,8 @@ bool PanelSetupDialog::apply() noexcept {
         mUi->spbxFrameWidthTopBottom->value())));  // can throw
     cmd->setFrameWidthLeftRight(UnsignedLength(Length::fromMm(
         mUi->spbxFrameWidthLeftRight->value())));  // can throw
+    cmd->setBackboneWidth(UnsignedLength(Length::fromMm(
+        mUi->spbxBackboneWidth->value())));  // can throw
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

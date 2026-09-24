@@ -51,7 +51,7 @@ namespace editor {
  * #performExecute()). Covers the panel's name, its outline width &
  * height, its tab defaults (width, mouse bites enabled, mouse bite hole
  * diameter/spacing/offset), and its routing settings (style, router bit diameter, frame
- * widths). Width & height also support "immediate" application, so a single
+ * widths, backbone width). Width & height also support "immediate" application, so a single
  * instance of this command can be reused both for the one-shot Panel Setup
  * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
  * for a live edge-drag resize preview on the canvas 
@@ -88,6 +88,7 @@ public:
   void setRouterBitDiameter(const PositiveLength& diameter) noexcept;
   void setFrameWidthTopBottom(const UnsignedLength& width) noexcept;
   void setFrameWidthLeftRight(const UnsignedLength& width) noexcept;
+  void setBackboneWidth(const UnsignedLength& width) noexcept;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()
@@ -127,6 +128,8 @@ private:  // Data
   UnsignedLength mNewFrameWidthTopBottom;
   UnsignedLength mOldFrameWidthLeftRight;
   UnsignedLength mNewFrameWidthLeftRight;
+  UnsignedLength mOldBackboneWidth;
+  UnsignedLength mNewBackboneWidth;
 
   /// All V-cuts with their original positions, captured on construction
   QVector<std::pair<std::shared_ptr<PI_VCut>, Length>> mVCutOldPositions;

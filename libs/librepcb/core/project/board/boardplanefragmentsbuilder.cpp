@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -123,6 +125,24 @@ bool BoardPlaneFragmentsBuilder::start(
   }
 }
 
+bool BoardPlaneFragmentsBuilder::startWithEdgeHoles(
+    Board& board,
+    const QVector<std::pair<Point, PositiveLength>>& holes) noexcept {
+  if (auto data = createJob(board, nullptr, false)) {
+    for (const auto& hole : holes) {
+      data->edgeHoles.append(hole);
+      data->holes.append(std::make_tuple(Transform(), hole.second,
+                                         makeNonEmptyPath(hole.first)));
+    }
+    cancel();
+    mFuture =
+        QtConcurrent::run(&BoardPlaneFragmentsBuilder::run, this, &board, data);
+    return true;
+  } else {
+    return false;
+  }
+}
+
 BoardPlaneFragmentsBuilder::Result BoardPlaneFragmentsBuilder::waitForFinished()
     const noexcept {
   return mFuture.result();
@@ -145,7 +165,8 @@ void BoardPlaneFragmentsBuilder::cancel() noexcept {
 
 std::shared_ptr<BoardPlaneFragmentsBuilder::JobData>
     BoardPlaneFragmentsBuilder::createJob(
-        Board& board, const QSet<const Layer*>* filter) noexcept {
+        Board& board, const QSet<const Layer*>* filter,
+        bool takeScheduledLayers) noexcept {
   QSet<const Layer*> layersWithPlanes;
   foreach (const BI_Plane* plane, board.getPlanes()) {
     if ((!filter) ||
@@ -154,8 +175,9 @@ std::shared_ptr<BoardPlaneFragmentsBuilder::JobData>
     }
   }
 
-  QSet<const Layer*> layers =
-      board.takeScheduledLayersForPlanesRebuild(layersWithPlanes);
+  QSet<const Layer*> layers = takeScheduledLayers
+      ? board.takeScheduledLayersForPlanesRebuild(layersWithPlanes)
+      : QSet<const Layer*>();
   if (!filter) {
     layers |= layersWithPlanes;
   }
@@ -360,6 +382,16 @@ BoardPlaneFragmentsBuilder::Result BoardPlaneFragmentsBuilder::run(
         *data->boardArea,
         ClipperHelpers::convert(boardCutouts, maxArcTolerance()),
         ClipperLib::pftNonZero, ClipperLib::pftNonZero);
+    if (!data->edgeHoles.isEmpty()) {
+      QVector<Path> edgeHoles;
+      for (const auto& hole : std::as_const(data->edgeHoles)) {
+        edgeHoles.append(Path::circle(hole.second).translated(hole.first));
+      }
+      ClipperHelpers::subtract(
+          *data->boardArea,
+          ClipperHelpers::convert(edgeHoles, maxArcTolerance()),
+          ClipperLib::pftNonZero, ClipperLib::pftNonZero);
+    }
 
     // Sort planes: First by priority, then by uuid to get a really unique
     // priority order over all existing planes. This way we can ensure that even

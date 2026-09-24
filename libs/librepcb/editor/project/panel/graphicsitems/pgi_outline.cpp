@@ -40,7 +40,8 @@ PGI_Outline::PGI_Outline(Panel& panel) noexcept
     // ColorRole::boardOutlines() colors, which happens immediately after
     // construction - see the class doc comment.
     mColor(Qt::white),
-    mColorHighlighted(Qt::white) {
+    mColorHighlighted(Qt::white),
+    mRectShown(true) {
   setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemIsMovable, false);
   setZValue(-1);
@@ -104,13 +105,22 @@ QPainterPath PGI_Outline::shape() const noexcept {
   return p;
 }
 
+void PGI_Outline::setRectShown(bool shown) noexcept {
+  if (shown != mRectShown) {
+    mRectShown = shown;
+    update();
+  }
+}
+
 void PGI_Outline::paint(QPainter* painter,
                              const QStyleOptionGraphicsItem* option,
                              QWidget* widget) {
   Q_UNUSED(widget);
-  painter->setPen(QPen(mColor, 0));
-  painter->setBrush(Qt::NoBrush);
-  painter->drawRect(mOutlineRectPx);
+  if (mRectShown) {
+    painter->setPen(QPen(mColor, 0));
+    painter->setBrush(Qt::NoBrush);
+    painter->drawRect(mOutlineRectPx);
+  }
 
   // Draw the three resize handles (corner, right-edge midpoint,
   // top-edge midpoint. Drawn in a different color than the outline itself so

@@ -58,6 +58,10 @@ PanelGraphicsScene::PanelGraphicsScene(
     // computes a layer state, which happens immediately while a
     // BoardProxy's hidden scene populates itself.
     mBoardProxyContext(boardProxyContext),
+    mBoardProxies(),
+    mBoardProxyRefCounts(),
+    mMouseBites(),
+    mMouseBiteDiameter(1000000),
     mVCutLayer(layers.get(ColorRole::boardDocumentation())),
     mOnVCutLayerEditedSlot(*this, &PanelGraphicsScene::vCutLayerEdited),
     mOnTabListEditedSlot(*this, &PanelGraphicsScene::tabListEdited),
@@ -79,7 +83,7 @@ PanelGraphicsScene::PanelGraphicsScene(
   mTabPhantomItem->setVisible(false);
   addItem(*mTabPhantomItem);
 
-  // Phantom V-cut line - hidden until the Add V-Cuts tool shows it. Not
+  // Phantom V-cut line - hidden until the Add V-Cut tool shows it. Not
   // selectable, and above the real V-cuts (PGI_VCut uses Z=9).
   mVCutPhantomItem = std::make_unique<QGraphicsPathItem>();
   mVCutPhantomItem->setBrush(Qt::NoBrush);
@@ -136,6 +140,10 @@ PanelGraphicsScene::PanelGraphicsScene(
 }
 
 PanelGraphicsScene::~PanelGraphicsScene() noexcept {
+  if (mOutlinePreviewItem) {
+    removeItem(*mOutlinePreviewItem);
+    mOutlinePreviewItem.reset();
+  }
   if (mVCutPhantomItem) {
     removeItem(*mVCutPhantomItem);
     mVCutPhantomItem.reset();
@@ -345,6 +353,50 @@ void PanelGraphicsScene::setTabsVisible(bool visible) noexcept {
   }
 }
 
+void PanelGraphicsScene::setOutlinePreview(
+    const std::optional<QVector<Path>>& outlines) noexcept {
+  if (!outlines) {
+    if (mOutlinePreviewItem) {
+      removeItem(*mOutlinePreviewItem);
+      mOutlinePreviewItem.reset();
+    }
+    if (mOutlineItem) mOutlineItem->setRectShown(true);
+    return;
+  }
+  if (!mOutlinePreviewItem) {
+    mOutlinePreviewItem = std::make_unique<QGraphicsPathItem>();
+    // Above the boards, holes and fiducials, below V-cuts and tab markers.
+    mOutlinePreviewItem->setZValue(8);
+    mOutlinePreviewItem->setBrush(Qt::NoBrush);
+    mOutlinePreviewItem->setPen(QPen(mOutlinePreviewColor, 0));
+    addItem(*mOutlinePreviewItem);
+  }
+  QPainterPath p;
+  p.setFillRule(Qt::OddEvenFill);
+  for (const Path& path : *outlines) {
+    p.addPath(path.toQPainterPathPx());
+  }
+  mOutlinePreviewItem->setPath(p);
+  if (mOutlineItem) mOutlineItem->setRectShown(false);
+}
+
+void PanelGraphicsScene::setMouseBites(const QHash<Uuid, QVector<Point>>& bites,
+                                       const PositiveLength& diameter) noexcept {
+  mMouseBites = bites;
+  mMouseBiteDiameter = diameter;
+  for (auto& pair : mBoardProxies) {
+    pair.second->setMouseBites(mMouseBites.value(pair.first.first),
+                               mMouseBiteDiameter);
+  }
+}
+
+void PanelGraphicsScene::setOutlinePreviewColor(const QColor& color) noexcept {
+  mOutlinePreviewColor = color;
+  if (mOutlinePreviewItem) {
+    mOutlinePreviewItem->setPen(QPen(mOutlinePreviewColor, 0));
+  }
+}
+
 void PanelGraphicsScene::setBoardOutlinesVisible(bool visible) noexcept {
   mBoardOutlinesVisible = visible;
   foreach (const auto& item, mBoardInstanceItems) {
@@ -494,12 +546,14 @@ void PanelGraphicsScene::removeFiducialItem(const Uuid& uuid) noexcept {
   }
 }
 
-BoardProxy* PanelGraphicsScene::acquireBoardProxy(Board& board) noexcept {
+BoardProxy* PanelGraphicsScene::acquireBoardProxy(
+    Board& board, BoardProxy::Side side) noexcept {
   const Uuid uuid = board.getUuid();
-  auto it = mBoardProxies.find(uuid);
+  const auto key = std::make_pair(uuid, side);
+  auto it = mBoardProxies.find(key);
   if (it == mBoardProxies.end()) {
-    std::unique_ptr<BoardProxy> proxy =
-        std::make_unique<BoardProxy>(board, mLayers, mBoardProxyContext);
+    std::unique_ptr<BoardProxy> proxy = std::make_unique<BoardProxy>(
+        board, mLayers, mBoardProxyContext, side);
     // Repaint every placement of this board whenever its live content
     // changes (e.g. edited in its own Board tab) - the hidden scene's own
     // items are what actually changed, not anything in *this* scene, so
@@ -512,9 +566,10 @@ BoardProxy* PanelGraphicsScene::acquireBoardProxy(Board& board) noexcept {
                 }
               }
             });
-    it = mBoardProxies.emplace(uuid, std::move(proxy)).first;
+    proxy->setMouseBites(mMouseBites.value(uuid), mMouseBiteDiameter);
+    it = mBoardProxies.emplace(key, std::move(proxy)).first;
   }
-  mBoardProxyRefCounts[uuid] = mBoardProxyRefCounts.value(uuid) + 1;
+  ++mBoardProxyRefCounts[key];
   return it->second.get();
 }
 
@@ -522,13 +577,14 @@ void PanelGraphicsScene::releaseBoardProxy(BoardProxy* proxy) noexcept {
   if (!proxy) {
     return;
   }
-  const Uuid uuid = proxy->getBoard().getUuid();
-  const int count = mBoardProxyRefCounts.value(uuid) - 1;
+  const auto key = std::make_pair(proxy->getBoard().getUuid(),
+                                  proxy->getSide());
+  const int count = mBoardProxyRefCounts[key] - 1;
   if (count <= 0) {
-    mBoardProxyRefCounts.remove(uuid);
-    mBoardProxies.erase(uuid);
+    mBoardProxyRefCounts.erase(key);
+    mBoardProxies.erase(key);
   } else {
-    mBoardProxyRefCounts[uuid] = count;
+    mBoardProxyRefCounts[key] = count;
   }
 }
 
