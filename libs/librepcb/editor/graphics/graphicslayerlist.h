@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 #ifndef LIBREPCB_EDITOR_GRAPHICSLAYERLIST_H
 #define LIBREPCB_EDITOR_GRAPHICSLAYERLIST_H
 
@@ -81,6 +83,28 @@ public:
   static std::unique_ptr<GraphicsLayerList> boardLayers(
       const WorkspaceSettings* ws) noexcept;
 
+  /**
+   * @brief Create a view of another list for a board flipped over
+   *
+   * The returned list shares the ::librepcb::editor::GraphicsLayer objects
+   * of `source` (so colors and visibility follow it), but every lookup of a
+   * board layer returns the layer on the opposite side of the board, e.g.
+   * top copper returns the bottom copper layer. The opposite layer is the
+   * one the core calls the "mirrored" layer (::librepcb::Layer::mirrored(),
+   * also used by ::librepcb::Transform). Used to render a board flipped
+   * over (turned upside down), e.g. by the panel editor: what was on the
+   * board's top side appears as the bottom side and vice versa.
+   *
+   * @param source        The list to create a view of. Must outlive the
+   *                      returned list.
+   * @param innerLayers   Number of inner copper layers of the board, so the
+   *                      order of inner layers is reversed as well.
+   *
+   * @return The flipped view.
+   */
+  static std::unique_ptr<GraphicsLayerList> flippedView(
+      const GraphicsLayerList& source, int innerLayers) noexcept;
+
 private:
   GraphicsLayerList(const WorkspaceSettings* ws) noexcept;
   void add(const ColorScheme& scheme, const ColorRole& role,
@@ -94,6 +118,7 @@ private:
 
   QPointer<const WorkspaceSettings> mSettings;
   QList<std::shared_ptr<GraphicsLayer>> mLayers;
+  QHash<QString, QString> mRoleRedirects;  ///< See #flippedView()
 };
 
 /*******************************************************************************

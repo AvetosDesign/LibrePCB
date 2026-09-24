@@ -1431,7 +1431,7 @@ export struct PanelTabData {
     tool-bottom: bool,  // Add Fiducial tool's board side (false=top, true=bottom),
                         // or the Select tool's homogeneous fiducial
                         // selection's board side
-    tool-vcut-vertical: bool,  // Add V-Cuts tool's orientation
+    tool-vcut-vertical: bool,  // Add V-Cut tool's orientation
                                // (false=horizontal, true=vertical)
     select-hole: bool,  // Select tool: true when the selection is
                         // homogeneously all holes (shows the same
@@ -1442,7 +1442,7 @@ export struct PanelTabData {
                             // Fiducial tool's toolbar)
     select-vcut: bool,  // Select tool: true when the selection is
                         // homogeneously all V-cuts (shows the same
-                        // Horizontal/Vertical buttons as the Add V-Cuts
+                        // Horizontal/Vertical buttons as the Add V-Cut
                         // tool's toolbar, bound to tool-vcut-vertical)
 
     // Grid settings. grid-style is shared across Board and Panel tabs (a
@@ -1459,17 +1459,13 @@ export struct PanelTabData {
     // Board2dTabData.ignore-placement-locks exactly.
     ignore-placement-locks: bool,
 
-    // Whether the boards' copper layers (top, inner and bottom) are shown
-    // on the panel canvas, mirroring SchematicTabData.show-pin-numbers.
-    show-copper: bool,
-
     // Whether tab markers are shown on the panel canvas. Ignored while the
     // Add Tab tool is active (markers are always shown then).
     show-tabs: bool,
 
-    // Whether the outlines of the individual board placements are shown
-    // (not the panel perimeter).
-    show-board-outlines: bool,
+    // Whether the calculated panel outline (tool paths/cutouts) is shown,
+    // replacing the panel rectangle and the boards' own outlines.
+    show-outline-preview: bool,
 
     // Write-only: setting this to a valid index into the project's boards
     // triggers placing that board onto the panel, then C++ resets it back

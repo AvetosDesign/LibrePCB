@@ -441,6 +441,8 @@ add_library(
   project/panel/items/pi_vcut.h
   project/panel/panel.cpp
   project/panel/panel.h
+  project/panel/paneloutlinebuilder.cpp
+  project/panel/paneloutlinebuilder.h
   project/project.cpp
   project/project.h
   project/projectattributelookup.cpp

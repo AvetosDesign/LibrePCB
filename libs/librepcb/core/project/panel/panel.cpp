@@ -99,6 +99,7 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mRouterBitDiameter(initialRouterBitDiameter),
     mFrameWidthTopBottom(initialFrameWidth),
     mFrameWidthLeftRight(initialFrameWidth),
+    mBackboneWidth(initialBackboneWidth),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
     mOnHolesEditedSlot(*this, &Panel::holesEdited),
     mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited),
@@ -220,6 +221,13 @@ void Panel::setFrameWidthTopBottom(const UnsignedLength& width) noexcept {
 void Panel::setFrameWidthLeftRight(const UnsignedLength& width) noexcept {
   if (width != mFrameWidthLeftRight) {
     mFrameWidthLeftRight = width;
+    emit attributesChanged();
+  }
+}
+
+void Panel::setBackboneWidth(const UnsignedLength& width) noexcept {
+  if (width != mBackboneWidth) {
+    mBackboneWidth = width;
     emit attributesChanged();
   }
 }
@@ -456,6 +464,7 @@ void Panel::save() {
   routingNode.appendChild("bit_diameter", mRouterBitDiameter);
   routingNode.appendChild("frame_width_top_bottom", mFrameWidthTopBottom);
   routingNode.appendChild("frame_width_left_right", mFrameWidthLeftRight);
+  routingNode.appendChild("backbone_width", mBackboneWidth);
   root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();

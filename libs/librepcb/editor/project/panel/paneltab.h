@@ -26,6 +26,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../graphics/graphicslayer.h"
 #include "../../utils/lengtheditcontext.h"
 #include "../../widgets/if_graphicsvieweventhandler.h"
 #include "../board/boardgraphicsscene.h"
@@ -181,27 +182,6 @@ private:
   void requestRepaint() noexcept;
 
   /**
-   * @brief Check whether the copper layers are shown
-   *
-   * @return True if at least one copper layer (top, inner or bottom) of
-   *         #mLayers is set visible, false if all of them are hidden.
-   */
-  bool isCopperVisible() const noexcept;
-
-  /**
-   * @brief Show or hide all copper layers
-   *
-   * Sets the visibility of every copper layer (top, inner and bottom) of
-   * #mLayers. Since every BoardProxy's hidden BoardGraphicsScene shares
-   * #mLayers, this shows/hides the copper of all placed boards at once,
-   * mirroring how ::librepcb::editor::SchematicTab toggles its pin numbers
-   * layer.
-   *
-   * @param visible   Whether the copper layers should be shown.
-   */
-  void setCopperVisible(bool visible) noexcept;
-
-  /**
    * @brief Apply the tab markers' visibility to the scene
    *
    * Markers are shown if the "Tab Markers" display toggle (#mShowTabs) is
@@ -211,15 +191,78 @@ private:
   void updateTabsVisibility() noexcept;
 
   /**
-   * @brief Apply the "Board Outlines" display toggle
+   * @brief Hide or restore the board outlines layer for the outline preview
    *
-   * Shows/hides both the placements' reference outlines drawn by the panel
-   * (PanelGraphicsScene::setBoardOutlinesVisible()) and the boards' own
-   * outline layer (::librepcb::ColorRole::boardOutlines() in #mLayers,
-   * shared by every BoardProxy), so no board outline is drawn when off.
-   * The panel perimeter is not affected.
+   * The board outlines layer (::librepcb::ColorRole::boardOutlines() in
+   * #mLayers, shared by every BoardProxy, set in the Layers panel) controls
+   * both the boards' own outlines and the placements' reference outlines
+   * (see #boardOutlinesLayerEdited()). While the outline preview is shown
+   * (#isOutlinePreviewShown()), it replaces them, so the layer is hidden;
+   * its previous state is restored when the preview is hidden again. Call
+   * whenever #isOutlinePreviewShown() may have changed.
    */
-  void updateBoardOutlinesVisibility() noexcept;
+  void updateBoardOutlinesForPreview() noexcept;
+
+  /**
+   * @brief Apply the board outlines layer's visibility to the placements
+   *
+   * Shows/hides the placements' reference outlines drawn by the panel
+   * (PanelGraphicsScene::setBoardOutlinesVisible()) together with the
+   * layer. If the layer is shown while the outline preview hides it, that
+   * choice wins over restoring the previous state later.
+   */
+  void boardOutlinesLayerEdited(const GraphicsLayer& layer,
+                                GraphicsLayer::Event event) noexcept;
+
+  /**
+   * @brief Recalculate the mouse bite planes and the outline preview soon
+   *
+   * Restarts #mPanelGeometryTimer, so a burst of changes triggers only one
+   * recalculation (see #updatePanelGeometry()). Called on every undo stack
+   * modification, and on every mouse move while the left button is pressed
+   * (dragging doesn't modify the undo stack until the mouse is released),
+   * so while dragging, the recalculation happens whenever the mouse pauses.
+   */
+  void schedulePanelGeometryUpdate() noexcept;
+
+  /**
+   * @brief Recalculate the mouse bite planes and the outline preview now
+   *
+   * See #updateMouseBitePlanes() and #updateOutlinePreview().
+   */
+  void updatePanelGeometry() noexcept;
+
+  /**
+   * @brief Pass the mouse bite holes of all board designs to the scene
+   *
+   * Calculated with ::librepcb::PanelOutlineBuilder::buildMouseBites(),
+   * independent of the outline preview. The boards' planes are then
+   * recalculated in the background with these holes (see
+   * PanelGraphicsScene::setMouseBites()), only for board designs whose
+   * holes changed.
+   */
+  void updateMouseBitePlanes() noexcept;
+
+  /**
+   * @brief Recalculate and show (or hide) the panel outline preview
+   *
+   * Runs ::librepcb::PanelOutlineBuilder synchronously if the preview is
+   * enabled (#mShowOutlinePreview) and passes the result to
+   * PanelGraphicsScene::setOutlinePreview(). The calculation time is
+   * logged, to decide later whether the preview can be on by default and
+   * whether it needs to run in a background thread.
+   */
+  void updateOutlinePreview() noexcept;
+
+  /**
+   * @brief Check whether the panel outline preview is currently shown
+   *
+   * @return True if the preview is enabled (#mShowOutlinePreview) and not
+   *         suspended by the Add Board tool (#mOutlinePreviewSuspended).
+   */
+  bool isOutlinePreviewShown() const noexcept {
+    return mShowOutlinePreview && (!mOutlinePreviewSuspended);
+  }
 
   /**
    * @brief Enable only the inner copper layers used by placed boards
@@ -295,15 +338,20 @@ private:
   LengthEditContext mToolDiameter;
   LengthEditContext mToolClearance;
   bool mToolFlipped;
-  bool mToolVCutVertical;  ///< Add V-Cuts tool's orientation
+  bool mToolVCutVertical;  ///< Add V-Cut tool's orientation
   bool mSelectHole;
   bool mSelectFiducial;
   bool mSelectVCut;  ///< Select tool: selection is all V-cuts
   bool mIgnorePlacementLocks;
   bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
-  bool mVCutToolActive;  ///< Whether the Add V-Cuts tool is active
-  bool mShowBoardOutlines;  ///< "Board Outlines" display toggle
+  bool mVCutToolActive;  ///< Whether the Add V-Cut tool is active
+  bool mShowOutlinePreview;  ///< "Panel Outline Preview" display toggle
+  bool mOutlinePreviewSuspended;  ///< Preview suspended by the Add Board tool
+  bool mBoardOutlinesHiddenByPreview;  ///< See updateBoardOutlinesForPreview()
+  bool mBoardOutlinesBeforePreview;  ///< See updateBoardOutlinesForPreview()
+  GraphicsLayer::OnEditedSlot mOnBoardOutlinesLayerEditedSlot;
+  QTimer mPanelGeometryTimer;  ///< See #schedulePanelGeometryUpdate()
   QVector<QMetaObject::Connection> mFsmStateConnections;
   QVector<QMetaObject::Connection> mActiveConnections;
 

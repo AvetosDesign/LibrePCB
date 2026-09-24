@@ -17,7 +17,7 @@ import {
 } from "../../api.slint";
 
 // Panel editor tab: a pannable/zoomable canvas with a left-side tool column
-// (Select / Add Hole / Add Fiducial / Add Tab / Add V-Cuts), following
+// (Select / Add Hole / Add Fiducial / Add Tab / Add V-Cut), following
 // Board2dTab's toolbuttons-l pattern.
 export component PanelTab inherits Tab {
     in property <int> section-index;
@@ -219,19 +219,6 @@ export component PanelTab inherits Tab {
                 }
             }
 
-            show-copper-btn := SceneButton {
-                icon: @image-url("../../../../../img/show-copper-layers.svg");
-                tooltip: @tr("Copper Layers");
-                base-color: tabs[index].background-color;
-                base-text-color: tabs[index].foreground-color;
-                style: checkbox;
-                checked: tabs[index].show-copper;
-
-                clicked => {
-                    tabs[index].show-copper = !self.checked;
-                }
-            }
-
             show-tabs-btn := SceneButton {
                 icon: @image-url("../../../../../img/show-tab-markers.svg");
                 tooltip: @tr("Tab Markers");
@@ -245,17 +232,17 @@ export component PanelTab inherits Tab {
                 }
             }
 
-            // Placeholder icon (Font Awesome "square").
-            show-board-outlines-btn := SceneButton {
-                icon: @image-url("../../../../font-awesome/svgs/regular/square.svg");
-                tooltip: @tr("Board Outlines");
+            // Placeholder icon (Font Awesome "vector-square").
+            show-outline-preview-btn := SceneButton {
+                icon: @image-url("../../../../font-awesome/svgs/solid/vector-square.svg");
+                tooltip: @tr("Panel Outline Preview");
                 base-color: tabs[index].background-color;
                 base-text-color: tabs[index].foreground-color;
                 style: checkbox;
-                checked: tabs[index].show-board-outlines;
+                checked: tabs[index].show-outline-preview;
 
                 clicked => {
-                    tabs[index].show-board-outlines = !self.checked;
+                    tabs[index].show-outline-preview = !self.checked;
                 }
             }
         }

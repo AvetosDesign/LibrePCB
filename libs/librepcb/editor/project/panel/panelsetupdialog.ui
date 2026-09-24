@@ -216,7 +216,7 @@
           <item row="0" column="1">
            <widget class="QComboBox" name="cbxRoutingStyle">
             <property name="toolTip">
-             <string>None: boards are not routed (V-cuts only). Open: everything except the frame and the tabs is removed. Tight: a single route around each board, interrupted by the tabs.</string>
+             <string>None: boards are not routed (V-cuts only). Open: everything except the frame, the backbones and the tabs is removed. Tight: a single route around each board, interrupted by the tabs.</string>
             </property>
             <item>
              <property name="text">
@@ -272,6 +272,26 @@
             </property>
             <property name="toolTip">
              <string>Width of the frame (rail) along the left and right panel edges, for the Open routing style (0 = no frame there)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="lblBackboneWidth">
+            <property name="text">
+             <string>Backbone Width:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="spbxBackboneWidth">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="toolTip">
+             <string>Width of the backbones along the midline between neighboring boards, for the Open routing style. A backbone is only created where the gap fits it plus a route on each side (0 = no backbones)</string>
             </property>
            </widget>
           </item>

@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -61,8 +63,9 @@ GraphicsLayerList::~GraphicsLayerList() noexcept {
 
 std::shared_ptr<GraphicsLayer> GraphicsLayerList::get(
     const ColorRole& role) noexcept {
+  const QString id = mRoleRedirects.value(role.getId(), role.getId());
   foreach (const std::shared_ptr<GraphicsLayer>& layer, mLayers) {
-    if (layer->getRole() == role) {
+    if (layer->getRole().getId() == id) {
       return layer;
     }
   }
@@ -71,8 +74,9 @@ std::shared_ptr<GraphicsLayer> GraphicsLayerList::get(
 
 std::shared_ptr<const GraphicsLayer> GraphicsLayerList::get(
     const ColorRole& role) const noexcept {
+  const QString id = mRoleRedirects.value(role.getId(), role.getId());
   foreach (const std::shared_ptr<GraphicsLayer>& layer, mLayers) {
-    if (layer->getRole() == role) {
+    if (layer->getRole().getId() == id) {
       return layer;
     }
   }
@@ -91,8 +95,9 @@ std::shared_ptr<const GraphicsLayer> GraphicsLayerList::get(
 
 std::shared_ptr<const GraphicsLayer> GraphicsLayerList::grabArea(
     const Layer& outlineLayer) const noexcept {
-  if (const ColorRole* role =
-          ColorRole::getGrabAreaRole(outlineLayer.getColorRole().getId())) {
+  const QString outlineId = outlineLayer.getColorRole().getId();
+  if (const ColorRole* role = ColorRole::getGrabAreaRole(
+          mRoleRedirects.value(outlineId, outlineId))) {
     return get(*role);
   } else {
     return nullptr;
@@ -125,6 +130,26 @@ void GraphicsLayerList::showNone() noexcept {
   foreach (auto& layer, mLayers) {
     layer->setVisible(false);
   }
+}
+
+std::unique_ptr<GraphicsLayerList> GraphicsLayerList::flippedView(
+    const GraphicsLayerList& source, int innerLayers) noexcept {
+  // No workspace settings: the shared layers are updated by the source.
+  std::unique_ptr<GraphicsLayerList> l(new GraphicsLayerList(nullptr));
+  l->mLayers = source.mLayers;
+  for (const Layer* layer : Layer::all()) {
+    // Inner layers the board doesn't have have no opposite layer (and
+    // Layer::mirrored() would fail for them).
+    if (layer->isInner() && (layer->getCopperNumber() > innerLayers)) {
+      continue;
+    }
+    const Layer& opposite = layer->mirrored(innerLayers);
+    if (&opposite != layer) {
+      l->mRoleRedirects.insert(layer->getColorRole().getId(),
+                               opposite.getColorRole().getId());
+    }
+  }
+  return l;
 }
 
 std::unique_ptr<GraphicsLayerList> GraphicsLayerList::previewLayers(
