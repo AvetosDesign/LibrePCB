@@ -86,9 +86,40 @@ public:
   bool processGraphicsSceneLeftMouseButtonDoubleClicked(
       const GraphicsSceneMouseEvent& e) noexcept override;
 
+  // Connection to UI
+
+  /// The width new tabs get (initially the panel's default tab width).
+  const PositiveLength& getWidth() const noexcept { return mWidth; }
+
+  /// Whether new tabs get mouse bites (initially the panel's default).
+  bool getMouseBites() const noexcept { return mMouseBites; }
+
+  /// The mouse bite hole diameter of new tabs (initially the panel's
+  /// default).
+  const PositiveLength& getMouseBiteDiameter() const noexcept {
+    return mMouseBiteDiameter;
+  }
+
+  /// The mouse bite hole spacing of new tabs (initially the panel's
+  /// default).
+  const PositiveLength& getMouseBiteSpacing() const noexcept {
+    return mMouseBiteSpacing;
+  }
+
+  void setWidth(const PositiveLength& width) noexcept;
+  void setMouseBites(bool enabled) noexcept;
+  void setMouseBiteDiameter(const PositiveLength& diameter) noexcept;
+  void setMouseBiteSpacing(const PositiveLength& spacing) noexcept;
+
   // Operator Overloadings
   PanelEditorState_AddTab& operator=(const PanelEditorState_AddTab& rhs) =
       delete;
+
+signals:
+  void widthChanged(const PositiveLength& width);
+  void mouseBitesChanged(bool enabled);
+  void mouseBiteDiameterChanged(const PositiveLength& diameter);
+  void mouseBiteSpacingChanged(const PositiveLength& spacing);
 
 private:  // Methods
   /**
@@ -111,6 +142,15 @@ private:  // Methods
   void updatePhantom(const Point& pos) noexcept;
 
   bool addTab(const Point& pos) noexcept;
+
+private:  // Data
+  // The values of the toolbar. They start with the panel's defaults each
+  // time the tool is entered, and a placed tab only stores an override for
+  // each value which differs from the corresponding panel default.
+  PositiveLength mWidth;
+  bool mMouseBites;
+  PositiveLength mMouseBiteDiameter;
+  PositiveLength mMouseBiteSpacing;
 };
 
 /*******************************************************************************

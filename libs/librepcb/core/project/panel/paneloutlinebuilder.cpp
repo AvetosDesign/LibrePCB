@@ -239,7 +239,6 @@ PanelOutlineBuilder::~PanelOutlineBuilder() noexcept {
 
 PanelOutlineBuilder::Result PanelOutlineBuilder::build() const {
   Result result;
-  result.mouseBiteDiameter = mPanel.getDefaultMouseBiteDiameter();
 
   // All placed boards with their geometry in panel coordinates.
   std::vector<PlacedBoard> boards;
@@ -338,19 +337,20 @@ PanelOutlineBuilder::Result PanelOutlineBuilder::build() const {
   if (withTabs) {
     result.mouseBitesPerBoard = buildMouseBites();  // can throw
     for (const PlacedBoard& placed : boards) {
-      for (const Point& p :
+      for (const MouseBite& b :
            result.mouseBitesPerBoard.value(placed.instance->getBoard())) {
-        result.mouseBites.append(placed.transform.map(p));
+        result.mouseBites.append(
+            std::make_pair(placed.transform.map(b.first), b.second));
       }
     }
   }
   return result;
 }
 
-QHash<Uuid, QVector<Point>> PanelOutlineBuilder::buildMouseBites() const {
-  QHash<Uuid, QVector<Point>> result;
-  if ((mPanel.getRoutingStyle() == Panel::RoutingStyle::None) ||
-      (!mPanel.getDefaultMouseBitesEnabled())) {
+QHash<Uuid, QVector<PanelOutlineBuilder::MouseBite>>
+    PanelOutlineBuilder::buildMouseBites() const {
+  QHash<Uuid, QVector<MouseBite>> result;
+  if (mPanel.getRoutingStyle() == Panel::RoutingStyle::None) {
     return result;
   }
   for (const PI_BoardInstance& instance : mPanel.getBoardInstances()) {
@@ -726,12 +726,22 @@ bool PanelOutlineBuilder::overlaps(const ClipperLib::Paths& a,
   return false;
 }
 
-QVector<Point> PanelOutlineBuilder::calcMouseBites(
+QVector<PanelOutlineBuilder::MouseBite> PanelOutlineBuilder::calcMouseBites(
     const Board& board,
     const QVector<std::shared_ptr<const PI_Tab>>& tabs) const {
-  QVector<Point> holes;
+  QVector<MouseBite> holes;
   const std::optional<QVector<Path>> outlines = board.calculateOutlinePath();
   if ((!outlines) || tabs.isEmpty()) {
+    return holes;
+  }
+
+  // Skip the (potentially expensive) curve calculation if no tab gets
+  // mouse bites at all.
+  bool anyBites = false;
+  for (const auto& tab : tabs) {
+    anyBites = anyBites || mPanel.getEffectiveMouseBitesEnabled(*tab);
+  }
+  if (!anyBites) {
     return holes;
   }
 
@@ -752,9 +762,11 @@ QVector<Point> PanelOutlineBuilder::calcMouseBites(
     return holes;
   }
 
-  const qreal spacing =
-      static_cast<qreal>(mPanel.getDefaultMouseBiteSpacing()->toNm());
   for (const auto& tab : tabs) {
+    if (!mPanel.getEffectiveMouseBitesEnabled(*tab)) continue;
+    const qreal spacing =
+        static_cast<qreal>(mPanel.getEffectiveMouseBiteSpacing(*tab)->toNm());
+    const PositiveLength diameter = mPanel.getEffectiveMouseBiteDiameter(*tab);
     const std::optional<BoardEdgeSnap::Result> snap =
         BoardEdgeSnap::snap(*outlines, tab->getPosition());
     if (!snap) continue;
@@ -821,8 +833,9 @@ QVector<Point> PanelOutlineBuilder::calcMouseBites(
       for (int k = 0; k < 10000; ++k) {
         const qreal a = (k + 0.5) * spacing;
         if (a > length / 2) break;  // Don't wrap around the whole ring.
-        holes.append(
-            toPoint(pointAtArc(ring, cumulative, length, center + side * a)));
+        holes.append(std::make_pair(
+            toPoint(pointAtArc(ring, cumulative, length, center + side * a)),
+            diameter));
         if (a >= (extent - eps)) break;
       }
     }

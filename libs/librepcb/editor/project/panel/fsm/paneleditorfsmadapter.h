@@ -73,6 +73,7 @@ public:
     Paste = (1 << 6),
     Lock = (1 << 7),
     Unlock = (1 << 8),
+    EditProperties = (1 << 9),
   };
   Q_DECLARE_FLAGS(Features, Feature)
 

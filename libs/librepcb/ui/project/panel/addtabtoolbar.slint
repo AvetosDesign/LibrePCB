@@ -1,0 +1,105 @@
+// AI DISCLAIMER: Claude AI assisted in the writing of this file.
+
+import {
+    LengthEdit,
+    ToolBarButton,
+} from "../../widgets.slint";
+import {
+    PanelTabData,
+    WindowSectionData,
+} from "../../api.slint";
+
+// Toolbar of the Panel's Add Tab tool. The fields start with the panel's
+// default tab settings (Panel Setup); a tab placed with a different value
+// gets an override for just that value.
+// TODO: Replace the remaining placeholder icons (mouse bites, hole spacing).
+export component AddTabToolBar inherits HorizontalLayout {
+    in property <int> section-index;
+    in-out property <WindowSectionData> section;
+    property <[PanelTabData]> tabs: section.panel-tabs;
+    property <bool> bites: tabs[section.current-tab-index].tool-tab-mouse-bites;
+
+    spacing: 2px;
+
+    width-edt := LengthEdit {
+        data: tabs[section.current-tab-index].tool-tab-width;
+        icon: @image-url("../../../../font-awesome/svgs/solid/arrows-left-right-to-line.svg");
+        tooltip: @tr("Tab Width");
+        min-width-text: "1.234";
+
+        value-changed(v) => {
+            tabs[section.current-tab-index].tool-tab-width.value = v;
+        }
+
+        unit-changed(u) => {
+            tabs[section.current-tab-index].tool-tab-width.unit = u;
+        }
+
+        increase-triggered => {
+            tabs[section.current-tab-index].tool-tab-width.increase = true;
+        }
+
+        decrease-triggered => {
+            tabs[section.current-tab-index].tool-tab-width.decrease = true;
+        }
+    }
+
+    bites-btn := ToolBarButton {
+        icon: @image-url("../../../../font-awesome/svgs/solid/ellipsis.svg");
+        tooltip: @tr("Include Mouse Bites");
+        checkable: true;
+        checked: bites;
+
+        clicked(checked) => {
+            tabs[section.current-tab-index].tool-tab-mouse-bites = checked;
+        }
+    }
+
+    bite-diameter-edt := LengthEdit {
+        data: tabs[section.current-tab-index].tool-tab-bite-diameter;
+        icon: @image-url("../../../../../img/diameter.svg");
+        tooltip: @tr("Mouse Bite Hole Size");
+        min-width-text: "1.234";
+        enabled: bites;
+
+        value-changed(v) => {
+            tabs[section.current-tab-index].tool-tab-bite-diameter.value = v;
+        }
+
+        unit-changed(u) => {
+            tabs[section.current-tab-index].tool-tab-bite-diameter.unit = u;
+        }
+
+        increase-triggered => {
+            tabs[section.current-tab-index].tool-tab-bite-diameter.increase = true;
+        }
+
+        decrease-triggered => {
+            tabs[section.current-tab-index].tool-tab-bite-diameter.decrease = true;
+        }
+    }
+
+    bite-spacing-edt := LengthEdit {
+        data: tabs[section.current-tab-index].tool-tab-bite-spacing;
+        icon: @image-url("../../../../font-awesome/svgs/solid/arrows-left-right.svg");
+        tooltip: @tr("Mouse Bite Hole Spacing");
+        min-width-text: "1.234";
+        enabled: bites;
+
+        value-changed(v) => {
+            tabs[section.current-tab-index].tool-tab-bite-spacing.value = v;
+        }
+
+        unit-changed(u) => {
+            tabs[section.current-tab-index].tool-tab-bite-spacing.unit = u;
+        }
+
+        increase-triggered => {
+            tabs[section.current-tab-index].tool-tab-bite-spacing.increase = true;
+        }
+
+        decrease-triggered => {
+            tabs[section.current-tab-index].tool-tab-bite-spacing.decrease = true;
+        }
+    }
+}

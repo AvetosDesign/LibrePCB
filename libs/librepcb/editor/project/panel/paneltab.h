@@ -173,6 +173,7 @@ public:
 signals:
   void flippedRequested(bool flipped);
   void vCutVerticalRequested(bool vertical);
+  void tabMouseBitesRequested(bool enabled);
 
 private:
   void applyWorkspaceSettings() noexcept;
@@ -184,6 +185,8 @@ private:
    * Markers are shown if the "Tab Markers" display toggle (#mShowTabs) is
    * on, or whenever the Add Tab tool is active (#mTabToolActive), since
    * that tool needs them to avoid placing tabs on top of each other.
+   * Otherwise the tabs are shown as small triangles instead (the two
+   * are mutually exclusive), so tabs can always be selected.
    */
   void updateTabsVisibility() noexcept;
 
@@ -334,6 +337,10 @@ private:
   QString mToolOverlayText;
   LengthEditContext mToolDiameter;
   LengthEditContext mToolClearance;
+  LengthEditContext mToolTabWidth;  ///< Add Tab tool: tab width
+  LengthEditContext mToolTabBiteDiameter;  ///< Add Tab tool: hole size
+  LengthEditContext mToolTabBiteSpacing;  ///< Add Tab tool: hole spacing
+  bool mToolTabMouseBites;  ///< Add Tab tool: include mouse bites
   bool mToolFlipped;
   bool mToolVCutVertical;  ///< Add V-Cut tool's orientation
   bool mSelectHole;

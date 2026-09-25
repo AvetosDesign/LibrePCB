@@ -125,6 +125,14 @@ class PanelOutlineBuilder final {
 
 public:
   /**
+   * @brief A mouse bite hole (center, diameter)
+   *
+   * Every tab can override the hole diameter, so the diameter is part of
+   * each hole.
+   */
+  typedef std::pair<Point, PositiveLength> MouseBite;
+
+  /**
    * @brief The calculated panel outline
    */
   struct Result {
@@ -132,15 +140,14 @@ public:
     /// rings and holes are separate paths (use even-odd filling).
     QVector<Path> outlines;
 
-    /// Diameter of all mouse bite holes.
-    PositiveLength mouseBiteDiameter = PositiveLength(1);
+    /// Mouse bite holes of every board design (key: board UUID), with
+    /// centers in the board's own coordinates. The same for all copies of a
+    /// board.
+    QHash<Uuid, QVector<MouseBite>> mouseBitesPerBoard;
 
-    /// Mouse bite hole centers of every board design (key: board UUID), in
-    /// the board's own coordinates. The same for all copies of a board.
-    QHash<Uuid, QVector<Point>> mouseBitesPerBoard;
-
-    /// Mouse bite hole centers of all placed copies, in panel coordinates.
-    QVector<Point> mouseBites;
+    /// Mouse bite holes of all placed copies, with centers in panel
+    /// coordinates.
+    QVector<MouseBite> mouseBites;
 
     /// Tabs which didn't reach anything on a placed copy (tab UUID, board
     /// instance UUID) - not created there.
@@ -182,14 +189,13 @@ public:
    * (no outline calculation). Used to recalculate the boards' planes with
    * the mouse bite holes, independent of the outline preview.
    *
-   * @return Mouse bite hole centers per board UUID, in the board's own
-   *         coordinates. Empty if mouse bites are disabled or the routing
-   *         style is None. Boards without tabs have no entry or an empty
+   * @return Mouse bite holes per board UUID, with centers in the board's
+   *         own coordinates. Empty if the routing style is None. Boards without tabs have no entry or an empty
    *         one.
    *
    * @throw Exception if a polygon operation fails.
    */
-  QHash<Uuid, QVector<Point>> buildMouseBites() const;
+  QHash<Uuid, QVector<MouseBite>> buildMouseBites() const;
 
   /**
    * @brief Arc tolerance used when flattening arcs and offsetting paths
@@ -309,9 +315,11 @@ private:  // Methods
    * @param board   The board.
    * @param tabs    The tabs of this board.
    *
-   * @return Hole centers in the board's own coordinates.
+   * @return Holes with centers in the board's own coordinates. Tabs
+   *         without mouse bites (see ::librepcb::Panel::
+   *         getEffectiveMouseBitesEnabled()) add none.
    */
-  QVector<Point> calcMouseBites(
+  QVector<MouseBite> calcMouseBites(
       const Board& board,
       const QVector<std::shared_ptr<const PI_Tab>>& tabs) const;
 

@@ -27,6 +27,7 @@
  ******************************************************************************/
 #include "../../undocommand.h"
 
+#include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
@@ -47,7 +48,8 @@ namespace editor {
 /**
  * @brief The CmdPanelVCutEdit class
  *
- * Edits a ::librepcb::PI_VCut's orientation, position and lock state, following
+ * Edits a ::librepcb::PI_VCut's orientation, position, lock state and edge
+ * binding, following
  * CmdPanelHoleEdit's "immediate" live-preview convention: changes applied
  * with `immediate=true` are reverted by the destructor if the command is
  * never executed (e.g. an aborted drag).
@@ -116,6 +118,23 @@ public:
 
   void setLocked(bool locked, bool immediate) noexcept;
 
+  /**
+   * @brief Bind the V-cut to a panel edge, or clear its binding
+   *
+   * @see ::librepcb::PI_VCut::setBinding()
+   */
+  void setBinding(PI_VCut::BoundEdge edge, const Length& offset,
+                  bool immediate) noexcept;
+
+  /**
+   * @brief Bind the V-cut to a specific board outline segment
+   *
+   * @see ::librepcb::PI_VCut::setBoardBinding()
+   */
+  void setBoardBinding(const Uuid& boardInstance, const Point& segStart,
+                       const Point& segEnd, const Angle& segNormal,
+                       const Length& offset, bool immediate) noexcept;
+
   // Operator Overloadings
   CmdPanelVCutEdit& operator=(const CmdPanelVCutEdit& rhs) = delete;
 
@@ -139,6 +158,18 @@ private:
   Length mNewPos;
   bool mOldLocked;
   bool mNewLocked;
+  PI_VCut::BoundEdge mOldBoundEdge;
+  PI_VCut::BoundEdge mNewBoundEdge;
+  Length mOldOffset;
+  Length mNewOffset;
+  std::optional<Uuid> mOldBoundBoard;
+  std::optional<Uuid> mNewBoundBoard;
+  Point mOldBoundSegStart;
+  Point mNewBoundSegStart;
+  Point mOldBoundSegEnd;
+  Point mNewBoundSegEnd;
+  Angle mOldBoundSegNormal;
+  Angle mNewBoundSegNormal;
 };
 
 /*******************************************************************************

@@ -50,7 +50,11 @@ namespace librepcb {
  * Used to anchor ::librepcb::PI_Tab markers to a board's edge: the tab's
  * dot sits on the nearest outline point, and its arrow points
  * perpendicular to the edge, away from the board (into the panel gap,
- * where the tab material will extend).
+ * where the tab material will extend). Also used for the "Bind to Edge..."
+ * board-outline-segment picker in the panel's Select tool
+ * (::librepcb::editor::PanelEditorState_Select, see
+ * claude/librepcb_panel_vcut_tool.md) - #Result::segStart/#Result::segEnd
+ * were added for that.
  *
  * All coordinates are in the board's own coordinate system (the outline
  * paths as returned by ::librepcb::Board::calculateOutlinePath()). Since a
@@ -72,6 +76,15 @@ public:
     Point position;  ///< Nearest point on the outline
     Angle direction;  ///< Edge normal at #position, pointing off the board
     UnsignedLength distance;  ///< Distance from the queried point
+    /// Start of the straight outline segment #position lies on (board
+    /// coordinates, same coordinate system as #position). Added for
+    /// ::librepcb::PI_VCut board-edge binding (claude/
+    /// librepcb_panel_vcut_tool.md) - #position's original users
+    /// (::librepcb::PI_Tab anchoring) only need #position/#direction and
+    /// can ignore these.
+    Point segStart;
+    /// End of the straight outline segment, see #segStart.
+    Point segEnd;
   };
 
   // Constructors / Destructor
@@ -82,14 +95,24 @@ public:
   /**
    * @brief Find the nearest point on a board outline
    *
-   * @param outlines  The board outline paths (board coordinates).
-   * @param pos       The point to project (board coordinates).
+   * @param outlines     The board outline paths (board coordinates).
+   * @param pos          The point to project (board coordinates).
+   * @param verticalOnly  If set, only straight segments with a constant X
+   *                      (`true`, "vertical") or constant Y (`false`,
+   *                      "horizontal") are considered - added for
+   *                      ::librepcb::PI_VCut board-edge binding
+   *                      (claude/librepcb_panel_vcut_tool.md), which can
+   *                      only bind to a segment parallel to the V-cut.
+   *                      `std::nullopt` (the default) considers every
+   *                      segment, unfiltered, as before.
    *
    * @return The nearest outline point with its outward direction, or
-   *         `std::nullopt` if @p outlines contains no usable segment.
+   *         `std::nullopt` if @p outlines contains no usable (matching)
+   *         segment.
    */
-  static std::optional<Result> snap(const QVector<Path>& outlines,
-                                    const Point& pos) noexcept;
+  static std::optional<Result> snap(
+      const QVector<Path>& outlines, const Point& pos,
+      std::optional<bool> verticalOnly = std::nullopt) noexcept;
 
   // Operator Overloadings
   BoardEdgeSnap& operator=(const BoardEdgeSnap& rhs) = delete;

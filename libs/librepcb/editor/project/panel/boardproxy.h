@@ -147,11 +147,11 @@ public:
    * the background with these holes (or shown as in the board again, if
    * there are no holes).
    *
-   * @param positions   Hole centers in the board's own coordinates.
-   * @param diameter    Diameter of all holes.
+   * @param holes   Hole centers (in the board's own coordinates) and
+   *                diameters.
    */
-  void setMouseBites(const QVector<Point>& positions,
-                     const PositiveLength& diameter) noexcept;
+  void setMouseBites(
+      const QVector<std::pair<Point, PositiveLength>>& holes) noexcept;
 
   // Operator Overloadings
   BoardProxy& operator=(const BoardProxy& rhs) = delete;
@@ -186,8 +186,7 @@ private:  // Data
   std::unique_ptr<BoardGraphicsScene> mScene;
 
   // Planes with mouse bite holes
-  QVector<Point> mMouseBites;  ///< Board coordinates
-  PositiveLength mMouseBiteDiameter;
+  QVector<std::pair<Point, PositiveLength>> mMouseBites;  ///< Board coords
   QTimer mPlanesRebuildTimer;  ///< Debounces changes of the board's planes
   QElapsedTimer mPlanesRebuildDuration;  ///< For the log output
   BI_Plane::OnEditedSlot mOnPlaneEditedSlot;

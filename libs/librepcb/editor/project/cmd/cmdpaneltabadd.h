@@ -32,6 +32,7 @@
 #include <librepcb/core/types/uuid.h>
 
 #include <memory>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -63,20 +64,50 @@ public:
   /**
    * @brief Constructor
    *
+   * The tab gets no overrides; use the setters to add some before the
+   * command gets executed.
+   *
    * @param panel           The panel to add the tab to.
    * @param board           UUID of the ::librepcb::Board (design) the tab
    *                        belongs to.
    * @param position        Tab position in that board's own coordinates.
-   * @param width           Tab width override, or zero to use the panel's
-   *                        default tab width (see ::librepcb::PI_Tab).
    */
   CmdPanelTabAdd(Panel& panel, const Uuid& board,
-                 const Point& position,
-                 const UnsignedLength& width = UnsignedLength(0)) noexcept;
+                 const Point& position) noexcept;
   ~CmdPanelTabAdd() noexcept override;
 
-  // General Methods
+  // Getters
   std::shared_ptr<PI_Tab> getTab() const noexcept { return mTab; }
+
+  // Setters (only allowed before the command was executed)
+
+  /**
+   * @brief Set the tab width override
+   *
+   * @param width   Width, or zero to use the panel default.
+   */
+  void setWidth(const UnsignedLength& width) noexcept;
+
+  /**
+   * @brief Set the mouse bite inclusion override
+   *
+   * @param enabled   Inclusion, or `std::nullopt` to use the panel default.
+   */
+  void setMouseBites(const std::optional<bool>& enabled) noexcept;
+
+  /**
+   * @brief Set the mouse bite hole diameter override
+   *
+   * @param diameter    Diameter, or zero to use the panel default.
+   */
+  void setMouseBiteDiameter(const UnsignedLength& diameter) noexcept;
+
+  /**
+   * @brief Set the mouse bite hole spacing override
+   *
+   * @param spacing   Spacing, or zero to use the panel default.
+   */
+  void setMouseBiteSpacing(const UnsignedLength& spacing) noexcept;
 
   // Operator Overloadings
   CmdPanelTabAdd& operator=(const CmdPanelTabAdd& rhs) = delete;

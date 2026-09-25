@@ -3,6 +3,7 @@
 
 import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
 import { AddHoleToolBar } from "addholetoolbar.slint";
+import { AddTabToolBar } from "addtabtoolbar.slint";
 import { AddVCutToolBar } from "addvcuttoolbar.slint";
 import { Tab } from "../../tab.slint";
 import { SceneButton, TextInput, ToolBar, ToolButton } from "../../widgets.slint";
@@ -163,6 +164,11 @@ export component PanelTab inherits Tab {
                 section: section;
             }
 
+            if tabs[index].tool == EditorTool.panel-tab: tab-toolbar := AddTabToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
             if tabs[index].tool == EditorTool.panel-vcut: vcut-toolbar := AddVCutToolBar {
                 section-index: section-index;
                 section: section;
@@ -232,9 +238,8 @@ export component PanelTab inherits Tab {
                 }
             }
 
-            // Placeholder icon (Font Awesome "vector-square").
             show-outline-preview-btn := SceneButton {
-                icon: @image-url("../../../../font-awesome/svgs/solid/vector-square.svg");
+                icon: @image-url("../../../../font-awesome/svgs/regular/eye.svg");
                 tooltip: @tr("Panel Outline Preview");
                 base-color: tabs[index].background-color;
                 base-text-color: tabs[index].foreground-color;

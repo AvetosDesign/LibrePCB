@@ -108,6 +108,10 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mToolCursorShape(Qt::ArrowCursor),
     mToolDiameter(app.getWorkspace().getSettings()),
     mToolClearance(app.getWorkspace().getSettings()),
+    mToolTabWidth(app.getWorkspace().getSettings()),
+    mToolTabBiteDiameter(app.getWorkspace().getSettings()),
+    mToolTabBiteSpacing(app.getWorkspace().getSettings()),
+    mToolTabMouseBites(true),
     mToolFlipped(false),
     mToolVCutVertical(false),
     mSelectHole(false),
@@ -189,7 +193,7 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   QSettings cs;
   mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
   mShowOutlinePreview =
-      cs.value("panel_editor/show_outline_preview", false).toBool();
+      cs.value("panel_editor/show_outline_preview", true).toBool();
 
   // Mouse bite planes and outline preview: recalculated shortly after
   // changes.
@@ -250,6 +254,8 @@ ui::TabData PanelTab::getUiData() const noexcept {
   features.flip = toFs(mToolFeatures.testFlag(Feature::Flip));
   features.lock = toFs(mToolFeatures.testFlag(Feature::Lock));
   features.unlock = toFs(mToolFeatures.testFlag(Feature::Unlock));
+  features.edit_properties =
+      toFs(mToolFeatures.testFlag(Feature::EditProperties));
 
   return ui::TabData{
       ui::TabType::Panel,  // Type
@@ -289,6 +295,10 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mToolClearance.getUiData(),  // Tool clearance
       mToolFlipped,  // Tool bottom
       mToolVCutVertical,  // Tool V-cut vertical
+      mToolTabWidth.getUiData(),  // Tool tab width
+      mToolTabMouseBites,  // Tool tab mouse bites
+      mToolTabBiteDiameter.getUiData(),  // Tool tab mouse bite diameter
+      mToolTabBiteSpacing.getUiData(),  // Tool tab mouse bite spacing
       mSelectHole,  // Select hole
       mSelectFiducial,  // Select fiducial
       mSelectVCut,  // Select V-cut
@@ -306,6 +316,13 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   mSceneImagePos = s2q(data.scene_image_pos);
   mToolDiameter.setUiData(data.tool_diameter);
   mToolClearance.setUiData(data.tool_clearance);
+  mToolTabWidth.setUiData(data.tool_tab_width);
+  mToolTabBiteDiameter.setUiData(data.tool_tab_bite_diameter);
+  mToolTabBiteSpacing.setUiData(data.tool_tab_bite_spacing);
+  if (data.tool_tab_mouse_bites != mToolTabMouseBites) {
+    mToolTabMouseBites = data.tool_tab_mouse_bites;
+    emit tabMouseBitesRequested(mToolTabMouseBites);
+  }
 
   // Tool board side - mirrors Board2dTab::setDerivedUiData()'s unconditional
   // componentSideRequested emit exactly.
@@ -547,6 +564,10 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
     }
     case ui::TabAction::Delete: {
       if (mFsm) mFsm->processRemove();
+      break;
+    }
+    case ui::TabAction::EditProperties: {
+      if (mFsm) mFsm->processEditProperties();
       break;
     }
     case ui::TabAction::RotateCcw: {
@@ -890,10 +911,52 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddHole& state) noexcept {
 }
 
 void PanelTab::fsmToolEnter(PanelEditorState_AddTab& state) noexcept {
-  Q_UNUSED(state);
   mTool = ui::EditorTool::PanelTab;
   mTabToolActive = true;
   updateTabsVisibility();
+
+  // The toolbar fields start with the panel defaults (set by the state on
+  // entry); a tab placed with different values gets overrides.
+  mToolTabWidth.configure(state.getWidth(), LengthEditContext::Steps::generic(),
+                          "panel_editor/add_tab/width");
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddTab::widthChanged, &mToolTabWidth,
+              &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolTabWidth, &LengthEditContext::valueChangedPositive, &state,
+              &PanelEditorState_AddTab::setWidth));
+
+  mToolTabBiteDiameter.configure(state.getMouseBiteDiameter(),
+                                 LengthEditContext::Steps::generic(),
+                                 "panel_editor/add_tab/bite_diameter");
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddTab::mouseBiteDiameterChanged,
+      &mToolTabBiteDiameter, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolTabBiteDiameter, &LengthEditContext::valueChangedPositive,
+              &state, &PanelEditorState_AddTab::setMouseBiteDiameter));
+
+  mToolTabBiteSpacing.configure(state.getMouseBiteSpacing(),
+                                LengthEditContext::Steps::generic(),
+                                "panel_editor/add_tab/bite_spacing");
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddTab::mouseBiteSpacingChanged,
+      &mToolTabBiteSpacing, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolTabBiteSpacing, &LengthEditContext::valueChangedPositive,
+              &state, &PanelEditorState_AddTab::setMouseBiteSpacing));
+
+  mToolTabMouseBites = state.getMouseBites();
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddTab::mouseBitesChanged, this,
+      [this](bool enabled) {
+        mToolTabMouseBites = enabled;
+        onDerivedUiDataChanged.notify();
+      }));
+  mFsmStateConnections.append(
+      connect(this, &PanelTab::tabMouseBitesRequested, &state,
+              &PanelEditorState_AddTab::setMouseBites));
+
   onDerivedUiDataChanged.notify();
 }
 
@@ -1025,6 +1088,13 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     // substrate outline. Selected state uses the role's secondary color,
     // same as holes/fiducials above.
     mScene->setTabColors(outline.primary, outline.secondary);
+
+    // The tabs' triangles (shown instead of the markers) have the
+    // alpha of a placed part's origin cross, i.e. of the top references
+    // role.
+    const auto references = scheme.getColors(ColorRole::boardReferencesTop());
+    mScene->setTabTriangleAlpha(references.primary.alpha(),
+                             references.secondary.alpha());
 
     // V-cuts are a manufacturing annotation drawn across the panel, so they
     // use the board documentation role (distinct from outlines and copper).
@@ -1164,12 +1234,11 @@ void PanelTab::updateMouseBitePlanes() noexcept {
   }
   try {
     mScene->setMouseBites(
-        PanelOutlineBuilder(mPanel, mProject).buildMouseBites(),
-        mPanel.getDefaultMouseBiteDiameter());  // can throw
+        PanelOutlineBuilder(mPanel, mProject).buildMouseBites());  // can throw
   } catch (const Exception& e) {
     qCritical().noquote() << "Failed to calculate the mouse bites:"
                           << e.getMsg();
-    mScene->setMouseBites({}, mPanel.getDefaultMouseBiteDiameter());
+    mScene->setMouseBites({});
   }
 }
 
@@ -1194,8 +1263,8 @@ void PanelTab::updateOutlinePreview() noexcept {
                              .arg(result.unreachedTabs.count());
     // Mouse bite holes are drawn as circles along with the outline.
     QVector<Path> paths = result.outlines;
-    for (const Point& pos : result.mouseBites) {
-      paths.append(Path::circle(result.mouseBiteDiameter).translated(pos));
+    for (const PanelOutlineBuilder::MouseBite& bite : result.mouseBites) {
+      paths.append(Path::circle(bite.second).translated(bite.first));
     }
     mScene->setOutlinePreview(paths);
   } catch (const Exception& e) {

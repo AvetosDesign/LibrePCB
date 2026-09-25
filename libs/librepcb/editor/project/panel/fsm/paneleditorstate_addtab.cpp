@@ -28,6 +28,8 @@
 #include "../../cmd/cmdpaneltabadd.h"
 #include "../graphicsitems/pgi_tab.h"
 
+#include <librepcb/core/project/panel/panel.h>
+
 #include <QtCore>
 #include <QtWidgets>
 
@@ -43,7 +45,11 @@ namespace editor {
 
 PanelEditorState_AddTab::PanelEditorState_AddTab(
     const Context& context) noexcept
-  : PanelEditorState(context) {
+  : PanelEditorState(context),
+    mWidth(context.panel.getDefaultTabWidth()),
+    mMouseBites(context.panel.getDefaultMouseBitesEnabled()),
+    mMouseBiteDiameter(context.panel.getDefaultMouseBiteDiameter()),
+    mMouseBiteSpacing(context.panel.getDefaultMouseBiteSpacing()) {
 }
 
 PanelEditorState_AddTab::~PanelEditorState_AddTab() noexcept {
@@ -54,6 +60,13 @@ PanelEditorState_AddTab::~PanelEditorState_AddTab() noexcept {
  ******************************************************************************/
 
 bool PanelEditorState_AddTab::entry() noexcept {
+  // Start with the panel's current defaults (they may have been changed
+  // in Panel Setup since the tool was last used).
+  mWidth = mContext.panel.getDefaultTabWidth();
+  mMouseBites = mContext.panel.getDefaultMouseBitesEnabled();
+  mMouseBiteDiameter = mContext.panel.getDefaultMouseBiteDiameter();
+  mMouseBiteSpacing = mContext.panel.getDefaultMouseBiteSpacing();
+
   mAdapter.fsmToolEnter(*this);
   mAdapter.fsmSetViewCursor(Qt::CrossCursor);
   mAdapter.fsmSetStatusBarMessage(tr("Click on a board edge to add a tab"));
@@ -92,6 +105,40 @@ bool PanelEditorState_AddTab::processGraphicsSceneLeftMouseButtonPressed(
 bool PanelEditorState_AddTab::processGraphicsSceneLeftMouseButtonDoubleClicked(
     const GraphicsSceneMouseEvent& e) noexcept {
   return processGraphicsSceneLeftMouseButtonPressed(e);
+}
+
+/*******************************************************************************
+ *  Connection to UI
+ ******************************************************************************/
+
+void PanelEditorState_AddTab::setWidth(const PositiveLength& width) noexcept {
+  if (width != mWidth) {
+    mWidth = width;
+    emit widthChanged(mWidth);
+  }
+}
+
+void PanelEditorState_AddTab::setMouseBites(bool enabled) noexcept {
+  if (enabled != mMouseBites) {
+    mMouseBites = enabled;
+    emit mouseBitesChanged(mMouseBites);
+  }
+}
+
+void PanelEditorState_AddTab::setMouseBiteDiameter(
+    const PositiveLength& diameter) noexcept {
+  if (diameter != mMouseBiteDiameter) {
+    mMouseBiteDiameter = diameter;
+    emit mouseBiteDiameterChanged(mMouseBiteDiameter);
+  }
+}
+
+void PanelEditorState_AddTab::setMouseBiteSpacing(
+    const PositiveLength& spacing) noexcept {
+  if (spacing != mMouseBiteSpacing) {
+    mMouseBiteSpacing = spacing;
+    emit mouseBiteSpacingChanged(mMouseBiteSpacing);
+  }
 }
 
 /*******************************************************************************
@@ -144,8 +191,31 @@ bool PanelEditorState_AddTab::addTab(const Point& pos) noexcept {
   try {
     abortBlockingToolsInOtherEditors();
     // The tab belongs to the board design, so it appears on all copies.
-    execCmd(new CmdPanelTabAdd(mContext.panel, hit->board,
-                               hit->boardPos));  // can throw
+    // Only values which differ from the panel defaults are stored as
+    // overrides, so all others keep following the defaults.
+    const Panel& panel = mContext.panel;
+    const UnsignedLength width = (mWidth != panel.getDefaultTabWidth())
+        ? UnsignedLength(*mWidth)
+        : UnsignedLength(0);
+    std::optional<bool> mouseBites;
+    if (mMouseBites != panel.getDefaultMouseBitesEnabled()) {
+      mouseBites = mMouseBites;
+    }
+    const UnsignedLength diameter =
+        (mMouseBiteDiameter != panel.getDefaultMouseBiteDiameter())
+        ? UnsignedLength(*mMouseBiteDiameter)
+        : UnsignedLength(0);
+    const UnsignedLength spacing =
+        (mMouseBiteSpacing != panel.getDefaultMouseBiteSpacing())
+        ? UnsignedLength(*mMouseBiteSpacing)
+        : UnsignedLength(0);
+    std::unique_ptr<CmdPanelTabAdd> cmd(
+        new CmdPanelTabAdd(mContext.panel, hit->board, hit->boardPos));
+    cmd->setWidth(width);
+    cmd->setMouseBites(mouseBites);
+    cmd->setMouseBiteDiameter(diameter);
+    cmd->setMouseBiteSpacing(spacing);
+    execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
