@@ -117,6 +117,15 @@ bool PanelEditorFsm::processFlip() noexcept {
   return false;
 }
 
+bool PanelEditorFsm::processMove(const Point& delta) noexcept {
+  if (PanelEditorState* state = getCurrentStateObj()) {
+    if (state->processMove(delta)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool PanelEditorFsm::processSelectAll() noexcept {
   if (PanelEditorState* state = getCurrentStateObj()) {
     if (state->processSelectAll()) {

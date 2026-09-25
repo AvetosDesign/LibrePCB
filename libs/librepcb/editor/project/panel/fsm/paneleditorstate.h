@@ -90,6 +90,25 @@ public:
     return false;
   }
   virtual bool processFlip() noexcept { return false; }
+  /**
+   * @brief Nudge the current selection by a fixed offset (arrow-key move)
+   *
+   * Counterpart to Board's ::librepcb::editor::BoardEditorState::
+   * processMove(). Default no-op (returns `false`), same as every other
+   * event handler here - ::librepcb::editor::PanelEditorState_Select is
+   * the only state that overrides it.
+   *
+   * @param delta  The offset to move the selection by (usually one grid
+   *               interval along a single axis).
+   *
+   * @return `true` if something was moved, `false` otherwise (e.g. nothing
+   *         selected, or a drag/resize already in progress) - callers use
+   *         this to decide whether to fall back to scrolling the view.
+   */
+  virtual bool processMove(const Point& delta) noexcept {
+    Q_UNUSED(delta);
+    return false;
+  }
   virtual bool processSelectAll() noexcept { return false; }
   virtual bool processCut() noexcept { return false; }
   virtual bool processCopy() noexcept { return false; }

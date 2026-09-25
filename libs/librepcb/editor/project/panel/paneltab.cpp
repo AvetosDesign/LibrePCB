@@ -589,6 +589,34 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       if (mFsm) mFsm->processFlip();
       break;
     }
+    case ui::TabAction::MoveLeft: {
+      // Mirrors Board2dTab::trigger()'s identical case: nudge the
+      // selection by one grid interval, or scroll the view if nothing was
+      // moved (e.g. nothing selected) - see
+      // claude/librepcb_panel_vcut_tool.md's "arrow-key nudging" entry.
+      if ((!mFsm) || (!mFsm->processMove(Point(-mPanel.getGridInterval(), 0)))) {
+        if (mView) mView->scrollLeft();
+      }
+      break;
+    }
+    case ui::TabAction::MoveRight: {
+      if ((!mFsm) || (!mFsm->processMove(Point(*mPanel.getGridInterval(), 0)))) {
+        if (mView) mView->scrollRight();
+      }
+      break;
+    }
+    case ui::TabAction::MoveUp: {
+      if ((!mFsm) || (!mFsm->processMove(Point(0, *mPanel.getGridInterval())))) {
+        if (mView) mView->scrollUp();
+      }
+      break;
+    }
+    case ui::TabAction::MoveDown: {
+      if ((!mFsm) || (!mFsm->processMove(Point(0, -mPanel.getGridInterval())))) {
+        if (mView) mView->scrollDown();
+      }
+      break;
+    }
     case ui::TabAction::LayersTop:
     case ui::TabAction::LayersBottom:
     case ui::TabAction::LayersTopBottom:
