@@ -345,6 +345,24 @@ PositiveLength Panel::getEffectiveTabWidth(const PI_Tab& tab) const noexcept {
                                 : mDefaultTabWidth;
 }
 
+bool Panel::getEffectiveMouseBitesEnabled(const PI_Tab& tab) const noexcept {
+  return tab.getMouseBites().value_or(mDefaultMouseBitesEnabled);
+}
+
+PositiveLength Panel::getEffectiveMouseBiteDiameter(
+    const PI_Tab& tab) const noexcept {
+  return tab.hasMouseBiteDiameterOverride()
+      ? PositiveLength(*tab.getMouseBiteDiameter())
+      : mDefaultMouseBiteDiameter;
+}
+
+PositiveLength Panel::getEffectiveMouseBiteSpacing(
+    const PI_Tab& tab) const noexcept {
+  return tab.hasMouseBiteSpacingOverride()
+      ? PositiveLength(*tab.getMouseBiteSpacing())
+      : mDefaultMouseBiteSpacing;
+}
+
 void Panel::addTab(std::shared_ptr<PI_Tab> tab) {
   if (!tab) {
     throw LogicError(__FILE__, __LINE__);
@@ -387,6 +405,36 @@ void Panel::removeVCut(std::shared_ptr<PI_VCut> vcut) {
     throw LogicError(__FILE__, __LINE__);
   }
   mVCuts.remove(vcut->getUuid());
+}
+
+Length Panel::getVCutBoundEdgePosition(PI_VCut::BoundEdge edge,
+                                       const Length& offset) const noexcept {
+  switch (edge) {
+    case PI_VCut::BoundEdge::PanelLeft:
+    case PI_VCut::BoundEdge::PanelBottom:
+      return offset;
+    case PI_VCut::BoundEdge::PanelRight:
+      return *mWidth - offset;
+    case PI_VCut::BoundEdge::PanelTop:
+      return *mHeight - offset;
+    default:
+      return Length(0);
+  }
+}
+
+Length Panel::getVCutBoundEdgeOffset(PI_VCut::BoundEdge edge,
+                                     const Length& position) const noexcept {
+  switch (edge) {
+    case PI_VCut::BoundEdge::PanelLeft:
+    case PI_VCut::BoundEdge::PanelBottom:
+      return position;
+    case PI_VCut::BoundEdge::PanelRight:
+      return *mWidth - position;
+    case PI_VCut::BoundEdge::PanelTop:
+      return *mHeight - position;
+    default:
+      return Length(0);
+  }
 }
 
 /*******************************************************************************

@@ -164,6 +164,18 @@ public:
     Point scenePos;  ///< Nearest edge point, in panel coordinates
     Angle direction;  ///< Edge normal pointing off the board, panel coords
     UnsignedLength distance;  ///< Distance from the queried position
+    /// Start of the straight outline segment #boardPos lies on, in the
+    /// board's own (untransformed) coordinates - added for
+    /// ::librepcb::PI_VCut board-edge binding
+    /// (claude/librepcb_panel_vcut_tool.md), which persists the segment
+    /// itself (not just the snapped point) so it survives board move/
+    /// rotate/flip. Existing callers (tab anchoring) can ignore this.
+    Point segStartLocal;
+    /// End of the segment, see #segStartLocal.
+    Point segEndLocal;
+    /// #direction, but in the board's own (untransformed) coordinates -
+    /// what ::librepcb::PI_VCut::setBoardBinding()'s `segNormal` expects.
+    Angle directionLocal;
   };
 
   /**
@@ -181,6 +193,39 @@ public:
    */
   std::optional<BoardEdgeHit> findNearestBoardEdge(
       const Point& scenePos) const noexcept;
+
+  /**
+   * @brief Find the nearest board outline segment parallel to a V-cut
+   *
+   * Used by the "Bind to Edge..." picker (::librepcb::editor::
+   * PanelEditorState_Select::candidateBindEdge(), see
+   * claude/librepcb_panel_vcut_tool.md) to find a *board* edge candidate
+   * alongside the panel-edge candidates it already checks.
+   *
+   * Unlike #findNearestBoardEdge(), a single "vertical/horizontal" filter
+   * can't just be forwarded to ::librepcb::BoardEdgeSnap::snap() once for
+   * every board, because that filter is in each board's own
+   * (untransformed) coordinates while @p vertical means "parallel to the
+   * panel's Y axis" - the two only agree for a board placed at a rotation
+   * that's a multiple of 90°, and axes swap at 90°/270°. So this loops
+   * over placed boards itself (like #findNearestBoardEdge() does
+   * internally), skips any board whose rotation isn't a multiple of 90°
+   * (its edges can never come out axis-aligned in panel coordinates,
+   * matching the "board rotated to a non-orthogonal angle" case in
+   * claude/librepcb_panel_vcut_tool.md), and derives the correct
+   * board-local filter value from each remaining board's rotation before
+   * calling ::librepcb::BoardEdgeSnap::snap().
+   *
+   * @param scenePos  Position to search near, in panel coordinates.
+   * @param vertical  `true` to look for a segment parallel to the panel's
+   *                  Y axis (for binding a vertical V-cut), `false` for
+   *                  the X axis (a horizontal V-cut).
+   *
+   * @return The nearest matching edge, or `std::nullopt` if no placed,
+   *         orthogonally-rotated board has one.
+   */
+  std::optional<BoardEdgeHit> findNearestBoardEdgeForVCut(
+      const Point& scenePos, bool vertical) const noexcept;
 
   // General Methods
   void selectAll() noexcept;
@@ -255,12 +300,23 @@ public:
   void setTabColors(const QColor& color, const QColor& selectedColor) noexcept;
 
   /**
-   * @brief Show or hide all tab markers (display toggle)
+   * @brief Set the alpha of the tabs' triangles
    *
-   * Applied to every current PGI_Tab item (see PGI_Tab::setMarkerShown())
-   * and remembered for tab items added later.
+   * @param alpha           Forwarded to `PGI_Tab::setTriangleAlpha()`.
+   * @param selectedAlpha   Forwarded to `PGI_Tab::setTriangleAlpha()`.
+   */
+  void setTabTriangleAlpha(int alpha, int selectedAlpha) noexcept;
+
+  /**
+   * @brief Show all tab markers, or the triangles instead (display
+   *        toggle)
    *
-   * @param visible   Whether tab markers should be shown.
+   * The markers and the triangles are mutually exclusive, both are the
+   * selectable tab. Applied to every current PGI_Tab item (see
+   * PGI_Tab::setMarkerShown()) and remembered for tab items added later.
+   *
+   * @param visible   Whether tab markers should be shown (true) or the
+   *                  triangles (false).
    */
   void setTabsVisible(bool visible) noexcept;
 
@@ -343,11 +399,12 @@ public:
    * later), which recalculates its planes with these holes (see
    * BoardProxy::setMouseBites()).
    *
-   * @param bites     Hole centers per board UUID, in board coordinates.
-   * @param diameter  Diameter of all holes.
+   * @param bites     Holes (center in board coordinates, diameter) per
+   *                  board UUID.
    */
-  void setMouseBites(const QHash<Uuid, QVector<Point>>& bites,
-                     const PositiveLength& diameter) noexcept;
+  void setMouseBites(
+      const QHash<Uuid, QVector<std::pair<Point, PositiveLength>>>&
+          bites) noexcept;
 
   /**
    * @brief Show the "phantom" tab marker at a board edge position
@@ -474,8 +531,8 @@ private:  // Data
   std::map<std::pair<Uuid, BoardProxy::Side>, std::unique_ptr<BoardProxy>>
       mBoardProxies;
   std::map<std::pair<Uuid, BoardProxy::Side>, int> mBoardProxyRefCounts;
-  QHash<Uuid, QVector<Point>> mMouseBites;  ///< See #setMouseBites()
-  PositiveLength mMouseBiteDiameter;  ///< See #setMouseBites()
+  QHash<Uuid, QVector<std::pair<Point, PositiveLength>>>
+      mMouseBites;  ///< See #setMouseBites()
   std::shared_ptr<PGI_Outline> mOutlineItem;
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
@@ -498,6 +555,8 @@ private:  // Data
   QColor mFiducialBotSelectedColor;
   QColor mTabColor;
   QColor mTabSelectedColor;
+  int mTabTriangleAlpha = 255;
+  int mTabTriangleSelectedAlpha = 255;
   bool mTabsVisible = true;  ///< See #setTabsVisible()
   bool mBoardOutlinesVisible = false;  ///< See #setBoardOutlinesVisible()
   QColor mVCutColor;
