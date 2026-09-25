@@ -29,7 +29,6 @@
 #include <QtCore>
 #include <QtWidgets>
 
-
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
@@ -77,8 +76,8 @@ void PGI_VCut::setColors(const QColor& color,
 
 void PGI_VCut::updateGeometry() noexcept {
   prepareGeometryChange();
-  mPathPx =
-      buildPathPx(mPanel, mVCut->isVertical(), mVCut->getPosition());
+  mPathPx = buildPathPx(mPanel, mVCut->isVertical(), mVCut->getPosition(),
+                        mVCut->isLocked(), mVCut->isBound());
 
   // The whole line is clickable, with a tolerance wider than the drawn
   // line so it's easy to hit.
@@ -87,6 +86,11 @@ void PGI_VCut::updateGeometry() noexcept {
   stroker.setCapStyle(Qt::RoundCap);
   stroker.setJoinStyle(Qt::RoundJoin);
   mShapePx = stroker.createStroke(mPathPx);
+
+  // The triangles of a locked V-cut are clickable inside as well.
+  if (mVCut->isLocked()) {
+    mShapePx.addPath(mPathPx);
+  }
   update();
 }
 
@@ -95,7 +99,8 @@ void PGI_VCut::updateGeometry() noexcept {
  ******************************************************************************/
 
 QPainterPath PGI_VCut::buildPathPx(const Panel& panel, bool vertical,
-                                   const Length& position) noexcept {
+                                   const Length& position, bool locked,
+                                   bool bound) noexcept {
   const Length margin = lineMargin();
   const Length arrowLength(1500000);  // 1.5 mm
   const Length arrowHalfWidth(1000000);  // 1.0 mm
@@ -119,11 +124,25 @@ QPainterPath PGI_VCut::buildPathPx(const Panel& panel, bool vertical,
   path.moveTo(toPx(start - arrowLength, v + arrowHalfWidth));
   path.lineTo(toPx(start, v));
   path.lineTo(toPx(start - arrowLength, v - arrowHalfWidth));
+  if (locked) path.closeSubpath();
 
   // Same at the other end, mirrored.
   path.moveTo(toPx(end + arrowLength, v + arrowHalfWidth));
   path.lineTo(toPx(end, v));
   path.lineTo(toPx(end + arrowLength, v - arrowHalfWidth));
+  if (locked) path.closeSubpath();
+
+  if (bound) {
+    // A short tick crossing the line just beyond each "v", perpendicular
+    // to it, half the arrow's half-width long on each side.
+    const Length tickHalfLength = arrowHalfWidth / 2;
+    const Length tickGap(300000);  // 0.3 mm beyond the "v" tip
+    for (const Length& tip : {start - arrowLength - tickGap,
+                              end + arrowLength + tickGap}) {
+      path.moveTo(toPx(tip, v - tickHalfLength));
+      path.lineTo(toPx(tip, v + tickHalfLength));
+    }
+  }
   return path;
 }
 
@@ -145,7 +164,10 @@ void PGI_VCut::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
   const bool selected = option && (option->state & QStyle::State_Selected);
   painter->setPen(QPen(selected ? mSelectedColor : mColor, lineWidth().toPx(),
                        Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  painter->setBrush(Qt::NoBrush);
+  // Locked: the closed "v"s are filled, so they're solid triangles.
+  const QColor fillColor = selected ? mSelectedColor : mColor;
+  painter->setBrush(mVCut->isLocked() ? QBrush(fillColor)
+                                      : QBrush(Qt::NoBrush));
   painter->drawPath(mPathPx);
 }
 
@@ -158,6 +180,8 @@ void PGI_VCut::vCutEdited(const PI_VCut& obj, PI_VCut::Event event) noexcept {
   switch (event) {
     case PI_VCut::Event::PositionChanged:
     case PI_VCut::Event::OrientationChanged:
+    case PI_VCut::Event::LockedChanged:
+    case PI_VCut::Event::BindingChanged:
       updateGeometry();
       break;
     default:

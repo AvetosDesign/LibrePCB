@@ -26,12 +26,15 @@
  *  Includes
  ******************************************************************************/
 #include "../../../serialization/serializableobjectlist.h"
+#include "../../../types/angle.h"
 #include "../../../types/length.h"
 #include "../../../types/point.h"
 #include "../../../types/uuid.h"
 #include "../../../utils/signalslot.h"
 
 #include <QtCore>
+
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -69,9 +72,28 @@ public:
     OrientationChanged,
     PositionChanged,
     LockedChanged,
+    BindingChanged,
   };
   Signal<PI_VCut, Event> onEdited;
   typedef Slot<PI_VCut, Event> OnEditedSlot;
+
+  /**
+   * @brief What a V-cut can be bound to
+   *
+   * A bound V-cut follows its bound edge (plus #getOffset()) instead of
+   * an absolute stored position - see #getBoundEdge(). #Board means a
+   * specific outline segment of a placed ::librepcb::PI_BoardInstance -
+   * see #getBoundBoardInstance()/#getBoundSegmentStart()/
+   * #getBoundSegmentEnd().
+   */
+  enum class BoundEdge {
+    None,
+    PanelLeft,
+    PanelRight,
+    PanelTop,
+    PanelBottom,
+    Board,
+  };
 
   // Constructors / Destructor
   PI_VCut() = delete;
@@ -115,10 +137,125 @@ public:
     return mVertical ? point.getX() : point.getY();
   }
 
+  /**
+   * @brief Get the edge this V-cut is bound to, if any
+   *
+   * @return #BoundEdge::None if not bound.
+   */
+  BoundEdge getBoundEdge() const noexcept { return mBoundEdge; }
+
+  bool isBound() const noexcept { return mBoundEdge != BoundEdge::None; }
+
+  /**
+   * @brief Get the V-cut's signed offset from its bound edge
+   *
+   * Only meaningful if #isBound(). Measured from the edge into the panel,
+   * i.e. how far the V-cut sits inside the panel from that edge (a
+   * negative offset would put it outside the panel). For #BoundEdge::Board
+   * this is the offset from the bound segment, in the same "into the
+   * panel" sense (away from the board's outward edge normal at that
+   * segment).
+   */
+  const Length& getOffset() const noexcept { return mOffset; }
+
+  /**
+   * @brief Get the bound ::librepcb::PI_BoardInstance's uuid
+   *
+   * Only meaningful if `getBoundEdge() == BoundEdge::Board`.
+   */
+  const std::optional<Uuid>& getBoundBoardInstance() const noexcept {
+    return mBoundBoard;
+  }
+
+  /**
+   * @brief Get the start of the bound outline segment, in the referenced
+   *        board's own (untransformed) coordinate system
+   *
+   * Only meaningful if `getBoundEdge() == BoundEdge::Board`. Together with
+   * #getBoundSegmentEnd(), identifies a specific straight segment of the
+   * board's outline (not a side name), so edges inside notches can be
+   * bound too, and the binding survives board rotation/flip - the caller
+   * re-derives this V-cut's position by transforming these two points
+   * through the board instance's current placement. No attempt is made
+   * here to re-validate the segment still exists in the board's current
+   * outline (e.g. after the board design itself was edited) - see
+   * claude/librepcb_panel_vcut_tool.md's open questions.
+   */
+  const Point& getBoundSegmentStart() const noexcept {
+    return mBoundSegStart;
+  }
+
+  /// @see #getBoundSegmentStart()
+  const Point& getBoundSegmentEnd() const noexcept { return mBoundSegEnd; }
+
+  /**
+   * @brief Get the bound segment's outward normal direction
+   *
+   * Board coordinates, same convention as ::librepcb::BoardEdgeSnap::
+   * Result::direction (points away from the board material). Only
+   * meaningful if `getBoundEdge() == BoundEdge::Board`. This is what
+   * #getOffset()'s sign is relative to: the caller transforms this angle
+   * through the board instance's current placement
+   * (::librepcb::Transform::mapNonMirrorable(), matching
+   * ::librepcb::editor::PanelGraphicsScene::findNearestBoardEdge()'s
+   * existing convention for the same field) to figure out, after a
+   * rotation or flip, which panel axis and sign a positive offset now
+   * means - without this, the offset's meaning couldn't survive a
+   * board flip or a non-multiple-of-90° external rotation check.
+   */
+  const Angle& getBoundSegmentNormal() const noexcept {
+    return mBoundSegNormal;
+  }
+
+  /**
+   * @brief Get a human-readable label for a #BoundEdge, for the info box
+   *
+   * For #BoundEdge::Board, returns just "Board edge" - naming the specific
+   * board isn't implemented yet (open question in
+   * claude/librepcb_panel_vcut_tool.md).
+   */
+  static QString getBoundEdgeLabel(BoundEdge edge) noexcept;
+
   // Setters
   void setVertical(bool vertical) noexcept;
   void setPosition(const Length& position) noexcept;
   void setLocked(bool locked) noexcept;
+
+  /**
+   * @brief Bind this V-cut to a panel edge, or clear its binding
+   *
+   * @param edge      #BoundEdge::None clears the binding (@p offset is
+   *                  then ignored, stored as zero) and also clears any
+   *                  board binding. Passing #BoundEdge::Board here is not
+   *                  supported - use #setBoardBinding() instead.
+   * @param offset    Signed offset from the edge, see #getOffset(). Not
+   *                  validated against the V-cut's orientation here - the
+   *                  caller is responsible for only binding a vertical
+   *                  V-cut to a left/right edge and a horizontal one to a
+   *                  top/bottom edge.
+   */
+  void setBinding(BoundEdge edge, const Length& offset) noexcept;
+
+  /**
+   * @brief Bind this V-cut to a specific outline segment of a placed board
+   *
+   * Sets `getBoundEdge() == BoundEdge::Board`. Not validated against the
+   * V-cut's orientation or the segment's current transformed direction
+   * here - the caller (which has access to the placed board's outline and
+   * placement, unlike this core-layer class) is responsible for that, and
+   * for re-deriving #getPosition()/#isVertical() from the transformed
+   * segment whenever the board instance moves/rotates/flips.
+   *
+   * @param boardInstance  Uuid of the ::librepcb::PI_BoardInstance (the
+   *                       placement, not the referenced board design).
+   * @param segStart       @see #getBoundSegmentStart()
+   * @param segEnd         @see #getBoundSegmentEnd()
+   * @param segNormal      @see #getBoundSegmentNormal()
+   * @param offset         @see #getOffset()
+   */
+  void setBoardBinding(const Uuid& boardInstance, const Point& segStart,
+                       const Point& segEnd, const Angle& segNormal,
+                       const Length& offset) noexcept;
 
   /**
    * @brief Serialize into ::librepcb::SExpression node
@@ -139,6 +276,16 @@ private:  // Data
   bool mVertical;
   Length mPosition;
   bool mLocked;
+  BoundEdge mBoundEdge;  ///< #BoundEdge::None if not bound
+  Length mOffset;  ///< Only meaningful if #isBound()
+  /// Only meaningful if `mBoundEdge == BoundEdge::Board`.
+  std::optional<Uuid> mBoundBoard;
+  /// Only meaningful if `mBoundEdge == BoundEdge::Board`.
+  Point mBoundSegStart;
+  /// Only meaningful if `mBoundEdge == BoundEdge::Board`.
+  Point mBoundSegEnd;
+  /// Only meaningful if `mBoundEdge == BoundEdge::Board`.
+  Angle mBoundSegNormal;
 };
 
 /*******************************************************************************

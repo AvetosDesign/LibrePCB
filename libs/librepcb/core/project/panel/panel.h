@@ -263,6 +263,38 @@ public:
   PositiveLength getEffectiveTabWidth(const PI_Tab& tab) const noexcept;
 
   /**
+   * @brief Get whether a tab gets mouse bites
+   *
+   * @param tab   A tab of this panel.
+   *
+   * @return The tab's inclusion override if it has one, otherwise
+   *         #getDefaultMouseBitesEnabled().
+   */
+  bool getEffectiveMouseBitesEnabled(const PI_Tab& tab) const noexcept;
+
+  /**
+   * @brief Get the effective mouse bite hole diameter of a tab
+   *
+   * @param tab   A tab of this panel.
+   *
+   * @return The tab's diameter override if it has one, otherwise
+   *         #getDefaultMouseBiteDiameter().
+   */
+  PositiveLength getEffectiveMouseBiteDiameter(
+      const PI_Tab& tab) const noexcept;
+
+  /**
+   * @brief Get the effective mouse bite hole spacing of a tab
+   *
+   * @param tab   A tab of this panel.
+   *
+   * @return The tab's spacing override if it has one, otherwise
+   *         #getDefaultMouseBiteSpacing().
+   */
+  PositiveLength getEffectiveMouseBiteSpacing(
+      const PI_Tab& tab) const noexcept;
+
+  /**
    * @brief Check whether tabs get mouse bites by default
    *
    * Panel-wide default for whether mouse bite holes are generated along a
@@ -484,6 +516,32 @@ public:
   }
   void addVCut(std::shared_ptr<PI_VCut> vcut);
   void removeVCut(std::shared_ptr<PI_VCut> vcut);
+
+  /**
+   * @brief Get the position a V-cut bound to a panel edge would have
+   *
+   * @param edge      The bound edge (#PI_VCut::BoundEdge::None yields 0).
+   * @param offset    Signed offset from that edge, see
+   *                  ::librepcb::PI_VCut::getOffset().
+   *
+   * @return The corresponding #PI_VCut::getPosition() value.
+   */
+  Length getVCutBoundEdgePosition(PI_VCut::BoundEdge edge,
+                                  const Length& offset) const noexcept;
+
+  /**
+   * @brief Get the offset a V-cut bound to a panel edge would have at a
+   *        given position
+   *
+   * The inverse of #getVCutBoundEdgePosition().
+   *
+   * @param edge      The bound edge (#PI_VCut::BoundEdge::None yields 0).
+   * @param position  A #PI_VCut::getPosition() value.
+   *
+   * @return The corresponding offset.
+   */
+  Length getVCutBoundEdgeOffset(PI_VCut::BoundEdge edge,
+                                const Length& position) const noexcept;
 
   /**
    * @brief Get the UUIDs of all distinct board designs referenced by this

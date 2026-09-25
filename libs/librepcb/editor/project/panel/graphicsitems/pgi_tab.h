@@ -120,6 +120,31 @@ public:
   static QPainterPath markerShapePx() noexcept;
 
   /**
+   * @brief Get the shape of the triangle shown instead of the marker
+   *
+   * An isosceles triangle with a 1.5 mm wide base parallel to the board
+   * edge, 0.5 mm outside of it, and its apex 1 mm further out (on the
+   * arrow's axis), in item-local pixel coordinates.
+   */
+  static QPainterPath triangleShapePx() noexcept;
+
+  /**
+   * @brief Get the (larger) clickable area of the triangle
+   */
+  static QPainterPath triangleHitShapePx() noexcept;
+
+  /**
+   * @brief Set the alpha of the triangle
+   *
+   * The triangle uses the marker colors (#setColors()), but with the alpha
+   * of a placed part's origin cross.
+   *
+   * @param alpha           Alpha (0-255) when not selected.
+   * @param selectedAlpha   Alpha (0-255) when selected.
+   */
+  void setTriangleAlpha(int alpha, int selectedAlpha) noexcept;
+
+  /**
    * @brief Set the marker colors, following the active color scheme
    *
    * @param color          ::librepcb::ColorRole::boardOutlines()'s primary
@@ -141,14 +166,14 @@ public:
   void updateGeometry() noexcept;
 
   /**
-   * @brief Show or hide the marker (display toggle)
+   * @brief Show the marker or the triangle (display toggle)
    *
-   * Independent of whether the marker *can* be shown at all (see
-   * #updateGeometry()): the item is visible only if both allow it. Hiding
-   * also deselects the marker, so hidden markers can't be deleted or
-   * dragged by accident.
+   * The two are mutually exclusive: the item is always visible (unless
+   * #updateGeometry() hides it), either as the marker (dot and arrow) or,
+   * when the marker is not shown, as a small triangle. Both are the
+   * same selectable item, so clicking either does the same.
    *
-   * @param shown   Whether the marker should be shown.
+   * @param shown   Whether to show the marker (true) or the triangle (false).
    */
   void setMarkerShown(bool shown) noexcept;
 
@@ -184,10 +209,12 @@ private:  // Data
 
   QPainterPath mShapePx;
   std::optional<Point> mScenePos;  ///< See #getScenePosition()
-  bool mShown;  ///< See #setMarkerShown()
+  bool mMarkerShown;  ///< See #setMarkerShown()
   bool mHighlighted;  ///< See #setHighlighted()
   QColor mColor;
   QColor mSelectedColor;
+  int mTriangleAlpha;  ///< See #setTriangleAlpha()
+  int mTriangleSelectedAlpha;
 
   // Slots
   PI_Tab::OnEditedSlot mOnTabEditedSlot;

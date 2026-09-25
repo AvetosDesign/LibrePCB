@@ -46,7 +46,19 @@ CmdPanelVCutEdit::CmdPanelVCutEdit(PI_VCut& vcut) noexcept
     mOldPos(mVCut.getPosition()),
     mNewPos(mOldPos),
     mOldLocked(mVCut.isLocked()),
-    mNewLocked(mOldLocked) {
+    mNewLocked(mOldLocked),
+    mOldBoundEdge(mVCut.getBoundEdge()),
+    mNewBoundEdge(mOldBoundEdge),
+    mOldOffset(mVCut.getOffset()),
+    mNewOffset(mOldOffset),
+    mOldBoundBoard(mVCut.getBoundBoardInstance()),
+    mNewBoundBoard(mOldBoundBoard),
+    mOldBoundSegStart(mVCut.getBoundSegmentStart()),
+    mNewBoundSegStart(mOldBoundSegStart),
+    mOldBoundSegEnd(mVCut.getBoundSegmentEnd()),
+    mNewBoundSegEnd(mOldBoundSegEnd),
+    mOldBoundSegNormal(mVCut.getBoundSegmentNormal()),
+    mNewBoundSegNormal(mOldBoundSegNormal) {
 }
 
 CmdPanelVCutEdit::~CmdPanelVCutEdit() noexcept {
@@ -54,6 +66,13 @@ CmdPanelVCutEdit::~CmdPanelVCutEdit() noexcept {
     mVCut.setVertical(mOldVertical);
     mVCut.setPosition(mOldPos);
     mVCut.setLocked(mOldLocked);
+    if (mOldBoundEdge == PI_VCut::BoundEdge::Board) {
+      Q_ASSERT(mOldBoundBoard);
+      mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart,
+                            mOldBoundSegEnd, mOldBoundSegNormal, mOldOffset);
+    } else {
+      mVCut.setBinding(mOldBoundEdge, mOldOffset);
+    }
   }
 }
 
@@ -109,6 +128,38 @@ void CmdPanelVCutEdit::setLocked(bool locked, bool immediate) noexcept {
   if (immediate) mVCut.setLocked(mNewLocked);
 }
 
+void CmdPanelVCutEdit::setBinding(PI_VCut::BoundEdge edge,
+                                  const Length& offset,
+                                  bool immediate) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  Q_ASSERT(edge != PI_VCut::BoundEdge::Board);  // Use setBoardBinding().
+  mNewBoundEdge = edge;
+  mNewOffset = (edge == PI_VCut::BoundEdge::None) ? Length(0) : offset;
+  mNewBoundBoard = std::nullopt;
+  mNewBoundSegStart = Point();
+  mNewBoundSegEnd = Point();
+  mNewBoundSegNormal = Angle(0);
+  if (immediate) mVCut.setBinding(mNewBoundEdge, mNewOffset);
+}
+
+void CmdPanelVCutEdit::setBoardBinding(const Uuid& boardInstance,
+                                       const Point& segStart,
+                                       const Point& segEnd,
+                                       const Angle& segNormal,
+                                       const Length& offset,
+                                       bool immediate) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mNewBoundEdge = PI_VCut::BoundEdge::Board;
+  mNewBoundBoard = boardInstance;
+  mNewBoundSegStart = segStart;
+  mNewBoundSegEnd = segEnd;
+  mNewBoundSegNormal = segNormal;
+  mNewOffset = offset;
+  if (immediate) {
+    mVCut.setBoardBinding(boardInstance, segStart, segEnd, segNormal, offset);
+  }
+}
+
 /*******************************************************************************
  *  Inherited from UndoCommand
  ******************************************************************************/
@@ -117,19 +168,37 @@ bool CmdPanelVCutEdit::performExecute() {
   performRedo();  // can throw
 
   return (mNewVertical != mOldVertical) || (mNewPos != mOldPos) ||
-      (mNewLocked != mOldLocked);
+      (mNewLocked != mOldLocked) || (mNewBoundEdge != mOldBoundEdge) ||
+      (mNewOffset != mOldOffset) || (mNewBoundBoard != mOldBoundBoard) ||
+      (mNewBoundSegStart != mOldBoundSegStart) ||
+      (mNewBoundSegEnd != mOldBoundSegEnd) ||
+      (mNewBoundSegNormal != mOldBoundSegNormal);
 }
 
 void CmdPanelVCutEdit::performUndo() {
   mVCut.setVertical(mOldVertical);
   mVCut.setPosition(mOldPos);
   mVCut.setLocked(mOldLocked);
+  if (mOldBoundEdge == PI_VCut::BoundEdge::Board) {
+    Q_ASSERT(mOldBoundBoard);
+    mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart,
+                          mOldBoundSegEnd, mOldBoundSegNormal, mOldOffset);
+  } else {
+    mVCut.setBinding(mOldBoundEdge, mOldOffset);
+  }
 }
 
 void CmdPanelVCutEdit::performRedo() {
   mVCut.setVertical(mNewVertical);
   mVCut.setPosition(mNewPos);
   mVCut.setLocked(mNewLocked);
+  if (mNewBoundEdge == PI_VCut::BoundEdge::Board) {
+    Q_ASSERT(mNewBoundBoard);
+    mVCut.setBoardBinding(*mNewBoundBoard, mNewBoundSegStart,
+                          mNewBoundSegEnd, mNewBoundSegNormal, mNewOffset);
+  } else {
+    mVCut.setBinding(mNewBoundEdge, mNewOffset);
+  }
 }
 
 /*******************************************************************************

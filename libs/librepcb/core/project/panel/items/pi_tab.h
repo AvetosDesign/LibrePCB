@@ -33,6 +33,8 @@
 
 #include <QtCore>
 
+#include <optional>
+
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
@@ -76,8 +78,10 @@ class SExpression;
  *
  * The tab width is a per-tab override (#getWidth()) of the panel-wide
  * default (::librepcb::Panel::getDefaultTabWidth()): a width of zero means
- * "no override, use the panel default". Mouse bite parameters (see the
- * design decisions doc) are not part of this slice yet.
+ * "no override, use the panel default". The mouse bites of a tab follow
+ * the same scheme: inclusion (#getMouseBites(), unset = panel default),
+ * hole diameter and hole spacing (zero = panel default) can each be
+ * overridden per tab.
  */
 class PI_Tab final {
   Q_DECLARE_TR_FUNCTIONS(PI_Tab)
@@ -88,6 +92,7 @@ public:
     BoardChanged,
     PositionChanged,
     WidthChanged,
+    MouseBitesChanged,
   };
   Signal<PI_Tab, Event> onEdited;
   typedef Slot<PI_Tab, Event> OnEditedSlot;
@@ -97,7 +102,10 @@ public:
   PI_Tab(const PI_Tab& other) noexcept;
   explicit PI_Tab(const SExpression& node);
   PI_Tab(const Uuid& uuid, const Uuid& board, const Point& position,
-         const UnsignedLength& width = UnsignedLength(0)) noexcept;
+         const UnsignedLength& width = UnsignedLength(0),
+         const std::optional<bool>& mouseBites = std::nullopt,
+         const UnsignedLength& mouseBiteDiameter = UnsignedLength(0),
+         const UnsignedLength& mouseBiteSpacing = UnsignedLength(0)) noexcept;
   ~PI_Tab() noexcept;
 
   // Getters
@@ -139,10 +147,56 @@ public:
    */
   bool hasWidthOverride() const noexcept { return mWidth->toNm() > 0; }
 
+  /**
+   * @brief Get the mouse bite inclusion override
+   *
+   * @return Whether this tab gets mouse bites, or `std::nullopt` if it has
+   *         no override and follows the panel default
+   *         (::librepcb::Panel::getDefaultMouseBitesEnabled()).
+   */
+  const std::optional<bool>& getMouseBites() const noexcept {
+    return mMouseBites;
+  }
+
+  /**
+   * @brief Get the mouse bite hole diameter override
+   *
+   * @return The hole diameter of this tab, or zero if this tab has no
+   *         override and uses the panel default
+   *         (::librepcb::Panel::getDefaultMouseBiteDiameter()).
+   */
+  const UnsignedLength& getMouseBiteDiameter() const noexcept {
+    return mMouseBiteDiameter;
+  }
+
+  /**
+   * @brief Get the mouse bite hole spacing override
+   *
+   * @return The center-to-center hole spacing of this tab, or zero if this
+   *         tab has no override and uses the panel default
+   *         (::librepcb::Panel::getDefaultMouseBiteSpacing()).
+   */
+  const UnsignedLength& getMouseBiteSpacing() const noexcept {
+    return mMouseBiteSpacing;
+  }
+
+  /// Whether the mouse bite hole diameter is overridden (non-zero).
+  bool hasMouseBiteDiameterOverride() const noexcept {
+    return mMouseBiteDiameter->toNm() > 0;
+  }
+
+  /// Whether the mouse bite hole spacing is overridden (non-zero).
+  bool hasMouseBiteSpacingOverride() const noexcept {
+    return mMouseBiteSpacing->toNm() > 0;
+  }
+
   // Setters
   void setBoard(const Uuid& board) noexcept;
   void setPosition(const Point& position) noexcept;
   void setWidth(const UnsignedLength& width) noexcept;
+  void setMouseBites(const std::optional<bool>& enabled) noexcept;
+  void setMouseBiteDiameter(const UnsignedLength& diameter) noexcept;
+  void setMouseBiteSpacing(const UnsignedLength& spacing) noexcept;
 
   /**
    * @brief Serialize into ::librepcb::SExpression node
@@ -161,6 +215,9 @@ private:  // Data
   Uuid mBoard;
   Point mPosition;
   UnsignedLength mWidth;  ///< Zero = use the panel default, see #getWidth()
+  std::optional<bool> mMouseBites;  ///< nullopt = use the panel default
+  UnsignedLength mMouseBiteDiameter;  ///< Zero = use the panel default
+  UnsignedLength mMouseBiteSpacing;  ///< Zero = use the panel default
 };
 
 /*******************************************************************************

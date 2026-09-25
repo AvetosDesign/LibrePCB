@@ -49,12 +49,14 @@ PGI_Tab::PGI_Tab(std::shared_ptr<PI_Tab> tab,
     mTab(tab),
     mBoardInstance(boardInstance),
     mProject(project),
-    mShown(true),
+    mMarkerShown(true),
     mHighlighted(false),
     // Placeholder until PanelTab::applyWorkspaceSettings() calls
     // #setColors() with the active color scheme's real colors.
     mColor(Qt::gray),
     mSelectedColor(Qt::gray),
+    mTriangleAlpha(255),
+    mTriangleSelectedAlpha(255),
     mOnTabEditedSlot(*this, &PGI_Tab::tabEdited),
     mOnBoardInstanceEditedSlot(*this, &PGI_Tab::boardInstanceEdited) {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -100,11 +102,43 @@ QPainterPath PGI_Tab::markerShapePx() noexcept {
   return dot.united(shaft).united(head);
 }
 
+QPainterPath PGI_Tab::triangleShapePx() noexcept {
+  // An isosceles triangle: the base (1.5 mm wide) is parallel to the board
+  // edge and 0.5 mm outside of it, the apex (1 mm from the base) points
+  // away from the board, like the marker's arrow.
+  const qreal baseX = Length::fromMm(0.5).toPx();
+  const qreal halfBase = Length::fromMm(0.75).toPx();
+  const qreal height = Length::fromMm(1.0).toPx();
+  QPainterPath triangle;
+  triangle.addPolygon(QPolygonF({QPointF(baseX, -halfBase),
+                                 QPointF(baseX, halfBase),
+                                 QPointF(baseX + height, 0)}));
+  triangle.closeSubpath();
+  return triangle;
+}
+
+QPainterPath PGI_Tab::triangleHitShapePx() noexcept {
+  // Somewhat larger than the drawn triangle, so it's easy to click.
+  const qreal center = Length::fromMm(1.0).toPx();
+  const qreal radius = Length::fromMm(1.0).toPx();
+  QPainterPath path;
+  path.addEllipse(QPointF(center, 0), radius, radius);
+  return path;
+}
+
 void PGI_Tab::setColors(const QColor& color,
                         const QColor& selectedColor) noexcept {
   if ((color != mColor) || (selectedColor != mSelectedColor)) {
     mColor = color;
     mSelectedColor = selectedColor;
+    update();
+  }
+}
+
+void PGI_Tab::setTriangleAlpha(int alpha, int selectedAlpha) noexcept {
+  if ((alpha != mTriangleAlpha) || (selectedAlpha != mTriangleSelectedAlpha)) {
+    mTriangleAlpha = alpha;
+    mTriangleSelectedAlpha = selectedAlpha;
     update();
   }
 }
@@ -134,16 +168,15 @@ void PGI_Tab::updateGeometry() noexcept {
   QTransform t;
   t.rotate(-direction.toDeg());
   setTransform(t);
-  setVisible(mShown);
+  setVisible(true);
 }
 
 void PGI_Tab::setMarkerShown(bool shown) noexcept {
-  if (shown != mShown) {
-    mShown = shown;
-    if (!mShown) {
-      setSelected(false);
-    }
-    setVisible(mShown && mScenePos.has_value());
+  if (shown != mMarkerShown) {
+    prepareGeometryChange();
+    mMarkerShown = shown;
+    mShapePx = mMarkerShown ? markerShapePx() : triangleShapePx();
+    update();
   }
 }
 
@@ -159,11 +192,11 @@ void PGI_Tab::setHighlighted(bool highlighted) noexcept {
  ******************************************************************************/
 
 QRectF PGI_Tab::boundingRect() const noexcept {
-  return mShapePx.boundingRect();
+  return shape().boundingRect();
 }
 
 QPainterPath PGI_Tab::shape() const noexcept {
-  return mShapePx;
+  return mMarkerShown ? mShapePx : triangleHitShapePx();
 }
 
 void PGI_Tab::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
@@ -171,8 +204,13 @@ void PGI_Tab::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
   Q_UNUSED(widget);
   const bool selected =
       mHighlighted || (option && (option->state & QStyle::State_Selected));
+  QColor color = selected ? mSelectedColor : mColor;
+  if (!mMarkerShown) {
+    // The triangle has the alpha of a placed part's origin cross.
+    color.setAlpha(selected ? mTriangleSelectedAlpha : mTriangleAlpha);
+  }
   painter->setPen(Qt::NoPen);
-  painter->setBrush(QBrush(selected ? mSelectedColor : mColor));
+  painter->setBrush(QBrush(color));
   painter->drawPath(mShapePx);
 }
 

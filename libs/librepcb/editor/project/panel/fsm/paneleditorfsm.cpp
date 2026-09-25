@@ -162,6 +162,15 @@ bool PanelEditorFsm::processRemove() noexcept {
   return false;
 }
 
+bool PanelEditorFsm::processEditProperties() noexcept {
+  if (PanelEditorState* state = getCurrentStateObj()) {
+    if (state->processEditProperties()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool PanelEditorFsm::processSetLocked(bool locked) noexcept {
   if (PanelEditorState* state = getCurrentStateObj()) {
     if (state->processSetLocked(locked)) {

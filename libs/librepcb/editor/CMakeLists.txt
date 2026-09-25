@@ -837,6 +837,9 @@ add_library(
   project/panel/panelsetupdialog.ui
   project/panel/paneltab.cpp
   project/panel/paneltab.h
+  project/panel/tabpropertiesdialog.cpp
+  project/panel/tabpropertiesdialog.h
+  project/panel/tabpropertiesdialog.ui
   project/outputjobsdialog/archiveoutputjobwidget.cpp
   project/outputjobsdialog/archiveoutputjobwidget.h
   project/outputjobsdialog/archiveoutputjobwidget.ui
