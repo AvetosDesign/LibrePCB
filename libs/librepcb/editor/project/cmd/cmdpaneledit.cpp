@@ -215,16 +215,49 @@ void CmdPanelEdit::performRedo() {
 void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,
                                       const PositiveLength& height) noexcept {
   for (const auto& entry : mVCutOldPositions) {
-    const Length& oldPos = entry.second;
-    const bool vertical = entry.first->isVertical();
-    // Old/new extent across the V-cut: width for a vertical V-cut (X
-    // position), height for a horizontal one (Y position).
-    const Length oldExtent = vertical ? *mOldWidth : *mOldHeight;
-    const Length newExtent = vertical ? *width : *height;
-    const bool nearerToFarEdge = (oldPos * 2) > oldExtent;
-    entry.first->setPosition(nearerToFarEdge
-                                 ? (oldPos + (newExtent - oldExtent))
-                                 : oldPos);
+    const PI_VCut::BoundEdge edge = entry.first->getBoundEdge();
+    if ((edge == PI_VCut::BoundEdge::None) ||
+        (edge == PI_VCut::BoundEdge::Board)) {
+      // An unbound V-cut, or one bound to a *board* edge, doesn't move on
+      // a panel resize at all - a board-bound V-cut instead follows its
+      // board (see PanelEditorState_Select::followBoardBoundVCuts()/
+      // updateDragFollowerVCuts()), never the panel outline. This
+      // replaces the old "nearest edge" pairing - see
+      // claude/librepcb_panel_vcut_tool.md.
+      //
+      // BUG FIX (Sean, 2026-09-24): board-bound V-cuts used to fall
+      // through into the switch below (added for slice 2, before board
+      // binding existed) and hit its `default: break;`, leaving `pos` at
+      // its default-constructed Length(0) and then calling
+      // setPosition(0) unconditionally - collapsing every board-bound
+      // V-cut onto the panel origin (vertical ones to X=0, horizontal
+      // ones to Y=0) on every panel resize, including on undo/revert
+      // (performUndo()/the destructor's revert path both call this same
+      // function with the pre-resize width/height, which triggered the
+      // identical bug rather than restoring the V-cut's position).
+      entry.first->setPosition(entry.second);
+      continue;
+    }
+    // A panel-edge-bound V-cut follows its edge at the given (new or
+    // reverted) size, keeping its offset - regardless of orientation,
+    // since the edge already implies it.
+    const Length& offset = entry.first->getOffset();
+    Length pos(0);
+    switch (edge) {
+      case PI_VCut::BoundEdge::PanelLeft:
+      case PI_VCut::BoundEdge::PanelBottom:
+        pos = offset;
+        break;
+      case PI_VCut::BoundEdge::PanelRight:
+        pos = *width - offset;
+        break;
+      case PI_VCut::BoundEdge::PanelTop:
+        pos = *height - offset;
+        break;
+      default:
+        break;
+    }
+    entry.first->setPosition(pos);
   }
 }
 

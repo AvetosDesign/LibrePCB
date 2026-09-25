@@ -60,12 +60,11 @@ namespace editor {
  * is executed on the undo stack), the destructor reverts them back to their 
  * original values if the command is destroyed without having been executed.
  *
- * Changing the width or height also moves the panel's V-cuts
- * (::librepcb::PI_VCut) that are nearer to the right resp. top edge by the
- * same amount, so every V-cut keeps its distance to its nearest edge (the
- * left and bottom edges are fixed at 0, so V-cuts nearer to those never
- * move). "Nearest" is determined from the original size. These V-cut moves
- * are applied, undone and reverted together with the size.
+ * Changing the width or height also updates any V-cut
+ * (::librepcb::PI_VCut) that is bound to a panel edge
+ * (::librepcb::PI_VCut::isBound()), keeping it at its stored offset from
+ * that edge. An unbound V-cut doesn't move at all. These V-cut position
+ * changes are applied, undone and reverted together with the size.
  */
 class CmdPanelEdit final : public UndoCommand {
 public:

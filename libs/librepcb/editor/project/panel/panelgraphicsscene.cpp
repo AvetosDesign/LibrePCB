@@ -61,7 +61,6 @@ PanelGraphicsScene::PanelGraphicsScene(
     mBoardProxies(),
     mBoardProxyRefCounts(),
     mMouseBites(),
-    mMouseBiteDiameter(1000000),
     mVCutLayer(layers.get(ColorRole::boardDocumentation())),
     mOnVCutLayerEditedSlot(*this, &PanelGraphicsScene::vCutLayerEdited),
     mOnTabListEditedSlot(*this, &PanelGraphicsScene::tabListEdited),
@@ -258,7 +257,56 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
                           snap->position,
                           transform.map(snap->position),
                           transform.mapNonMirrorable(snap->direction),
-                          snap->distance};
+                          snap->distance,
+                          snap->segStart,
+                          snap->segEnd,
+                          snap->direction};
+    }
+  }
+  return best;
+}
+
+std::optional<PanelGraphicsScene::BoardEdgeHit>
+    PanelGraphicsScene::findNearestBoardEdgeForVCut(
+        const Point& scenePos, bool vertical) const noexcept {
+  std::optional<BoardEdgeHit> best;
+  for (const PI_BoardInstance& instance : mPanel.getBoardInstances()) {
+    // Only a placement rotated by a multiple of 90° can have an
+    // axis-aligned edge in panel coordinates at all - see this method's
+    // doc comment.
+    const Angle rot = instance.getRotation().mappedTo0_360deg();
+    const bool orthogonal = (rot == Angle::deg0()) || (rot == Angle::deg90()) ||
+        (rot == Angle::deg180()) || (rot == Angle::deg270());
+    if (!orthogonal) continue;
+    const bool swapped = (rot == Angle::deg90()) || (rot == Angle::deg270());
+    // A horizontal flip doesn't swap which local axis is constant along
+    // an edge (it only negates X), only a 90°/270° rotation does.
+    const bool localVertical = (vertical != swapped);
+
+    const Board* board = mProject.getBoardByUuid(instance.getBoard());
+    if (!board) continue;
+    const std::optional<QVector<Path>> outlines = board->calculateOutlinePath();
+    if (!outlines) continue;
+
+    Point boardPos = (scenePos - instance.getPosition())
+                         .rotated(-instance.getRotation());
+    if (instance.getFlipped()) {
+      boardPos.mirror(Qt::Horizontal);
+    }
+
+    const std::optional<BoardEdgeSnap::Result> snap =
+        BoardEdgeSnap::snap(*outlines, boardPos, localVertical);
+    if (snap && ((!best) || (snap->distance < best->distance))) {
+      const Transform transform(instance.getPosition(), instance.getRotation(),
+                                instance.getFlipped());
+      best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
+                          snap->position,
+                          transform.map(snap->position),
+                          transform.mapNonMirrorable(snap->direction),
+                          snap->distance,
+                          snap->segStart,
+                          snap->segEnd,
+                          snap->direction};
     }
   }
   return best;
@@ -298,6 +346,17 @@ void PanelGraphicsScene::setFiducialColors(
     if (item) {
       item->setColors(mFiducialTopColor, mFiducialTopSelectedColor,
                       mFiducialBotColor, mFiducialBotSelectedColor);
+    }
+  }
+}
+
+void PanelGraphicsScene::setTabTriangleAlpha(int alpha,
+                                             int selectedAlpha) noexcept {
+  mTabTriangleAlpha = alpha;
+  mTabTriangleSelectedAlpha = selectedAlpha;
+  foreach (const auto& item, mTabItems) {
+    if (item) {
+      item->setTriangleAlpha(mTabTriangleAlpha, mTabTriangleSelectedAlpha);
     }
   }
 }
@@ -380,13 +439,12 @@ void PanelGraphicsScene::setOutlinePreview(
   if (mOutlineItem) mOutlineItem->setRectShown(false);
 }
 
-void PanelGraphicsScene::setMouseBites(const QHash<Uuid, QVector<Point>>& bites,
-                                       const PositiveLength& diameter) noexcept {
+void PanelGraphicsScene::setMouseBites(
+    const QHash<Uuid, QVector<std::pair<Point, PositiveLength>>>&
+        bites) noexcept {
   mMouseBites = bites;
-  mMouseBiteDiameter = diameter;
   for (auto& pair : mBoardProxies) {
-    pair.second->setMouseBites(mMouseBites.value(pair.first.first),
-                               mMouseBiteDiameter);
+    pair.second->setMouseBites(mMouseBites.value(pair.first.first));
   }
 }
 
@@ -566,7 +624,7 @@ BoardProxy* PanelGraphicsScene::acquireBoardProxy(
                 }
               }
             });
-    proxy->setMouseBites(mMouseBites.value(uuid), mMouseBiteDiameter);
+    proxy->setMouseBites(mMouseBites.value(uuid));
     it = mBoardProxies.emplace(key, std::move(proxy)).first;
   }
   ++mBoardProxyRefCounts[key];
@@ -637,6 +695,7 @@ void PanelGraphicsScene::updateTabItems() noexcept {
         std::shared_ptr<PGI_Tab> item =
             std::make_shared<PGI_Tab>(tab, instance, mProject);
         item->setColors(mTabColor, mTabSelectedColor);
+        item->setTriangleAlpha(mTabTriangleAlpha, mTabTriangleSelectedAlpha);
         item->setMarkerShown(mTabsVisible);
         addItem(*item);
         mTabItems.append(item);

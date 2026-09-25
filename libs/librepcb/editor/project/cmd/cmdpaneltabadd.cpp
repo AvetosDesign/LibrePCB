@@ -40,14 +40,40 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelTabAdd::CmdPanelTabAdd(Panel& panel, const Uuid& board,
-                               const Point& position,
-                               const UnsignedLength& width) noexcept
+                               const Point& position) noexcept
   : UndoCommand(tr("Add tab to panel")),
     mPanel(panel),
-    mTab(new PI_Tab(Uuid::createRandom(), board, position, width)) {
+    mTab(new PI_Tab(Uuid::createRandom(), board, position)) {
 }
 
 CmdPanelTabAdd::~CmdPanelTabAdd() noexcept {
+}
+
+/*******************************************************************************
+ *  Setters
+ ******************************************************************************/
+
+void CmdPanelTabAdd::setWidth(const UnsignedLength& width) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mTab->setWidth(width);
+}
+
+void CmdPanelTabAdd::setMouseBites(
+    const std::optional<bool>& enabled) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mTab->setMouseBites(enabled);
+}
+
+void CmdPanelTabAdd::setMouseBiteDiameter(
+    const UnsignedLength& diameter) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mTab->setMouseBiteDiameter(diameter);
+}
+
+void CmdPanelTabAdd::setMouseBiteSpacing(
+    const UnsignedLength& spacing) noexcept {
+  Q_ASSERT(!wasEverExecuted());
+  mTab->setMouseBiteSpacing(spacing);
 }
 
 /*******************************************************************************

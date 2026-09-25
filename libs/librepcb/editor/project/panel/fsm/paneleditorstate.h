@@ -95,6 +95,7 @@ public:
   virtual bool processCopy() noexcept { return false; }
   virtual bool processPaste() noexcept { return false; }
   virtual bool processRemove() noexcept { return false; }
+  virtual bool processEditProperties() noexcept { return false; }
   virtual bool processSetLocked(bool locked) noexcept {
     Q_UNUSED(locked);
     return false;

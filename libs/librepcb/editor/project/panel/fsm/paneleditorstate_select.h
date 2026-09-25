@@ -27,14 +27,17 @@
  *  Includes
  ******************************************************************************/
 #include "../graphicsitems/pgi_outline.h"
+#include "../panelgraphicsscene.h"
 #include "paneleditorstate.h"
 
+#include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
 
 #include <QtCore>
 
 #include <memory>
+#include <optional>
 #include <vector>
 
 /*******************************************************************************
@@ -42,6 +45,8 @@
  ******************************************************************************/
 namespace librepcb {
 
+class PI_BoardInstance;
+class PI_Tab;
 class PI_VCut;
 
 namespace editor {
@@ -77,8 +82,11 @@ class PGI_Tab;
  *    diameter (holes/fiducials), solder-mask clearance, and board side
  *    (fiducials) when the selection is homogeneously all-holes or
  *    all-fiducials - see #getSelectionKind().
- *  - Right-click to rotate 90 degrees while a drag is in progress. A 
- *    multi-item drag rotates as one rigid group.
+ *  - Right-click to rotate 90 degrees while a drag is in progress
+ *    (#rotateSelection()), or Flip while a drag is in progress
+ *    (#flipSelection(), same keyboard/toolbar/menu shortcut as the
+ *    standalone Flip below). A multi-item drag rotates/flips as one rigid
+ *    group.
  *  - Delete key to remove the selected board placement(s)/hole(s)/
  *    fiducial(s) from the panel.
  *  - Escape key to abort an in-progress drag, or clear the selection if none
@@ -99,7 +107,8 @@ class PGI_Tab;
  *    restriction (they carry no reference to project content).
  *  - Feature-flag gating is DYNAMIC, matching BoardEditorState_Select.
  *  - Standalone (not-dragging) Rotate and Flip, reachable from the Edit
- *    menu/toolbar/keyboard shortcuts.
+ *    menu/toolbar/keyboard shortcuts (#rotateSelectedItems()/
+ *    #flipSelectedItems()).
  *  - Select All (Ctrl+A / Edit menu), via processSelectAll() ->
  *    PanelGraphicsScene::selectAll().
  *  - Dragging one of PGI_Outline's three resize handles (corner,
@@ -135,7 +144,15 @@ class PGI_Tab;
  *    dragging) toggles horizontal/vertical - while dragging only V-cuts,
  *    the rotated line passes through the cursor. A V-cuts-only selection
  *    also shows the Horizontal/Vertical toolbar (see #setVCutVertical()).
- *    Not part of Flip or Cut/Copy/Paste yet.
+ *    A single selected V-cut's context menu also offers "Bind to Edge..."
+ *    (see #bindSelectedVCutToEdge()) to lock it to a panel edge at a fixed
+ *    offset, so it follows that edge on resize instead of staying put
+ *    (::librepcb::editor::CmdPanelEdit::applyVCutPositions()) - dragging a
+ *    bound V-cut keeps it bound and updates its offset, but rotating one
+ *    (in any way) always unbinds it (see #confirmUnbindForRotate()). Once
+ *    bound, "Unbind" replaces "Bind to Edge..." in the same menu (see
+ *    #unbindSelectedVCutFromEdge()). Board-edge binding isn't implemented
+ *    yet. Not part of Flip or Cut/Copy/Paste yet.
  *  - An info box on the canvas (like ::librepcb::editor::
  *    BoardEditorState_Select's) showing the Position and Width of the
  *    selected tab marker(s), or the distance to the nearest parallel panel
@@ -179,6 +196,7 @@ public:
   bool processCopy() noexcept override;
   bool processPaste() noexcept override;
   bool processRemove() noexcept override;
+  bool processEditProperties() noexcept override;
   bool processSetLocked(bool locked) noexcept override;
   bool processAbortCommand() noexcept override;
   bool processKeyPressed(const GraphicsSceneKeyEvent& e) noexcept override;
@@ -249,12 +267,327 @@ signals:
 private:
   // Private Methods
   bool clearSelection() noexcept;
+
+  /**
+   * @brief Start picking a panel or board edge to bind the selected V-cut
+   *        to
+   *
+   * Requires exactly one selected V-cut and enters "picking" mode
+   * (#mIsPickingVCutBindEdge): mouse moves compute the nearest candidate
+   * edge - either a panel edge or a board outline segment, whichever is
+   * closer to the cursor (#candidateBindEdge()) - and show it in the
+   * status bar, a left click binds the V-cut to that candidate
+   * (#commitVCutBindEdgePick()) with its offset derived from the V-cut's
+   * *current* position, and Escape cancels (#cancelVCutBindEdgePick()).
+   * Unlike the other drag-style interactions in this class, this isn't
+   * backed by an "immediate" edit command and has no on-canvas highlight -
+   * just the status bar text - a simplified first pass. A board edge can
+   * only be picked on a board placed at a rotation that's a multiple of
+   * 90° - see ::librepcb::editor::PanelGraphicsScene::
+   * findNearestBoardEdgeForVCut().
+   *
+   * @return Whether the action was handled.
+   */
+  bool bindSelectedVCutToEdge() noexcept;
+
+  /**
+   * @brief Remove the bound edge of the selected V-cut
+   *
+   * The V-cut keeps its current position but no longer follows an edge.
+   * Only offered in the context menu if the V-cut has a bound edge.
+   *
+   * @return Whether the action was handled.
+   */
+  bool unbindSelectedVCutFromEdge() noexcept;
+
+  /**
+   * @brief Cancel an in-progress #bindSelectedVCutToEdge() pick
+   *
+   * Resets #mIsPickingVCutBindEdge/#mPickingVCut and clears the status bar
+   * message. Safe to call even if no pick is in progress.
+   */
+  void cancelVCutBindEdgePick() noexcept;
+
+  /**
+   * @brief Finish an in-progress #bindSelectedVCutToEdge() pick
+   *
+   * Binds #mPickingVCut to whichever candidate #candidateBindEdge()
+   * reports as nearest to @p scenePos - a panel edge (#PI_VCut::
+   * setBinding(), offset from #Panel::getVCutBoundEdgeOffset()) or a
+   * board outline segment (#PI_VCut::setBoardBinding(), offset derived
+   * via #resolveBoardEdgeAxis() from the V-cut's current position) - then
+   * always calls #cancelVCutBindEdgePick() to leave picking mode, whether
+   * or not the bind actually happened.
+   *
+   * @param scenePos  Cursor position (panel coordinates) at the click that
+   *                  committed the pick.
+   *
+   * @return Whether the action was handled (always `true` once picking was
+   *         in progress).
+   */
+  bool commitVCutBindEdgePick(const Point& scenePos) noexcept;
+
+  /**
+   * @brief Update the status bar hint while #bindSelectedVCutToEdge() is
+   *        picking
+   *
+   * @param scenePos  Current cursor position (panel coordinates).
+   */
+  void updateVCutBindEdgeHover(const Point& scenePos) noexcept;
+
+  /**
+   * @brief What #candidateBindEdge() found nearest to the cursor
+   *
+   * Either a panel edge (@a isBoard `false`, @a panelEdge meaningful) or a
+   * board outline segment (@a isBoard `true`, the rest meaningful) -
+   * never both. @a boardSegStart/@a boardSegEnd/@a boardSegNormal are in
+   * the *board's own* (untransformed) coordinates, exactly what
+   * #PI_VCut::setBoardBinding() stores - see
+   * ::librepcb::editor::PanelGraphicsScene::BoardEdgeHit, which this is
+   * built from for the board case.
+   */
+  struct VCutEdgeCandidate {
+    bool isBoard = false;
+    PI_VCut::BoundEdge panelEdge = PI_VCut::BoundEdge::None;
+    std::optional<Uuid> boardInstance;  // Set iff isBoard.
+    Point boardSegStart;
+    Point boardSegEnd;
+    Angle boardSegNormal;
+  };
+
+  /**
+   * @brief The panel or board edge nearest to a position, for a given
+   *        V-cut's orientation
+   *
+   * A vertical V-cut can only bind to a panel #PI_VCut::BoundEdge::
+   * PanelLeft/PanelRight or a board segment with a constant X in panel
+   * coordinates (its own orientation is perpendicular to those); a
+   * horizontal one only to #PI_VCut::BoundEdge::PanelTop/PanelBottom or a
+   * constant-Y board segment. Compares @p cursorPos's distance to the
+   * nearer of the two applicable panel edges against the nearest matching
+   * board segment from ::librepcb::editor::PanelGraphicsScene::
+   * findNearestBoardEdgeForVCut(), and returns whichever is closer overall
+   * (a board edge wins ties, being the more specific choice).
+   *
+   * @param vcut       The V-cut being bound (only its orientation matters).
+   * @param cursorPos  Position to measure from, in panel coordinates.
+   *
+   * @return The nearest candidate. Falls back to the nearer panel edge if
+   *         no board edge candidate is found (or the scene is
+   *         unavailable) - there's always at least a panel edge on each
+   *         side of the V-cut's orientation, so this never has to signal
+   *         "nothing found".
+   */
+  VCutEdgeCandidate candidateBindEdge(const PI_VCut& vcut,
+                                      const Point& cursorPos) noexcept;
+
+  /**
+   * @brief Derive a bound V-cut's orientation/position axis from a board
+   *        outline segment's *current* (transformed) placement
+   *
+   * Transforms @p segStart/@p segEnd/@p segNormal (board-local, as stored
+   * by #PI_VCut::setBoardBinding()) through @p instance's current
+   * position/rotation/flip (::librepcb::Transform), matching
+   * ::librepcb::editor::PanelGraphicsScene::findNearestBoardEdge()'s own
+   * inverse-transform convention. The result is only meaningful if the
+   * transformed segment is still axis-aligned in panel coordinates, i.e.
+   * @p instance's rotation is (still) a multiple of 90° - otherwise
+   * `std::nullopt`, the caller's cue to unbind (see
+   * #confirmUnbindForRotate() for the V-cut's-own-rotation equivalent;
+   * board rotation/flip isn't wired up to call this yet - see
+   * claude/librepcb_panel_vcut_tool.md).
+   *
+   * @param instance    The board instance the V-cut is bound to.
+   * @param segStart    @see #PI_VCut::getBoundSegmentStart()
+   * @param segEnd      @see #PI_VCut::getBoundSegmentEnd()
+   * @param segNormal   @see #PI_VCut::getBoundSegmentNormal()
+   *
+   * @return `vertical` (the V-cut's orientation following this segment)
+   *         and `coord` (the segment's own transformed coordinate - X if
+   *         vertical, Y if horizontal) and `normalSign` (+1/-1: the sign
+   *         #getOffset() is relative to along that coordinate, from the
+   *         transformed @p segNormal) - or `std::nullopt`.
+   */
+  struct BoardEdgeAxis {
+    bool vertical;
+    Length coord;
+    int normalSign;
+  };
+  std::optional<BoardEdgeAxis> resolveBoardEdgeAxis(
+      const PI_BoardInstance& instance, const Point& segStart,
+      const Point& segEnd, const Angle& segNormal) const noexcept;
+
+  /**
+   * @brief #resolveBoardEdgeAxis(), looking the board instance up from
+   *        @p vcut itself
+   *
+   * Small convenience wrapper shared by #followBoardBoundVCuts(),
+   * #updateDragFollowerVCuts(), and the board-bound branch of the V-cut
+   * drag-move loop in #processGraphicsSceneMouseMoved() - all three need
+   * exactly "look up @p vcut's #PI_VCut::getBoundBoardInstance() in
+   * #Panel::getBoardInstances(), then #resolveBoardEdgeAxis() its stored
+   * segment/normal", and return `std::nullopt` if the board instance is
+   * gone. @p vcut does not need to actually be #PI_VCut::isBound() to
+   * #PI_VCut::BoundEdge::Board - callers already check that themselves.
+   */
+  std::optional<BoardEdgeAxis> resolveVCutBoardAxis(
+      const PI_VCut& vcut) const noexcept;
+
+  /**
+   * @brief Re-derive one V-cut's position/orientation from
+   *        #resolveVCutBoardAxis(), or unbind it if that fails
+   *
+   * Shared per-V-cut step used by both #followBoardBoundVCuts() (commit-
+   * time) and #updateDragFollowerVCuts() (live drag preview): if
+   * #resolveVCutBoardAxis() still finds an axis-aligned edge, moves
+   * @p cmd to match it (#PI_VCut::getOffset() itself doesn't change -
+   * only where it's measured from, same inverse of
+   * #commitVCutBindEdgePick()'s offset formula); otherwise unbinds it and
+   * leaves it at its current position, same as every other unbind path.
+   *
+   * @param cmd        The V-cut edit command to update in place.
+   * @param immediate  Forwarded to every setter call - `true` for a live
+   *                   drag-preview step, `false` for a one-shot commit.
+   */
+  void applyBoardFollowToVCut(CmdPanelVCutEdit& cmd,
+                              bool immediate) const noexcept;
+
+  /**
+   * @brief Move/unbind every V-cut bound to one of the given boards, after
+   *        those boards have already been moved/rotated/flipped
+   *
+   * For each V-cut in #Panel::getVCuts() whose #PI_VCut::getBoundEdge() is
+   * #PI_VCut::BoundEdge::Board and whose #PI_VCut::getBoundBoardInstance()
+   * is in @p boardInstances: if #resolveBoardEdgeAxis() still finds an
+   * axis-aligned edge (using the board's *current*, already-updated
+   * placement), the V-cut's orientation/position are updated to match
+   * (#PI_VCut::getOffset() itself doesn't change - only where it's
+   * measured from); otherwise (board rotated to a non-orthogonal angle,
+   * or - shouldn't normally happen - the board instance is gone) the
+   * V-cut is unbound and left where it currently is, same as every other
+   * unbind path.
+   *
+   * Appends a `CmdPanelVCutEdit` per affected V-cut to the **currently
+   * open** undo command group - callers must call this after their own
+   * board edit command(s) have been executed (so the board's placement is
+   * already up to date) but before committing the group, so the V-cut
+   * move is one undo step together with the board move.
+   *
+   * Only handles the *committed* result of a board move/rotate/flip -
+   * this is used by the standalone Rotate/Flip commands
+   * (#rotateSelectedItems()/#flipSelectedItems()), which have no live
+   * preview to begin with. #updateDragFollowerVCuts() is the equivalent
+   * for an in-progress drag/in-drag-rotate/in-drag-flip.
+   *
+   * **Known gap (not yet raised with Sean - see
+   * claude/librepcb_panel_vcut_tool.md): no confirmation prompt yet for
+   * the "board rotated non-orthogonally" or "board moved with a locked
+   * bound V-cut" cases from the original design** (same doc); a locked
+   * bound V-cut is simply left bound-but-stale (not moved, not unbound)
+   * until it's manually dealt with, rather than being silently unbound.
+   *
+   * @param boardInstances  Uuids of the board placements that were just
+   *                        moved/rotated/flipped.
+   */
+  void followBoardBoundVCuts(const QSet<Uuid>& boardInstances);
+  ///< Not noexcept - calls #UndoStack::appendToCmdGroup(), which can
+  ///< throw; callers already run inside a try/catch around their own
+  ///< undo-stack calls (see e.g. #flipSelectedItems()), so this just
+  ///< lets exceptions propagate there rather than adding a second,
+  ///< noexcept boundary in between.
+
+  /**
+   * @brief Live-update #mDragFollowerVCutCmds mid-drag
+   *
+   * Companion to #followBoardBoundVCuts() (which only handles the
+   * committed result) for a *live* drag preview instead. Unlike
+   * #followBoardBoundVCuts(), this only touches commands already held in
+   * #mDragFollowerVCutCmds (populated once at drag start by
+   * #startMovingSelection()) via their `immediate` setters - it never
+   * calls into #UndoStack, so (unlike #followBoardBoundVCuts()) it can't
+   * throw and is safe to call on every mouse-move step.
+   *
+   * Callers must call this only after the boards in #mDragCmds have
+   * already had their own live position/rotation update applied for this
+   * step, so #resolveBoardEdgeAxis() sees the board's current placement.
+   * Same per-V-cut logic as #followBoardBoundVCuts(): moves it if
+   * #resolveBoardEdgeAxis() still finds an axis-aligned edge, unbinds it
+   * (leaving it at its last position) otherwise.
+   *
+   * Used by the three live-preview drag steps that can move/rotate/flip a
+   * board: an ordinary drag move (#processGraphicsSceneMouseMoved()), the
+   * in-drag right-click rotate (#rotateSelection()), and the in-drag Flip
+   * (#flipSelection()). The standalone Flip command (#flipSelectedItems())
+   * uses #followBoardBoundVCuts() instead, since it has no live preview to
+   * begin with.
+   */
+  void updateDragFollowerVCuts() noexcept;
+
+  /**
+   * @brief Ask the user to confirm unbinding before a rotate, if needed
+   *
+   * Rotating a V-cut changes its orientation (or, for a 180° rotation,
+   * mirrors its position), either of which would leave a bound V-cut's
+   * position out of sync with its binding - so a rotate always drops the
+   * binding. This shows one confirmation dialog covering the whole
+   * @p vCuts list if any of them is currently bound (a single "yes"
+   * covers all of them), and does nothing (returning `true`) if none are.
+   * Not used for the in-drag rotate (right-click while dragging, see
+   * #rotateSelection()) - interrupting an active drag with a modal dialog
+   * would be disruptive, so that path unbinds silently instead. This
+   * asymmetry is a known simplification.
+   *
+   * @param vCuts  The V-cuts about to be rotated.
+   *
+   * @return `true` if the rotate should proceed (nothing was bound, or the
+   *         user confirmed), `false` if the user cancelled.
+   */
+  bool confirmUnbindForRotate(
+      const QVector<std::shared_ptr<PI_VCut>>& vCuts) noexcept;
+
+  /**
+   * @brief Get the tab if the selection consists of just one tab
+   *
+   * A tab appears as one marker per placed copy of its board, so this
+   * accepts several selected markers as long as they all belong to the same
+   * tab and nothing else is selected.
+   *
+   * @return The selected tab, or `nullptr` if the selection is empty, has
+   *         other items, or has several different tabs.
+   */
+  std::shared_ptr<PI_Tab> getSingleSelectedTab() noexcept;
   bool startMovingSelection(const Point& startPos) noexcept;
   bool startMovingTab(PGI_Tab& item) noexcept;
   bool startResizingOutline(PGI_Outline::ResizeHandle handle,
                             const Point& startPos) noexcept;
+
+  /**
+   * @brief The combined geometric center of the current drag group
+   *
+   * Shared by #rotateSelection() and #flipSelection() (the in-drag
+   * counterparts of #rotateSelectedItems()/#flipSelectedItems(), which
+   * compute the same thing from a `QVector<std::shared_ptr<...>>`
+   * selection instead of `mDrag*Cmds` and so aren't unified with this
+   * one): averages each dragged board's real outline center
+   * (::librepcb::editor::PGI_BoardInstance::getCenter(), falling back to
+   * its origin if the graphics item can't be found) with each dragged
+   * hole's/fiducial's own position (both are symmetric circles, so their
+   * position already is their center).
+   *
+   * @param count  Set to the number of items averaged in (0 if nothing is
+   *               being dragged that this applies to - #mDragVCutCmds
+   *               doesn't count, since neither caller uses V-cuts as part
+   *               of the pivot). Callers decide what a zero count means
+   *               for them (e.g. #rotateSelection() falls back to the
+   *               cursor position, #flipSelection() just does nothing).
+   *
+   * @return The averaged center, or `Point(0, 0)` if @p count comes back 0.
+   */
+  Point dragGroupCenter(int& count) noexcept;
+
   bool rotateSelection(const Angle& angle) noexcept;
   bool rotateSelectedItems(const Angle& angle) noexcept;
+  bool flipSelection() noexcept;
   bool flipSelectedItems() noexcept;
   bool lockSelectedItems(bool locked) noexcept;
   bool copySelectedItemsToClipboard() noexcept;
@@ -300,6 +633,10 @@ private:
 
   // State
   bool mIsUndoCmdActive;
+  /// See #bindSelectedVCutToEdge().
+  bool mIsPickingVCutBindEdge;
+  /// The V-cut being bound while #mIsPickingVCutBindEdge is active.
+  std::shared_ptr<PI_VCut> mPickingVCut;
   /// Whether the next move step of a selection drag still has to align the
   /// dragged group to the current grid (see processGraphicsSceneMouseMoved())
   bool mDragSnapPending;
@@ -312,6 +649,15 @@ private:
   std::unique_ptr<CmdPanelTabEdit> mDragTabCmd;
   /// V-cuts moved by an ordinary selection drag (never pasted).
   std::vector<std::unique_ptr<CmdPanelVCutEdit>> mDragVCutCmds;
+  /// V-cuts NOT themselves in the drag (not selected/pasted, so absent
+  /// from #mDragVCutCmds) but bound to a board that IS being dragged
+  /// (#mDragCmds) - live drag-preview "followers", see
+  /// #updateDragFollowerVCuts(). Populated once at drag start
+  /// (#startMovingSelection()), immediate-updated on every move/in-drag-
+  /// rotate step, and appended to the undo group at commit alongside the
+  /// other m*Cmds lists. Locked bound V-cuts are excluded (same as
+  /// #followBoardBoundVCuts()) so they never appear here.
+  std::vector<std::unique_ptr<CmdPanelVCutEdit>> mDragFollowerVCutCmds;
   /// Per-mDragCmds/mDragHoleCmds/mDragFiducialCmds-entry offset from the
   /// cursor, populated only for a paste-placement drag (empty for an
   /// ordinary selection drag) - see the class doc comment's Cut/Copy/Paste

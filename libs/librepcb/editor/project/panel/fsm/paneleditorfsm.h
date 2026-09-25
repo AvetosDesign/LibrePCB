@@ -116,6 +116,7 @@ public:
   bool processCopy() noexcept;
   bool processPaste() noexcept;
   bool processRemove() noexcept;
+  bool processEditProperties() noexcept;
   bool processSetLocked(bool locked) noexcept;
   bool processAbortCommand() noexcept;
   bool processKeyPressed(const GraphicsSceneKeyEvent& e) noexcept;

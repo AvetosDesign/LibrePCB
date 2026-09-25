@@ -61,6 +61,14 @@ namespace editor {
  * depends on the panel size, #updateGeometry() must also be called when
  * the panel outline changes (PanelGraphicsScene does that).
  *
+ * A locked V-cut is shown with its "v"s closed and filled, i.e. as solid
+ * triangles of the same size as the open "v"s.
+ *
+ * A V-cut bound to an edge (::librepcb::PI_VCut::isBound()) is shown with a
+ * short tick mark crossing the line just outside each "v" - a first attempt
+ * at a geometry-integrated indicator, in the same spirit as the locked
+ * triangles, likely to be revised once seen on screen.
+ *
  * The whole line (plus a little tolerance) is clickable - see #shape().
  * Drawn above placed boards and below tab markers. The same geometry is
  * used for the Add V-Cut tool's phantom line (see #buildPathPx()).
@@ -111,12 +119,19 @@ public:
    * @param vertical  Whether the V-cut is vertical (else horizontal).
    * @param position  Y coordinate of a horizontal V-cut, or X coordinate of
    *                  a vertical one.
+   * @param locked    Whether the V-cut is locked: its "v"s are closed to
+   *                  triangles (same dimensions), which the caller should
+   *                  fill in addition to stroking the path.
+   * @param bound     Whether the V-cut is bound to an edge: a short tick
+   *                  mark crosses the line just outside each "v".
    *
-   * @return The drawing as open subpaths, in scene pixel coordinates, to be
-   *         stroked with #lineWidth() (not filled).
+   * @return The drawing as subpaths, in scene pixel coordinates, to be
+   *         stroked with #lineWidth() (and filled if @p locked).
    */
   static QPainterPath buildPathPx(const Panel& panel, bool vertical,
-                                  const Length& position) noexcept;
+                                  const Length& position,
+                                  bool locked = false,
+                                  bool bound = false) noexcept;
 
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;

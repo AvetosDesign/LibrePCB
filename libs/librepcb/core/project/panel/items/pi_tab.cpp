@@ -42,7 +42,10 @@ PI_Tab::PI_Tab(const PI_Tab& other) noexcept
     mUuid(other.mUuid),
     mBoard(other.mBoard),
     mPosition(other.mPosition),
-    mWidth(other.mWidth) {
+    mWidth(other.mWidth),
+    mMouseBites(other.mMouseBites),
+    mMouseBiteDiameter(other.mMouseBiteDiameter),
+    mMouseBiteSpacing(other.mMouseBiteSpacing) {
 }
 
 PI_Tab::PI_Tab(const SExpression& node)
@@ -54,16 +57,37 @@ PI_Tab::PI_Tab(const SExpression& node)
     // treat them as using the panel default (zero).
     mWidth(node.tryGetChild("width")
                ? deserialize<UnsignedLength>(node.getChild("width/@0"))
-               : UnsignedLength(0)) {
+               : UnsignedLength(0)),
+    // Mouse bite overrides are optional as well (unset = panel default).
+    mMouseBites(node.tryGetChild("mouse_bites")
+                    ? std::optional<bool>(
+                          deserialize<bool>(node.getChild("mouse_bites/@0")))
+                    : std::nullopt),
+    mMouseBiteDiameter(
+        node.tryGetChild("mouse_bite_diameter")
+            ? deserialize<UnsignedLength>(
+                  node.getChild("mouse_bite_diameter/@0"))
+            : UnsignedLength(0)),
+    mMouseBiteSpacing(
+        node.tryGetChild("mouse_bite_spacing")
+            ? deserialize<UnsignedLength>(
+                  node.getChild("mouse_bite_spacing/@0"))
+            : UnsignedLength(0)) {
 }
 
 PI_Tab::PI_Tab(const Uuid& uuid, const Uuid& board, const Point& position,
-               const UnsignedLength& width) noexcept
+               const UnsignedLength& width,
+               const std::optional<bool>& mouseBites,
+               const UnsignedLength& mouseBiteDiameter,
+               const UnsignedLength& mouseBiteSpacing) noexcept
   : onEdited(*this),
     mUuid(uuid),
     mBoard(board),
     mPosition(position),
-    mWidth(width) {
+    mWidth(width),
+    mMouseBites(mouseBites),
+    mMouseBiteDiameter(mouseBiteDiameter),
+    mMouseBiteSpacing(mouseBiteSpacing) {
 }
 
 PI_Tab::~PI_Tab() noexcept {
@@ -94,6 +118,27 @@ void PI_Tab::setWidth(const UnsignedLength& width) noexcept {
   }
 }
 
+void PI_Tab::setMouseBites(const std::optional<bool>& enabled) noexcept {
+  if (enabled != mMouseBites) {
+    mMouseBites = enabled;
+    onEdited.notify(Event::MouseBitesChanged);
+  }
+}
+
+void PI_Tab::setMouseBiteDiameter(const UnsignedLength& diameter) noexcept {
+  if (diameter != mMouseBiteDiameter) {
+    mMouseBiteDiameter = diameter;
+    onEdited.notify(Event::MouseBitesChanged);
+  }
+}
+
+void PI_Tab::setMouseBiteSpacing(const UnsignedLength& spacing) noexcept {
+  if (spacing != mMouseBiteSpacing) {
+    mMouseBiteSpacing = spacing;
+    onEdited.notify(Event::MouseBitesChanged);
+  }
+}
+
 /*******************************************************************************
  *  General Methods
  ******************************************************************************/
@@ -104,6 +149,15 @@ void PI_Tab::serialize(SExpression& root) const {
   root.ensureLineBreak();
   mPosition.serialize(root.appendList("position"));
   root.appendChild("width", mWidth);
+  if (mMouseBites) {
+    root.appendChild("mouse_bites", *mMouseBites);
+  }
+  if (hasMouseBiteDiameterOverride()) {
+    root.appendChild("mouse_bite_diameter", mMouseBiteDiameter);
+  }
+  if (hasMouseBiteSpacingOverride()) {
+    root.appendChild("mouse_bite_spacing", mMouseBiteSpacing);
+  }
   root.ensureLineBreak();
 }
 
@@ -116,6 +170,9 @@ bool PI_Tab::operator==(const PI_Tab& rhs) const noexcept {
   if (mBoard != rhs.mBoard) return false;
   if (mPosition != rhs.mPosition) return false;
   if (mWidth != rhs.mWidth) return false;
+  if (mMouseBites != rhs.mMouseBites) return false;
+  if (mMouseBiteDiameter != rhs.mMouseBiteDiameter) return false;
+  if (mMouseBiteSpacing != rhs.mMouseBiteSpacing) return false;
   return true;
 }
 

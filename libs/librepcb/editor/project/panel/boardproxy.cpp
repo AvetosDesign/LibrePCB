@@ -44,7 +44,6 @@ BoardProxy::BoardProxy(
                        : std::unique_ptr<GraphicsLayerList>()),
     mScene(),
     mMouseBites(),
-    mMouseBiteDiameter(1000000),
     mPlanesRebuildTimer(),
     mPlanesRebuildDuration(),
     mOnPlaneEditedSlot(*this, &BoardProxy::planeEdited),
@@ -102,13 +101,12 @@ BoardProxy::~BoardProxy() noexcept {
  *  General Methods
  ******************************************************************************/
 
-void BoardProxy::setMouseBites(const QVector<Point>& positions,
-                               const PositiveLength& diameter) noexcept {
-  if ((positions == mMouseBites) && (diameter == mMouseBiteDiameter)) {
+void BoardProxy::setMouseBites(
+    const QVector<std::pair<Point, PositiveLength>>& holes) noexcept {
+  if (holes == mMouseBites) {
     return;
   }
-  mMouseBites = positions;
-  mMouseBiteDiameter = diameter;
+  mMouseBites = holes;
   mPlanesRebuildTimer.stop();
   startPlanesRebuild();
 }
@@ -155,12 +153,8 @@ void BoardProxy::startPlanesRebuild() noexcept {
         });
   }
 
-  QVector<std::pair<Point, PositiveLength>> holes;
-  for (const Point& pos : std::as_const(mMouseBites)) {
-    holes.append(std::make_pair(pos, mMouseBiteDiameter));
-  }
   mPlanesRebuildDuration.start();
-  if (!mPlanesBuilder->startWithEdgeHoles(mBoard, holes)) {
+  if (!mPlanesBuilder->startWithEdgeHoles(mBoard, mMouseBites)) {
     applyPlanes(nullptr);  // The board has no planes.
   }
 }

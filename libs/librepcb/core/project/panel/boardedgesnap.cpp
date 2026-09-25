@@ -42,7 +42,8 @@ namespace librepcb {
  ******************************************************************************/
 
 std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
-    const QVector<Path>& outlines, const Point& pos) noexcept {
+    const QVector<Path>& outlines, const Point& pos,
+    std::optional<bool> verticalOnly) noexcept {
   // Arc flattening tolerance - fine enough that the snapped point is
   // visually on the (curved) edge.
   const PositiveLength flattenTolerance(5000);  // 5um
@@ -79,11 +80,20 @@ std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
       if (a == b) {
         continue;
       }
+      if (verticalOnly.has_value()) {
+        const bool segVertical = (a.getX() == b.getX());
+        const bool segHorizontal = (a.getY() == b.getY());
+        const bool wanted =
+            *verticalOnly ? segVertical : segHorizontal;
+        if (!wanted) {
+          continue;
+        }
+      }
       Point nearest;
       const UnsignedLength distance =
           Toolbox::shortestDistanceBetweenPointAndLine(pos, a, b, &nearest);
       if ((!best) || (distance < best->distance)) {
-        best = Result{nearest, Angle(0), distance};
+        best = Result{nearest, Angle(0), distance, a, b};
         bestStart = a;
         bestEnd = b;
       }

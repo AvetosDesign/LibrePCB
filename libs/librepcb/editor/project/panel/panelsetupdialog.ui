@@ -86,7 +86,7 @@
        <item>
         <widget class="QGroupBox" name="grpTabs">
          <property name="title">
-          <string>Tabs</string>
+          <string>Tab Defaults</string>
          </property>
          <layout class="QFormLayout" name="formLayoutTabs">
           <property name="fieldGrowthPolicy">
@@ -95,7 +95,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="lblDefaultTabWidth">
             <property name="text">
-             <string>Default Width:</string>
+             <string>Width:</string>
             </property>
            </widget>
           </item>
@@ -137,7 +137,7 @@
           <item row="1" column="0">
            <widget class="QLabel" name="lblDefaultMouseBiteDiameter">
             <property name="text">
-             <string>Default Hole Size:</string>
+             <string>Hole Size:</string>
             </property>
            </widget>
           </item>
@@ -157,7 +157,7 @@
           <item row="2" column="0">
            <widget class="QLabel" name="lblDefaultMouseBiteSpacing">
             <property name="text">
-             <string>Default Hole Spacing:</string>
+             <string>Hole Spacing:</string>
             </property>
            </widget>
           </item>
@@ -177,7 +177,7 @@
           <item row="3" column="0">
            <widget class="QLabel" name="lblDefaultMouseBiteOffset">
             <property name="text">
-             <string>Default Offset:</string>
+             <string>Offset:</string>
             </property>
            </widget>
           </item>

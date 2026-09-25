@@ -27,8 +27,11 @@
  ******************************************************************************/
 #include "../../undocommand.h"
 
+#include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
 #include <librepcb/core/types/uuid.h>
+
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -47,7 +50,8 @@ namespace editor {
  * @brief The CmdPanelTabEdit class
  *
  * Edits a ::librepcb::PI_Tab's attachment (which board design it belongs
- * to) and its board-local position, following CmdPanelHoleEdit's
+ * to), its board-local position and its per-tab overrides of the panel
+ * defaults (width and mouse bites), following CmdPanelHoleEdit's
  * "immediate" live-preview convention: changes applied with
  * `immediate=true` are reverted by the destructor if the command is never
  * executed (e.g. an aborted drag).
@@ -79,6 +83,41 @@ public:
   void setAnchor(const Uuid& board, const Point& position,
                  bool immediate) noexcept;
 
+  /**
+   * @brief Set the tab width override
+   *
+   * @param width       New width, or zero to use the panel default.
+   * @param immediate   Whether to apply the change to the model right away.
+   */
+  void setWidth(const UnsignedLength& width, bool immediate) noexcept;
+
+  /**
+   * @brief Set the mouse bite inclusion override
+   *
+   * @param enabled     New value, or `std::nullopt` to use the panel default.
+   * @param immediate   Whether to apply the change to the model right away.
+   */
+  void setMouseBites(const std::optional<bool>& enabled,
+                     bool immediate) noexcept;
+
+  /**
+   * @brief Set the mouse bite hole diameter override
+   *
+   * @param diameter    New diameter, or zero to use the panel default.
+   * @param immediate   Whether to apply the change to the model right away.
+   */
+  void setMouseBiteDiameter(const UnsignedLength& diameter,
+                            bool immediate) noexcept;
+
+  /**
+   * @brief Set the mouse bite hole spacing override
+   *
+   * @param spacing     New spacing, or zero to use the panel default.
+   * @param immediate   Whether to apply the change to the model right away.
+   */
+  void setMouseBiteSpacing(const UnsignedLength& spacing,
+                           bool immediate) noexcept;
+
   // Operator Overloadings
   CmdPanelTabEdit& operator=(const CmdPanelTabEdit& rhs) = delete;
 
@@ -100,6 +139,14 @@ private:
   Uuid mNewBoard;
   Point mOldPos;
   Point mNewPos;
+  UnsignedLength mOldWidth;
+  UnsignedLength mNewWidth;
+  std::optional<bool> mOldMouseBites;
+  std::optional<bool> mNewMouseBites;
+  UnsignedLength mOldMouseBiteDiameter;
+  UnsignedLength mNewMouseBiteDiameter;
+  UnsignedLength mOldMouseBiteSpacing;
+  UnsignedLength mNewMouseBiteSpacing;
 };
 
 /*******************************************************************************
