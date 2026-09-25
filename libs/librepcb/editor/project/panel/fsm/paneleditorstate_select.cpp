@@ -283,6 +283,17 @@ bool PanelEditorState_Select::processFlip() noexcept {
   return flipSelectedItems();
 }
 
+bool PanelEditorState_Select::processMove(const Point& delta) noexcept {
+  // Unlike processRotate()/processFlip(), there's no in-drag live-preview
+  // counterpart to redirect to - nudging while a drag/resize/tab-move is
+  // already in progress doesn't have an obvious meaning, so it's simply
+  // disabled for the duration, same as processFlip()'s own resize-drag
+  // case just above.
+  if (mIsUndoCmdActive) return false;
+
+  return moveSelectedItems(delta);
+}
+
 bool PanelEditorState_Select::processSelectAll() noexcept {
   if (mIsUndoCmdActive) return false;
 
@@ -680,56 +691,12 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
       cmd->translate(delta, true);
     }
     for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
-      cmd->translate(delta, true);
-      // Snap to the (current) grid, so a V-cut placed with another grid
-      // interval gets aligned again as soon as it's moved - the delta is a
-      // multiple of the grid, so it stays aligned afterwards. Also keep
-      // V-cuts on the panel - they stop at the edge.
-      cmd->setPosition(
-          clampVCutToPanel(cmd->isVertical(),
-                           cmd->getPosition().mappedToGrid(*getGridInterval())),
-          true);
-      // A bound V-cut stays bound while dragged - only its offset from the
-      // (unchanged) edge follows the new position, mirroring how it would
-      // be re-derived after a panel resize
-      // (::librepcb::editor::CmdPanelEdit::applyVCutPositions()). Board
-      // edges (slice 3) need #resolveBoardEdgeAxis(), not
-      // #Panel::getVCutBoundEdgeOffset() (panel edges only) -
-      // BUG FIX (Sean, 2026-09-24): this used to call
-      // #Panel::getVCutBoundEdgeOffset()/#CmdPanelVCutEdit::setBinding()
-      // unconditionally here, which doesn't understand
-      // #PI_VCut::BoundEdge::Board - setBinding() would silently wipe the
-      // V-cut's board-segment fields (segStart/segEnd/segNormal all reset
-      // to their empty defaults) on every drag step while leaving it
-      // marked bound, corrupting it. A later board move would then
-      // "follow" that corrupted (0,0)/0° data straight to the board's own
-      // origin - exactly what Sean saw.
-      if (cmd->getVCut().isBound() &&
-          (cmd->getVCut().getBoundEdge() == PI_VCut::BoundEdge::Board)) {
-        const std::optional<Uuid>& boundBoard =
-            cmd->getVCut().getBoundBoardInstance();
-        const std::optional<BoardEdgeAxis> axis =
-            resolveVCutBoardAxis(cmd->getVCut());
-        if (axis) {
-          const Length offset =
-              (cmd->getPosition() - axis->coord) * axis->normalSign;
-          cmd->setBoardBinding(*boundBoard,
-                               cmd->getVCut().getBoundSegmentStart(),
-                               cmd->getVCut().getBoundSegmentEnd(),
-                               cmd->getVCut().getBoundSegmentNormal(), offset,
-                               true);
-        } else {
-          // Board instance gone, or rotated non-orthogonally since binding
-          // - can't recompute an offset, so unbind and leave the V-cut at
-          // its just-dragged position, same "stays put" rule as every
-          // other unbind path.
-          cmd->setBinding(PI_VCut::BoundEdge::None, Length(0), true);
-        }
-      } else if (cmd->getVCut().isBound()) {
-        const Length offset = mContext.panel.getVCutBoundEdgeOffset(
-            cmd->getVCut().getBoundEdge(), cmd->getPosition());
-        cmd->setBinding(cmd->getVCut().getBoundEdge(), offset, true);
-      }
+      // Translate, snap/clamp onto the panel, and keep the binding in sync
+      // (BUG FIX, Sean, 2026-09-24: this used to corrupt a board-bound
+      // V-cut's segment data on every drag step - see
+      // #translateAndRebindVCut()'s doc comment for the full story, now
+      // centralized there instead of duplicated here).
+      translateAndRebindVCut(*cmd, delta, true);
     }
     mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
     mDragLastPos = pos;
@@ -1133,11 +1100,12 @@ void PanelEditorState_Select::applyBoardFollowToVCut(
 }
 
 void PanelEditorState_Select::followBoardBoundVCuts(
-    const QSet<Uuid>& boardInstances) {
+    const QSet<Uuid>& boardInstances, const QSet<Uuid>& excludeVCuts) {
   if (boardInstances.isEmpty()) return;
 
   for (PI_VCut& vcut : mContext.panel.getVCuts()) {
     if (vcut.getBoundEdge() != PI_VCut::BoundEdge::Board) continue;
+    if (excludeVCuts.contains(vcut.getUuid())) continue;
     const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
     if ((!boundBoard) || (!boardInstances.contains(*boundBoard))) continue;
     if (vcut.isLocked()) {
@@ -1149,6 +1117,47 @@ void PanelEditorState_Select::followBoardBoundVCuts(
     std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(vcut));
     applyBoardFollowToVCut(*cmd, false);
     mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+  }
+}
+
+void PanelEditorState_Select::translateAndRebindVCut(
+    CmdPanelVCutEdit& cmd, const Point& delta, bool immediate) const noexcept {
+  cmd.translate(delta, immediate);
+  // Snap to the (current) grid, so a V-cut placed with another grid
+  // interval gets aligned again as soon as it's moved - the delta is a
+  // multiple of the grid, so it stays aligned afterwards. Also keep V-cuts
+  // on the panel - they stop at the edge.
+  cmd.setPosition(
+      clampVCutToPanel(cmd.isVertical(),
+                       cmd.getPosition().mappedToGrid(*getGridInterval())),
+      immediate);
+  // Keep a bound V-cut bound - only its offset from the (unchanged) edge
+  // follows the new position, mirroring how it would be re-derived after a
+  // panel resize (::librepcb::editor::CmdPanelEdit::applyVCutPositions()).
+  // Board edges (slice 3) need #resolveVCutBoardAxis(), not
+  // #Panel::getVCutBoundEdgeOffset() (panel edges only) - see this method's
+  // doc comment for the bug that using the wrong one caused.
+  if (cmd.getVCut().isBound() &&
+      (cmd.getVCut().getBoundEdge() == PI_VCut::BoundEdge::Board)) {
+    const std::optional<Uuid>& boundBoard = cmd.getVCut().getBoundBoardInstance();
+    const std::optional<BoardEdgeAxis> axis = resolveVCutBoardAxis(cmd.getVCut());
+    if (axis) {
+      const Length offset = (cmd.getPosition() - axis->coord) * axis->normalSign;
+      cmd.setBoardBinding(*boundBoard, cmd.getVCut().getBoundSegmentStart(),
+                          cmd.getVCut().getBoundSegmentEnd(),
+                          cmd.getVCut().getBoundSegmentNormal(), offset,
+                          immediate);
+    } else {
+      // Board instance gone, or rotated non-orthogonally since binding -
+      // can't recompute an offset, so unbind and leave the V-cut at its
+      // just-moved position, same "stays put" rule as every other unbind
+      // path.
+      cmd.setBinding(PI_VCut::BoundEdge::None, Length(0), immediate);
+    }
+  } else if (cmd.getVCut().isBound()) {
+    const Length offset = mContext.panel.getVCutBoundEdgeOffset(
+        cmd.getVCut().getBoundEdge(), cmd.getPosition());
+    cmd.setBinding(cmd.getVCut().getBoundEdge(), offset, immediate);
   }
 }
 
@@ -1735,6 +1744,117 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
         flippedBoards.insert(instance->getUuid());
       }
       followBoardBoundVCuts(flippedBoards);  // can throw
+    }
+    mContext.undoStack.commitCmdGroup();  // can throw
+  } catch (const Exception& e) {
+    QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
+    return false;
+  }
+
+  updateSelectionProperties();
+  return true;
+}
+
+bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return false;
+
+  // Same selection-gathering pattern as flipSelectedItems()/
+  // rotateSelectedItems(), but - unlike Flip, which has no meaning for a
+  // V-cut's own horizontal/vertical orientation - a plain move applies to a
+  // V-cut just as well as to a board/hole/fiducial
+  // (::librepcb::editor::CmdPanelVCutEdit::translate() already only applies
+  // the relevant single-axis component of an arbitrary 2D delta), so V-cuts
+  // are included here.
+  const bool ignoreLocks = getIgnoreLocks();
+  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
+  const auto& boardItems = scene->getBoardInstanceItems();
+  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
+        if (ignoreLocks || (!instance->isLocked())) {
+          selectedBoards.append(instance);
+        }
+      }
+    }
+  }
+  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
+  const auto& holeItems = scene->getHoleItems();
+  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto hole = mContext.panel.getHoles().find(it.key())) {
+        if (ignoreLocks || (!hole->isLocked())) {
+          selectedHoles.append(hole);
+        }
+      }
+    }
+  }
+  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
+  const auto& fiducialItems = scene->getFiducialItems();
+  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
+        if (ignoreLocks || (!fiducial->isLocked())) {
+          selectedFiducials.append(fiducial);
+        }
+      }
+    }
+  }
+  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
+  const auto& vCutItems = scene->getVCutItems();
+  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
+        if (ignoreLocks || (!vcut->isLocked())) {
+          selectedVCuts.append(vcut);
+        }
+      }
+    }
+  }
+  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
+      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
+    return false;
+  }
+
+  try {
+    mContext.undoStack.beginCmdGroup(tr("Move item(s)"));  // can throw
+    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+            selectedBoards) {
+      std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
+          new CmdPanelBoardInstanceEdit(*instance));
+      cmd->translate(delta, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
+    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+      std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
+      cmd->translate(delta, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+      std::unique_ptr<CmdPanelFiducialEdit> cmd(
+          new CmdPanelFiducialEdit(*fiducial));
+      cmd->translate(delta, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
+    // Directly-selected V-cuts are translated (and rebound) individually -
+    // see #translateAndRebindVCut(). A V-cut that's ALSO bound to one of
+    // the boards moved above is excluded from followBoardBoundVCuts()'s
+    // pass further down, same "direct drag beats follower" precedence as
+    // #mDragVCutCmds vs. #mDragFollowerVCutCmds during a mouse drag.
+    QSet<Uuid> selectedVCutUuids;
+    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
+      std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
+      translateAndRebindVCut(*cmd, delta, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+      selectedVCutUuids.insert(vcut->getUuid());
+    }
+    if (!selectedBoards.isEmpty()) {
+      QSet<Uuid> movedBoards;
+      foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+              selectedBoards) {
+        movedBoards.insert(instance->getUuid());
+      }
+      followBoardBoundVCuts(movedBoards, selectedVCutUuids);  // can throw
     }
     mContext.undoStack.commitCmdGroup();  // can throw
   } catch (const Exception& e) {
