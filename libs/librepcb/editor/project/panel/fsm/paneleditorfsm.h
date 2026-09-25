@@ -111,6 +111,7 @@ public:
   bool processAddVCut() noexcept;
   bool processRotate(const Angle& rotation) noexcept;
   bool processFlip() noexcept;
+  bool processMove(const Point& delta) noexcept;
   bool processSelectAll() noexcept;
   bool processCut() noexcept;
   bool processCopy() noexcept;

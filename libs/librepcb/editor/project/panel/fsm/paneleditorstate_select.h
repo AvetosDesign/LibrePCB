@@ -191,6 +191,7 @@ public:
   // Event Handlers
   bool processRotate(const Angle& rotation) noexcept override;
   bool processFlip() noexcept override;
+  bool processMove(const Point& delta) noexcept override;
   bool processSelectAll() noexcept override;
   bool processCut() noexcept override;
   bool processCopy() noexcept override;
@@ -453,6 +454,33 @@ private:
                               bool immediate) const noexcept;
 
   /**
+   * @brief Translate one V-cut and keep its binding in sync
+   *
+   * Shared per-V-cut step used by both the ordinary mouse-drag move loop
+   * (#processGraphicsSceneMouseMoved(), via #mDragVCutCmds) and the
+   * keyboard-nudge command (#moveSelectedItems()): translates @p cmd by
+   * @p delta (::librepcb::editor::CmdPanelVCutEdit::translate() already
+   * only applies the relevant single-axis component), snaps/clamps the
+   * result onto the panel (same as every other V-cut move), then re-derives
+   * its binding so it doesn't go stale:
+   *  - #PI_VCut::BoundEdge::Board: re-offsets it from #resolveVCutBoardAxis()
+   *    if the board edge is still axis-aligned, otherwise unbinds it -
+   *    **this exact logic was the site of the panel-resize/drag-corruption
+   *    bug fixed 2026-09-24 (see claude/librepcb_panel_vcut_tool.md)**, so
+   *    it's centralized here rather than duplicated at each call site.
+   *  - A panel-edge binding: re-offsets it via
+   *    #Panel::getVCutBoundEdgeOffset().
+   *  - Unbound: nothing further to do.
+   *
+   * @param cmd        The V-cut edit command to update in place.
+   * @param delta      The offset to translate by.
+   * @param immediate  Forwarded to every setter call - `true` for a live
+   *                   drag-preview step, `false` for a one-shot commit.
+   */
+  void translateAndRebindVCut(CmdPanelVCutEdit& cmd, const Point& delta,
+                              bool immediate) const noexcept;
+
+  /**
    * @brief Move/unbind every V-cut bound to one of the given boards, after
    *        those boards have already been moved/rotated/flipped
    *
@@ -488,8 +516,16 @@ private:
    *
    * @param boardInstances  Uuids of the board placements that were just
    *                        moved/rotated/flipped.
+   * @param excludeVCuts    Uuids of V-cuts to skip even if bound to one of
+   *                        @p boardInstances - for a caller (currently only
+   *                        #moveSelectedItems()) that already applied its
+   *                        own #CmdPanelVCutEdit to some of those V-cuts
+   *                        directly (e.g. a V-cut selected and nudged
+   *                        alongside its own bound board), so they aren't
+   *                        edited a second, redundant time here.
    */
-  void followBoardBoundVCuts(const QSet<Uuid>& boardInstances);
+  void followBoardBoundVCuts(const QSet<Uuid>& boardInstances,
+                             const QSet<Uuid>& excludeVCuts = QSet<Uuid>());
   ///< Not noexcept - calls #UndoStack::appendToCmdGroup(), which can
   ///< throw; callers already run inside a try/catch around their own
   ///< undo-stack calls (see e.g. #flipSelectedItems()), so this just
@@ -589,6 +625,7 @@ private:
   bool rotateSelectedItems(const Angle& angle) noexcept;
   bool flipSelection() noexcept;
   bool flipSelectedItems() noexcept;
+  bool moveSelectedItems(const Point& delta) noexcept;
   bool lockSelectedItems(bool locked) noexcept;
   bool copySelectedItemsToClipboard() noexcept;
   void scheduleUpdateAvailableFeatures() noexcept;
