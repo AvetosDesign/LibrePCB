@@ -66,21 +66,13 @@ PositiveLength PanelEditorState::getGridInterval() const noexcept {
 
 bool PanelEditorState::isVCutOnPanel(bool vertical,
                                      const Length& position) const noexcept {
-  const Length extent =
-      vertical ? *mContext.panel.getWidth() : *mContext.panel.getHeight();
-  return (position > 0) && (position < extent);
+  return mContext.panel.isVCutOnPanel(vertical, position);
 }
 
 Length PanelEditorState::clampVCutToPanel(
     bool vertical, const Length& position) const noexcept {
-  if (isVCutOnPanel(vertical, position)) {
-    return position;
-  }
-  const Length extent =
-      vertical ? *mContext.panel.getWidth() : *mContext.panel.getHeight();
-  const Length inset =
-      std::min(*getGridInterval(), extent / static_cast<int64_t>(2));
-  return (position <= 0) ? inset : (extent - inset);
+  return mContext.panel.clampVCutToPanel(vertical, position,
+                                         *getGridInterval());
 }
 
 bool PanelEditorState::getIgnoreLocks() const noexcept {

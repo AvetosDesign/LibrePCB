@@ -66,6 +66,8 @@ public:
   PI_VCut& getVCut() noexcept { return mVCut; }
   bool isVertical() const noexcept { return mNewVertical; }
   const Length& getPosition() const noexcept { return mNewPos; }
+  bool wasVertical() const noexcept { return mOldVertical; }
+  const Length& getOldPosition() const noexcept { return mOldPos; }
 
   // General Methods
 

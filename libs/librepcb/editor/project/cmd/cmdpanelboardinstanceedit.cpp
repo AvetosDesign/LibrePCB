@@ -25,6 +25,7 @@
 #include "cmdpanelboardinstanceedit.h"
 
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/items/panelplacement.h>
 
 #include <QtCore>
 
@@ -93,8 +94,11 @@ void CmdPanelBoardInstanceEdit::setRotation(const Angle& angle,
 
 void CmdPanelBoardInstanceEdit::rotate(const Angle& angle, const Point& center,
                                        bool immediate) noexcept {
-  setPosition(mNewPos.rotated(angle, center), immediate);
-  setRotation(mNewRotation + angle, immediate);
+  const PanelPlacement placement =
+      PanelPlacement(mNewPos, mNewRotation, mNewFlipped)
+          .rotatedAbout(angle, center);
+  setPosition(placement.position, immediate);
+  setRotation(placement.rotation, immediate);
 }
 
 void CmdPanelBoardInstanceEdit::setFlipped(bool flipped,
@@ -108,11 +112,13 @@ void CmdPanelBoardInstanceEdit::flip(const Point& center,
                                      bool immediate) noexcept {
   // A panel board placement has no choice of mirror axis (unlike
   // CmdDeviceInstanceEdit::mirror()) - flipping a board over always means a
-  // horizontal mirror of its position, per the confirmed "flip" terminology
-  // decision.
-  setFlipped(!mNewFlipped, immediate);
-  setPosition(mNewPos.mirrored(Qt::Horizontal, center), immediate);
-  setRotation(-mNewRotation, immediate);
+  // horizontal mirror, per the confirmed "flip" terminology decision (see
+  // PanelPlacement::flippedAbout()).
+  const PanelPlacement placement =
+      PanelPlacement(mNewPos, mNewRotation, mNewFlipped).flippedAbout(center);
+  setFlipped(placement.flipped, immediate);
+  setPosition(placement.position, immediate);
+  setRotation(placement.rotation, immediate);
 }
 
 void CmdPanelBoardInstanceEdit::setLocked(bool locked,

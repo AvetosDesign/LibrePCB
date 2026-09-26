@@ -249,8 +249,7 @@ PanelOutlineBuilder::Result PanelOutlineBuilder::build() const {
     if (!board) continue;
     const std::optional<QVector<Path>> outlines = board->calculateOutlinePath();
     if (!outlines) continue;
-    const Transform transform(instance.getPosition(), instance.getRotation(),
-                              instance.getFlipped());
+    const Transform transform = instance.getTransform();
     std::optional<BoardMaterial> geometry =
         getBoardMaterial(*board, transform);  // can throw
     if (!geometry) continue;

@@ -79,6 +79,8 @@ add_executable(
   core/project/outputjobrunnertest.cpp
   core/project/projectjsonexporttest.cpp
   core/project/projectlibrarytest.cpp
+  core/project/panel/panelplacementtest.cpp
+  core/project/panel/pivcuttest.cpp
   core/project/projecttest.cpp
   core/serialization/serializableobjectlisttest.cpp
   core/serialization/serializableobjectmock.h

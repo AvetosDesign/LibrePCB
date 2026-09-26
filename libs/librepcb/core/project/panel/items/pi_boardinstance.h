@@ -31,6 +31,7 @@
 #include "../../../types/point.h"
 #include "../../../types/uuid.h"
 #include "../../../utils/signalslot.h"
+#include "../../../utils/transform.h"
 
 #include <QtCore>
 
@@ -92,6 +93,19 @@ public:
   const Angle& getRotation() const noexcept { return mRotation; }
   bool getFlipped() const noexcept { return mFlipped; }
   bool isLocked() const noexcept { return mLocked; }
+
+  /**
+   * @brief Get the placement of this board instance as a transformation
+   *
+   * Maps board-local coordinates to panel coordinates. Use this instead of
+   * building a ::librepcb::Transform from position/rotation/flip by hand, so
+   * the flip/rotation convention stays in one place.
+   *
+   * @return Transformation from board to panel coordinates.
+   */
+  Transform getTransform() const noexcept {
+    return Transform(mPosition, mRotation, mFlipped);
+  }
 
   // Setters
   void setBoard(const Uuid& board) noexcept;

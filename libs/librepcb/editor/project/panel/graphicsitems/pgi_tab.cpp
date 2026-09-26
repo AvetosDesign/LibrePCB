@@ -158,9 +158,7 @@ void PGI_Tab::updateGeometry() noexcept {
     return;
   }
 
-  const Transform transform(mBoardInstance->getPosition(),
-                            mBoardInstance->getRotation(),
-                            mBoardInstance->getFlipped());
+  const Transform transform = mBoardInstance->getTransform();
   const Point pos = transform.map(snap->position);
   const Angle direction = transform.mapNonMirrorable(snap->direction);
   mScenePos = pos;

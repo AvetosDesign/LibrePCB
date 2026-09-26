@@ -31,6 +31,7 @@
 #include "../../../types/point.h"
 #include "../../../types/uuid.h"
 #include "../../../utils/signalslot.h"
+#include "../../../utils/transform.h"
 
 #include <QtCore>
 
@@ -256,6 +257,96 @@ public:
   void setBoardBinding(const Uuid& boardInstance, const Point& segStart,
                        const Point& segEnd, const Angle& segNormal,
                        const Length& offset) noexcept;
+
+  /**
+   * @brief An axis-aligned board edge in panel coordinates
+   *
+   * Result of #resolveBoardEdge(): where a board-bound V-cut's edge
+   * currently lies on the panel.
+   */
+  struct BoardEdgeAxis {
+    /// `true` if the edge is vertical (constant X), `false` if horizontal.
+    bool vertical;
+    /// The edge's X (vertical) or Y (horizontal) coordinate.
+    Length coord;
+    /// +1 or -1: which way along the axis the edge's outward normal points.
+    int normalSign;
+  };
+
+  /**
+   * @brief Get the position of a V-cut bound to a panel edge
+   *
+   * @param edge      The bound edge (#BoundEdge::None and #BoundEdge::Board
+   *                  yield 0).
+   * @param offset    Signed offset from that edge, see #getOffset().
+   * @param width     Panel width.
+   * @param height    Panel height.
+   *
+   * @return The corresponding #getPosition() value.
+   */
+  static Length getPanelEdgePosition(BoundEdge edge, const Length& offset,
+                                     const Length& width,
+                                     const Length& height) noexcept;
+
+  /**
+   * @brief Get the offset of a V-cut bound to a panel edge at a position
+   *
+   * The inverse of #getPanelEdgePosition().
+   *
+   * @param edge      The bound edge (#BoundEdge::None and #BoundEdge::Board
+   *                  yield 0).
+   * @param position  A #getPosition() value.
+   * @param width     Panel width.
+   * @param height    Panel height.
+   *
+   * @return The corresponding offset.
+   */
+  static Length getPanelEdgeOffset(BoundEdge edge, const Length& position,
+                                   const Length& width,
+                                   const Length& height) noexcept;
+
+  /**
+   * @brief Resolve a board outline segment into a panel-space edge axis
+   *
+   * Maps the board-local segment and its normal through the board
+   * instance's placement (position, rotation, flip).
+   *
+   * @param boardTransform  Placement of the board instance, see
+   *                        ::librepcb::PI_BoardInstance::getTransform().
+   * @param segStart       @see #getBoundSegmentStart()
+   * @param segEnd         @see #getBoundSegmentEnd()
+   * @param segNormal      @see #getBoundSegmentNormal()
+   *
+   * @return The edge axis, or `std::nullopt` if the placement isn't
+   *         orthogonal (rotation not a multiple of 90 degrees), or the
+   *         transformed segment or normal isn't axis-aligned, so no offset
+   *         can be derived.
+   */
+  static std::optional<BoardEdgeAxis> resolveBoardEdge(
+      const Transform& boardTransform, const Point& segStart,
+      const Point& segEnd, const Angle& segNormal) noexcept;
+
+  /**
+   * @brief Get the position a board-bound V-cut has at a given edge axis
+   *
+   * @param axis  Result of #resolveBoardEdge().
+   *
+   * @return `axis.coord + getOffset() * axis.normalSign`
+   */
+  Length getBoardEdgePosition(const BoardEdgeAxis& axis) const noexcept;
+
+  /**
+   * @brief Get the offset a board-bound V-cut would have at a position
+   *
+   * The inverse of #getBoardEdgePosition().
+   *
+   * @param axis      Result of #resolveBoardEdge().
+   * @param position  A #getPosition() value.
+   *
+   * @return `(position - axis.coord) * axis.normalSign`
+   */
+  static Length getBoardEdgeOffset(const BoardEdgeAxis& axis,
+                                   const Length& position) noexcept;
 
   /**
    * @brief Serialize into ::librepcb::SExpression node

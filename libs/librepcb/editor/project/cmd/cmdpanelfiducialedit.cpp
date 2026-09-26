@@ -24,6 +24,7 @@
  ******************************************************************************/
 #include "cmdpanelfiducialedit.h"
 
+#include <librepcb/core/project/panel/items/panelplacement.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 
 #include <QtCore>
@@ -129,17 +130,22 @@ void CmdPanelFiducialEdit::setLocked(bool locked, bool immediate) noexcept {
 }
 
 void CmdPanelFiducialEdit::flip(const Point& center, bool immediate) noexcept {
-  // Same "flip always means a horizontal mirror, plus negating rotation"
-  // convention as CmdPanelBoardInstanceEdit::flip().
-  setFlipped(!mNewFlipped, immediate);
-  setPosition(mNewPos.mirrored(Qt::Horizontal, center), immediate);
-  setRotation(-mNewRotation, immediate);
+  // Same convention as CmdPanelBoardInstanceEdit::flip(), see
+  // PanelPlacement::flippedAbout().
+  const PanelPlacement placement =
+      PanelPlacement(mNewPos, mNewRotation, mNewFlipped).flippedAbout(center);
+  setFlipped(placement.flipped, immediate);
+  setPosition(placement.position, immediate);
+  setRotation(placement.rotation, immediate);
 }
 
 void CmdPanelFiducialEdit::rotate(const Angle& angle, const Point& center,
                                   bool immediate) noexcept {
-  setPosition(mNewPos.rotated(angle, center), immediate);
-  setRotation(mNewRotation + angle, immediate);
+  const PanelPlacement placement =
+      PanelPlacement(mNewPos, mNewRotation, mNewFlipped)
+          .rotatedAbout(angle, center);
+  setPosition(placement.position, immediate);
+  setRotation(placement.rotation, immediate);
 }
 
 /*******************************************************************************
