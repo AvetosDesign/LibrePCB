@@ -28,21 +28,18 @@
 #include "../../../editorcommandset.h"
 #include "../../../undostack.h"
 #include "../../../utils/menubuilder.h"
+#include "../../cmd/cmdlockselectedpanelitems.h"
 #include "../../cmd/cmdpaneledit.h"
 #include "../../cmd/cmdpanelboardinstanceadd.h"
 #include "../../cmd/cmdpanelboardinstanceedit.h"
-#include "../../cmd/cmdpanelboardinstanceremove.h"
 #include "../../cmd/cmdpanelfiducialadd.h"
 #include "../../cmd/cmdpanelfiducialedit.h"
-#include "../../cmd/cmdpanelfiducialremove.h"
 #include "../../cmd/cmdpanelholeadd.h"
 #include "../../cmd/cmdpanelholeedit.h"
-#include "../../cmd/cmdpanelholeremove.h"
 #include "../../cmd/cmdpaneltabadd.h"
 #include "../../cmd/cmdpaneltabedit.h"
-#include "../../cmd/cmdpaneltabremove.h"
 #include "../../cmd/cmdpanelvcutedit.h"
-#include "../../cmd/cmdpanelvcutremove.h"
+#include "../../cmd/cmdremoveselectedpanelitems.h"
 #include "../graphicsitems/pgi_boardinstance.h"
 #include "../graphicsitems/pgi_fiducial.h"
 #include "../graphicsitems/pgi_hole.h"
@@ -50,6 +47,7 @@
 #include "../graphicsitems/pgi_vcut.h"
 #include "../panelclipboarddata.h"
 #include "../panelgraphicsscene.h"
+#include "../panelselectionquery.h"
 #include "../tabpropertiesdialog.h"
 
 #include <librepcb/core/project/panel/panel.h>
@@ -61,7 +59,6 @@
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/lengthunit.h>
 #include <librepcb/core/utils/toolbox.h>
-#include <librepcb/core/utils/transform.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -82,6 +79,7 @@ PanelEditorState_Select::PanelEditorState_Select(
     mIsUndoCmdActive(false),
     mIsPickingVCutBindEdge(false),
     mDragSnapPending(false),
+    mDragHadLockedVCutBreak(false),
     mResizeHandle(PGI_Outline::ResizeHandle::None),
     mSelectionKind(SelectionKind::None),
     mCurrentDiameter(1000000),
@@ -144,100 +142,18 @@ bool PanelEditorState_Select::processRemove() noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
-  // Collect the model objects of all currently selected board placements,
-  // holes, and fiducials before touching the undo stack, since removing
-  // them will destroy the graphics items we're iterating over.
   // Locked items are excluded from removal unless the per-tab "ignore
   // locks" override is active - see startMovingSelection()'s identical
   // convention.
-  const bool ignoreLocks = getIgnoreLocks();
-  QVector<std::shared_ptr<PI_BoardInstance>> boardsToRemove;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        if (ignoreLocks || (!instance->isLocked())) {
-          boardsToRemove.append(instance);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> holesToRemove;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        if (ignoreLocks || (!hole->isLocked())) {
-          holesToRemove.append(hole);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> fiducialsToRemove;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        if (ignoreLocks || (!fiducial->isLocked())) {
-          fiducialsToRemove.append(fiducial);
-        }
-      }
-    }
-  }
-  // Tab markers aren't lockable themselves. Several selected markers can
-  // be the same tab (one per copy of its board), so collect unique tabs.
-  QVector<std::shared_ptr<PI_Tab>> tabsToRemove;
-  foreach (const auto& item, scene->getTabItems()) {
-    if (item && item->isSelected() &&
-        (!tabsToRemove.contains(item->getTabPtr())) &&
-        mContext.panel.getTab(item->getTab().getUuid())) {
-      tabsToRemove.append(item->getTabPtr());
-    }
-  }
-  QVector<std::shared_ptr<PI_VCut>> vCutsToRemove;
-  const auto& vCutItems = scene->getVCutItems();
-  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
-        if (ignoreLocks || (!vcut->isLocked())) {
-          vCutsToRemove.append(vcut);
-        }
-      }
-    }
-  }
-  if (boardsToRemove.isEmpty() && holesToRemove.isEmpty() &&
-      fiducialsToRemove.isEmpty() && tabsToRemove.isEmpty() &&
-      vCutsToRemove.isEmpty()) {
+  std::unique_ptr<CmdRemoveSelectedPanelItems> cmd(
+      new CmdRemoveSelectedPanelItems(*scene, mContext.panel,
+                                      getIgnoreLocks()));
+  if (cmd->getChildCount() == 0) {
     return false;
   }
 
   try {
-    mContext.undoStack.beginCmdGroup(tr("Remove item(s) from panel"));
-    // Tabs belong to the board design and are kept when board placements
-    // are removed (see CmdPanelBoardInstanceRemove), so only the selected
-    // tabs are removed.
-    foreach (const std::shared_ptr<PI_Tab>& tab, tabsToRemove) {
-      mContext.undoStack.appendToCmdGroup(
-          new CmdPanelTabRemove(mContext.panel, tab));
-    }
-    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            boardsToRemove) {
-      mContext.undoStack.appendToCmdGroup(
-          new CmdPanelBoardInstanceRemove(mContext.panel, instance));
-    }
-    foreach (const std::shared_ptr<PI_Hole>& hole, holesToRemove) {
-      mContext.undoStack.appendToCmdGroup(
-          new CmdPanelHoleRemove(mContext.panel, hole));
-    }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, fiducialsToRemove) {
-      mContext.undoStack.appendToCmdGroup(
-          new CmdPanelFiducialRemove(mContext.panel, fiducial));
-    }
-    foreach (const std::shared_ptr<PI_VCut>& vcut, vCutsToRemove) {
-      mContext.undoStack.appendToCmdGroup(
-          new CmdPanelVCutRemove(mContext.panel, vcut));
-    }
-    mContext.undoStack.commitCmdGroup();
+    mContext.undoStack.execCmd(cmd.release());
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     return false;
@@ -681,8 +597,10 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     }
     // Live drag-preview following (claude/librepcb_panel_vcut_tool.md) -
     // must run right after the boards' own translate() above, so
-    // #resolveBoardEdgeAxis() sees their already-updated position.
-    updateDragFollowerVCuts();
+    // ::librepcb::PI_VCut::resolveBoardEdge() sees their already-updated position. A plain
+    // translate - locked followers still update too, see
+    // #updateDragFollowerVCuts()'s doc comment.
+    updateDragFollowerVCuts(false);
     for (const std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
       cmd->translate(delta, true);
     }
@@ -793,6 +711,26 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
       scene->clearSelectionRect();
     }
     return true;
+  }
+
+  // Commit-time gate for a drag that silently broke a locked, board-bound
+  // V-cut's binding during an in-drag rotate/flip
+  // (#mDragHadLockedVCutBreak, set by #updateDragFollowerVCuts() right
+  // where it happens) - this is where the user is actually asked (Sean's
+  // design, 2026-09-25: "the warning/confirmation dialog always occurs on
+  // the commit... for drag operations, it happens on the release"). Uses
+  // #confirmUnbindLockedVCuts() directly rather than
+  // #confirmUnbindLockedBoardVCuts() - by now the affected V-cut(s) are
+  // already unbound, so re-scanning for a locked-and-still-board-bound
+  // V-cut (what that method does) would find nothing; the flag itself is
+  // the record that a break happened. A "No" reverts the *entire* drag via
+  // #abortCommand() - the board move/rotate/flip and every live-updated
+  // follower alike - same as if the user had pressed Esc, not just the
+  // V-cut binding.
+  if (mDragHadLockedVCutBreak) {
+    if (!confirmUnbindLockedVCuts()) {
+      return abortCommand(false);
+    }
   }
 
   try {
@@ -913,15 +851,15 @@ bool PanelEditorState_Select::commitVCutBindEdgePick(
   // The offset is derived from the V-cut's own current position, not the
   // click position - clicking only picks *which* edge to bind to, it
   // doesn't move the V-cut (see #bindSelectedVCutToEdge()'s doc comment).
-  std::optional<BoardEdgeAxis> boardAxis;
+  std::optional<PI_VCut::BoardEdgeAxis> boardAxis;
   std::shared_ptr<PI_BoardInstance> boardInstance;
   if (candidate.isBoard && candidate.boardInstance) {
     boardInstance =
         mContext.panel.getBoardInstances().find(*candidate.boardInstance);
     if (boardInstance) {
-      boardAxis = resolveBoardEdgeAxis(*boardInstance, candidate.boardSegStart,
-                                       candidate.boardSegEnd,
-                                       candidate.boardSegNormal);
+      boardAxis = PI_VCut::resolveBoardEdge(
+          boardInstance->getTransform(), candidate.boardSegStart,
+          candidate.boardSegEnd, candidate.boardSegNormal);
     }
   }
 
@@ -935,7 +873,7 @@ bool PanelEditorState_Select::commitVCutBindEdgePick(
       // with, since #PanelGraphicsScene::findNearestBoardEdgeForVCut() was
       // queried with vcut.isVertical() in #candidateBindEdge().
       const Length offset =
-          (vcut->getPosition() - boardAxis->coord) * boardAxis->normalSign;
+          PI_VCut::getBoardEdgeOffset(*boardAxis, vcut->getPosition());
       cmd->setBoardBinding(*candidate.boardInstance, candidate.boardSegStart,
                            candidate.boardSegEnd, candidate.boardSegNormal,
                            offset, false);
@@ -1020,78 +958,14 @@ PanelEditorState_Select::VCutEdgeCandidate
   return result;
 }
 
-std::optional<PanelEditorState_Select::BoardEdgeAxis>
-    PanelEditorState_Select::resolveBoardEdgeAxis(
-        const PI_BoardInstance& instance, const Point& segStart,
-        const Point& segEnd, const Angle& segNormal) const noexcept {
-  const Angle rot = instance.getRotation().mappedTo0_360deg();
-  if ((rot != Angle::deg0()) && (rot != Angle::deg90()) &&
-      (rot != Angle::deg180()) && (rot != Angle::deg270())) {
-    return std::nullopt;
-  }
-
-  const Transform transform(instance.getPosition(), instance.getRotation(),
-                            instance.getFlipped());
-  const Point start = transform.map(segStart);
-  const Point end = transform.map(segEnd);
-  const bool vertical = (start.getX() == end.getX());
-  const bool horizontal = (start.getY() == end.getY());
-  if ((!vertical) && (!horizontal)) {
-    // Shouldn't happen given the rotation check above (a segment that was
-    // axis-aligned before an orthogonal transform stays axis-aligned), but
-    // guard anyway rather than returning a bogus axis.
-    return std::nullopt;
-  }
-
-  // The transformed normal must land exactly on a cardinal direction too,
-  // for the same reason - its sign along the segment's coordinate is what
-  // #getOffset() is relative to.
-  const Angle normal = transform.mapNonMirrorable(segNormal).mappedTo0_360deg();
-  int normalSign;
-  if (vertical) {
-    if (normal == Angle::deg0()) {
-      normalSign = +1;
-    } else if (normal == Angle::deg180()) {
-      normalSign = -1;
-    } else {
-      return std::nullopt;
-    }
-    return BoardEdgeAxis{true, start.getX(), normalSign};
-  } else {
-    if (normal == Angle::deg90()) {
-      normalSign = +1;
-    } else if (normal == Angle::deg270()) {
-      normalSign = -1;
-    } else {
-      return std::nullopt;
-    }
-    return BoardEdgeAxis{false, start.getY(), normalSign};
-  }
-}
-
-std::optional<PanelEditorState_Select::BoardEdgeAxis>
-    PanelEditorState_Select::resolveVCutBoardAxis(
-        const PI_VCut& vcut) const noexcept {
-  const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
-  const auto instance = boundBoard
-      ? mContext.panel.getBoardInstances().find(*boundBoard)
-      : nullptr;
-  return instance
-      ? resolveBoardEdgeAxis(*instance, vcut.getBoundSegmentStart(),
-                             vcut.getBoundSegmentEnd(),
-                             vcut.getBoundSegmentNormal())
-      : std::nullopt;
-}
-
 void PanelEditorState_Select::applyBoardFollowToVCut(
     CmdPanelVCutEdit& cmd, bool immediate) const noexcept {
-  const std::optional<BoardEdgeAxis> axis =
-      resolveVCutBoardAxis(cmd.getVCut());
+  const std::optional<PI_VCut::BoardEdgeAxis> axis =
+      mContext.panel.resolveVCutBoardEdge(cmd.getVCut());
   if (axis) {
     // Same inverse of #commitVCutBindEdgePick()'s offset formula: the
     // offset itself is unchanged, only where it's measured from.
-    const Length pos =
-        axis->coord + (cmd.getVCut().getOffset() * axis->normalSign);
+    const Length pos = cmd.getVCut().getBoardEdgePosition(*axis);
     cmd.setVertical(axis->vertical, immediate);
     cmd.setPosition(clampVCutToPanel(axis->vertical, pos), immediate);
   } else {
@@ -1100,22 +974,29 @@ void PanelEditorState_Select::applyBoardFollowToVCut(
 }
 
 void PanelEditorState_Select::followBoardBoundVCuts(
-    const QSet<Uuid>& boardInstances, const QSet<Uuid>& excludeVCuts) {
+    const QSet<Uuid>& boardInstances, bool isReorientation,
+    const QSet<Uuid>& excludeVCuts) {
   if (boardInstances.isEmpty()) return;
+  const bool ignoreLocks = getIgnoreLocks();
 
   for (PI_VCut& vcut : mContext.panel.getVCuts()) {
     if (vcut.getBoundEdge() != PI_VCut::BoundEdge::Board) continue;
     if (excludeVCuts.contains(vcut.getUuid())) continue;
     const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
     if ((!boundBoard) || (!boardInstances.contains(*boundBoard))) continue;
-    if (vcut.isLocked()) {
-      // Left bound-but-stale rather than moved or unbound - see this
-      // method's doc comment for why.
-      continue;
-    }
 
     std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(vcut));
-    applyBoardFollowToVCut(*cmd, false);
+    if (isReorientation && vcut.isLocked() && (!ignoreLocks)) {
+      // A locked V-cut can't be reoriented - unbind it instead of
+      // following the board's new rotation/flip (Sean's design,
+      // 2026-09-25). The caller must already have confirmed this via
+      // #confirmUnbindLockedBoardVCuts() before reaching here.
+      cmd->setBinding(PI_VCut::BoundEdge::None, Length(0), false);
+    } else {
+      // Unlocked, "ignore locks" active, or a plain move (a translate-only
+      // offset update never conflicts with a lock).
+      applyBoardFollowToVCut(*cmd, false);
+    }
     mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
   }
 }
@@ -1134,15 +1015,17 @@ void PanelEditorState_Select::translateAndRebindVCut(
   // Keep a bound V-cut bound - only its offset from the (unchanged) edge
   // follows the new position, mirroring how it would be re-derived after a
   // panel resize (::librepcb::editor::CmdPanelEdit::applyVCutPositions()).
-  // Board edges (slice 3) need #resolveVCutBoardAxis(), not
+  // Board edges (slice 3) need ::librepcb::Panel::resolveVCutBoardEdge(), not
   // #Panel::getVCutBoundEdgeOffset() (panel edges only) - see this method's
   // doc comment for the bug that using the wrong one caused.
   if (cmd.getVCut().isBound() &&
       (cmd.getVCut().getBoundEdge() == PI_VCut::BoundEdge::Board)) {
     const std::optional<Uuid>& boundBoard = cmd.getVCut().getBoundBoardInstance();
-    const std::optional<BoardEdgeAxis> axis = resolveVCutBoardAxis(cmd.getVCut());
+    const std::optional<PI_VCut::BoardEdgeAxis> axis =
+        mContext.panel.resolveVCutBoardEdge(cmd.getVCut());
     if (axis) {
-      const Length offset = (cmd.getPosition() - axis->coord) * axis->normalSign;
+      const Length offset =
+          PI_VCut::getBoardEdgeOffset(*axis, cmd.getPosition());
       cmd.setBoardBinding(*boundBoard, cmd.getVCut().getBoundSegmentStart(),
                           cmd.getVCut().getBoundSegmentEnd(),
                           cmd.getVCut().getBoundSegmentNormal(), offset,
@@ -1161,8 +1044,31 @@ void PanelEditorState_Select::translateAndRebindVCut(
   }
 }
 
-void PanelEditorState_Select::updateDragFollowerVCuts() noexcept {
+void PanelEditorState_Select::updateDragFollowerVCuts(
+    bool isReorientation) noexcept {
+  const bool ignoreLocks = getIgnoreLocks();
   for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragFollowerVCutCmds) {
+    if (isReorientation && cmd->getVCut().isLocked() && (!ignoreLocks)) {
+      // Break the binding right in the live preview instead of reorienting
+      // a locked item (Sean's design, 2026-09-25). If an earlier translate
+      // step in this same drag already moved the V-cut along with its
+      // board (rule #2), setBinding() alone would leave it frozen at that
+      // displaced position, since it only touches the binding fields, not
+      // position/orientation. So revert those back to their pre-drag
+      // values first, then unbind - the V-cut should end up exactly where
+      // it was before the drag started, not wherever it had drifted to.
+      // Track that this happened (#mDragHadLockedVCutBreak) rather than
+      // letting the eventual commit-time check re-derive it by scanning
+      // for a locked V-cut that's still bound - by then it won't be,
+      // since we're unbinding it right now.
+      mDragHadLockedVCutBreak = true;
+      cmd->setVertical(cmd->wasVertical(), true);
+      cmd->setPosition(cmd->getOldPosition(), true);
+      if (cmd->getVCut().isBound()) {
+        cmd->setBinding(PI_VCut::BoundEdge::None, Length(0), true);
+      }
+      continue;
+    }
     applyBoardFollowToVCut(*cmd, true);
   }
 }
@@ -1181,6 +1087,34 @@ bool PanelEditorState_Select::confirmUnbindForRotate(
   return QMessageBox::question(
              parentWidget(), tr("Unbind V-Cut"),
              tr("Rotating the V-Cut will unbind it. Are you sure?"),
+             QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
+}
+
+bool PanelEditorState_Select::confirmUnbindLockedBoardVCuts(
+    const QSet<Uuid>& boardInstances) noexcept {
+  if (boardInstances.isEmpty() || getIgnoreLocks()) return true;
+
+  bool anyLockedBound = false;
+  for (const PI_VCut& vcut : mContext.panel.getVCuts()) {
+    if (vcut.getBoundEdge() != PI_VCut::BoundEdge::Board) continue;
+    if (!vcut.isLocked()) continue;
+    const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
+    if (boundBoard && boardInstances.contains(*boundBoard)) {
+      anyLockedBound = true;
+      break;
+    }
+  }
+  if (!anyLockedBound) return true;
+
+  return confirmUnbindLockedVCuts();
+}
+
+bool PanelEditorState_Select::confirmUnbindLockedVCuts() noexcept {
+  return QMessageBox::question(
+             parentWidget(), tr("Unbind V-Cut"),
+             tr("Rotating or flipping will unbind the locked V-Cut(s) bound "
+                "to these board(s), since a locked V-Cut can't move or "
+                "change orientation. Are you sure?"),
              QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes;
 }
 
@@ -1357,50 +1291,40 @@ bool PanelEditorState_Select::startMovingSelection(
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
+  mDragHadLockedVCutBreak = false;
+
   // Locked items are excluded from dragging unless the per-tab "ignore
   // locks" override is active, matching
   // ::librepcb::editor::BoardEditorState_Select's convention for locked
   // board items.
   const bool ignoreLocks = getIgnoreLocks();
-  const auto& items = scene->getBoardInstanceItems();
-  for (auto it = items.begin(); it != items.end(); it++) {
-    if (it.value() && it.value()->isSelected() &&
-        (ignoreLocks || (!it.value()->getInstance().isLocked()))) {
-      mDragCmds.push_back(std::make_unique<CmdPanelBoardInstanceEdit>(
-          it.value()->getInstance()));
-    }
+  PanelSelectionQuery query(*scene, mContext.panel, ignoreLocks);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  query.addSelectedVCuts();
+  foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+           query.getBoardInstances()) {
+    mDragCmds.push_back(std::make_unique<CmdPanelBoardInstanceEdit>(*instance));
   }
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected() &&
-        (ignoreLocks || (!it.value()->getHole().isLocked()))) {
-      mDragHoleCmds.push_back(
-          std::make_unique<CmdPanelHoleEdit>(it.value()->getHole()));
-    }
+  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
+    mDragHoleCmds.push_back(std::make_unique<CmdPanelHoleEdit>(*hole));
   }
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected() &&
-        (ignoreLocks || (!it.value()->getFiducial().isLocked()))) {
-      mDragFiducialCmds.push_back(std::make_unique<CmdPanelFiducialEdit>(
-          it.value()->getFiducial()));
-    }
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    mDragFiducialCmds.push_back(
+        std::make_unique<CmdPanelFiducialEdit>(*fiducial));
   }
-  const auto& vCutItems = scene->getVCutItems();
-  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-    if (it.value() && it.value()->isSelected() &&
-        (ignoreLocks || (!it.value()->getVCut().isLocked()))) {
-      mDragVCutCmds.push_back(
-          std::make_unique<CmdPanelVCutEdit>(it.value()->getVCut()));
-    }
+  foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
+    mDragVCutCmds.push_back(std::make_unique<CmdPanelVCutEdit>(*vcut));
   }
   // Board-bound V-cuts not themselves selected also need to move live
   // with their dragged board(s) - "followers", in the original design's
   // terms (claude/librepcb_panel_vcut_tool.md) - see
   // #mDragFollowerVCutCmds/#updateDragFollowerVCuts(). Locked ones are
-  // excluded entirely, same as #followBoardBoundVCuts() (used for a
-  // committed, non-drag board move): left bound-but-stale rather than
-  // dragged along.
+  // included too now (Sean's design, 2026-09-25): a locked follower still
+  // needs live position updates for a plain move, and needs to be present
+  // so a later in-drag rotate/flip can silently break its binding - see
+  // #updateDragFollowerVCuts()'s doc comment for how each case is handled.
   if (!mDragCmds.empty()) {
     QSet<Uuid> draggedBoards;
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
@@ -1412,7 +1336,6 @@ bool PanelEditorState_Select::startMovingSelection(
     }
     for (PI_VCut& vcut : mContext.panel.getVCuts()) {
       if (vcut.getBoundEdge() != PI_VCut::BoundEdge::Board) continue;
-      if (vcut.isLocked()) continue;
       if (alreadyDragged.contains(vcut.getUuid())) continue;
       const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
       if ((!boundBoard) || (!draggedBoards.contains(*boundBoard))) continue;
@@ -1564,7 +1487,7 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   // being rotated, its board is), so there's no silent-unbind-on-rotate
   // case to mirror - #updateDragFollowerVCuts() only unbinds a follower
   // if its board's new rotation is non-orthogonal.
-  updateDragFollowerVCuts();
+  updateDragFollowerVCuts(true);
   for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
     mDragHoleCmds[i]->rotate(angle, center, true);
     if (i < mDragHolePasteOffsets.size()) {
@@ -1613,7 +1536,7 @@ bool PanelEditorState_Select::flipSelection() noexcept {
   }
   // Live drag-preview following, same as the ordinary-move and in-drag-
   // rotate steps - must run after the boards' own flip() above.
-  updateDragFollowerVCuts();
+  updateDragFollowerVCuts(true);
   for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
     mDragHoleCmds[i]->flip(center, true);
     if (i < mDragHolePasteOffsets.size()) {
@@ -1650,41 +1573,12 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   // locks" override is active - see startMovingSelection()'s identical
   // convention.
   const bool ignoreLocks = getIgnoreLocks();
-  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        if (ignoreLocks || (!instance->isLocked())) {
-          selectedBoards.append(instance);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        if (ignoreLocks || (!hole->isLocked())) {
-          selectedHoles.append(hole);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        if (ignoreLocks || (!fiducial->isLocked())) {
-          selectedFiducials.append(fiducial);
-        }
-      }
-    }
-  }
-  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty()) {
+  PanelSelectionQuery query(*scene, mContext.panel, ignoreLocks);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
+      query.getFiducials().isEmpty()) {
     return false;
   }
 
@@ -1702,48 +1596,63 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   Point center(0, 0);
   int centerCount = 0;
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-          selectedBoards) {
+          query.getBoardInstances()) {
     auto item = scene->getBoardInstanceItem(instance->getUuid());
     center += item ? item->getCenter() : instance->getPosition();
     centerCount++;
   }
-  foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
     center += hole->getPosition();
     centerCount++;
   }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     center += fiducial->getPosition();
     centerCount++;
   }
   center /= static_cast<int64_t>(centerCount);
 
+  // A locked V-cut bound to one of the boards about to be flipped (not
+  // itself directly selected - Flip never includes V-cuts in its own
+  // selection, see the doc comment above) - see
+  // #confirmUnbindLockedBoardVCuts()'s doc comment.
+  if (!query.getBoardInstances().isEmpty()) {
+    QSet<Uuid> boardsToFlip;
+    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+            query.getBoardInstances()) {
+      boardsToFlip.insert(instance->getUuid());
+    }
+    if (!confirmUnbindLockedBoardVCuts(boardsToFlip)) {
+      return false;
+    }
+  }
+
   try {
     mContext.undoStack.beginCmdGroup(tr("Flip item(s)"));  // can throw
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            selectedBoards) {
+            query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->flip(center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
       std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
       cmd->flip(center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->flip(center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    if (!selectedBoards.isEmpty()) {
+    if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> flippedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              selectedBoards) {
+              query.getBoardInstances()) {
         flippedBoards.insert(instance->getUuid());
       }
-      followBoardBoundVCuts(flippedBoards);  // can throw
+      followBoardBoundVCuts(flippedBoards, true);  // can throw
     }
     mContext.undoStack.commitCmdGroup();  // can throw
   } catch (const Exception& e) {
@@ -1767,70 +1676,31 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
   // the relevant single-axis component of an arbitrary 2D delta), so V-cuts
   // are included here.
   const bool ignoreLocks = getIgnoreLocks();
-  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        if (ignoreLocks || (!instance->isLocked())) {
-          selectedBoards.append(instance);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        if (ignoreLocks || (!hole->isLocked())) {
-          selectedHoles.append(hole);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        if (ignoreLocks || (!fiducial->isLocked())) {
-          selectedFiducials.append(fiducial);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
-  const auto& vCutItems = scene->getVCutItems();
-  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
-        if (ignoreLocks || (!vcut->isLocked())) {
-          selectedVCuts.append(vcut);
-        }
-      }
-    }
-  }
-  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
+  PanelSelectionQuery query(*scene, mContext.panel, ignoreLocks);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  query.addSelectedVCuts();
+  if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
+      query.getFiducials().isEmpty() && query.getVCuts().isEmpty()) {
     return false;
   }
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Move item(s)"));  // can throw
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            selectedBoards) {
+            query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->translate(delta, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
       std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
       cmd->translate(delta, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->translate(delta, false);
@@ -1842,19 +1712,19 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
     // pass further down, same "direct drag beats follower" precedence as
     // #mDragVCutCmds vs. #mDragFollowerVCutCmds during a mouse drag.
     QSet<Uuid> selectedVCutUuids;
-    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
+    foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
       std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
       translateAndRebindVCut(*cmd, delta, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       selectedVCutUuids.insert(vcut->getUuid());
     }
-    if (!selectedBoards.isEmpty()) {
+    if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> movedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              selectedBoards) {
+              query.getBoardInstances()) {
         movedBoards.insert(instance->getUuid());
       }
-      followBoardBoundVCuts(movedBoards, selectedVCutUuids);  // can throw
+      followBoardBoundVCuts(movedBoards, false, selectedVCutUuids);  // can throw
     }
     mContext.undoStack.commitCmdGroup();  // can throw
   } catch (const Exception& e) {
@@ -1870,81 +1740,14 @@ bool PanelEditorState_Select::lockSelectedItems(bool locked) noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
-  // Unlike startMovingSelection()/processRemove()/flipSelectedItems()/
-  // rotateSelectedItems(), this is the one operation that's never gated by
-  // isLocked() itself - it's the only way to change that flag, so every
-  // currently-selected item is included regardless of its current locked
-  // state (setting locked=true on an already-locked item, or false on an
-  // already-unlocked one, is a harmless no-op change caught by
-  // CmdPanel*Edit::performExecute()'s own dirty-check).
-  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        selectedBoards.append(instance);
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        selectedHoles.append(hole);
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        selectedFiducials.append(fiducial);
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
-  const auto& vCutItems = scene->getVCutItems();
-  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
-        selectedVCuts.append(vcut);
-      }
-    }
-  }
-  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
+  std::unique_ptr<CmdLockSelectedPanelItems> cmd(
+      new CmdLockSelectedPanelItems(*scene, mContext.panel, locked));
+  if (cmd->getChildCount() == 0) {
     return false;
   }
 
   try {
-    mContext.undoStack.beginCmdGroup(locked ? tr("Lock item(s)")
-                                            : tr("Unlock item(s)"));  // can throw
-    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            selectedBoards) {
-      std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
-          new CmdPanelBoardInstanceEdit(*instance));
-      cmd->setLocked(locked, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
-      std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
-      cmd->setLocked(locked, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
-      std::unique_ptr<CmdPanelFiducialEdit> cmd(
-          new CmdPanelFiducialEdit(*fiducial));
-      cmd->setLocked(locked, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
-      std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
-      cmd->setLocked(locked, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    mContext.undoStack.commitCmdGroup();  // can throw
+    mContext.undoStack.execCmd(cmd.release());
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     return false;
@@ -1966,52 +1769,13 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   // locks" override is active - see startMovingSelection()'s identical
   // convention.
   const bool ignoreLocks = getIgnoreLocks();
-  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        if (ignoreLocks || (!instance->isLocked())) {
-          selectedBoards.append(instance);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        if (ignoreLocks || (!hole->isLocked())) {
-          selectedHoles.append(hole);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        if (ignoreLocks || (!fiducial->isLocked())) {
-          selectedFiducials.append(fiducial);
-        }
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
-  const auto& vCutItems = scene->getVCutItems();
-  for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
-        if (ignoreLocks || (!vcut->isLocked())) {
-          selectedVCuts.append(vcut);
-        }
-      }
-    }
-  }
-  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty() && selectedVCuts.isEmpty()) {
+  PanelSelectionQuery query(*scene, mContext.panel, ignoreLocks);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  query.addSelectedVCuts();
+  if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
+      query.getFiducials().isEmpty() && query.getVCuts().isEmpty()) {
     return false;
   }
 
@@ -2025,16 +1789,16 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   Point center(0, 0);
   int centerCount = 0;
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-          selectedBoards) {
+          query.getBoardInstances()) {
     auto item = scene->getBoardInstanceItem(instance->getUuid());
     center += item ? item->getCenter() : instance->getPosition();
     centerCount++;
   }
-  foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
     center += hole->getPosition();
     centerCount++;
   }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     center += fiducial->getPosition();
     centerCount++;
   }
@@ -2043,18 +1807,32 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   } else {
     // Only V-cuts are selected: V-cuts have no position of their own, so
     // pivot at the center of their in-panel midpoints.
-    center = getVCutsCenter(selectedVCuts);
+    center = getVCutsCenter(query.getVCuts());
   }
 
   // A single "yes" covers the whole rotate action - if the user cancels,
   // nothing in the selection rotates, not just the bound V-cut(s).
-  if (!confirmUnbindForRotate(selectedVCuts)) {
+  if (!confirmUnbindForRotate(query.getVCuts())) {
     return false;
+  }
+  // Second, separate check: a locked V-cut bound to one of the *boards*
+  // about to be rotated (not itself directly selected) - see
+  // #confirmUnbindLockedBoardVCuts()'s doc comment for why this is a
+  // distinct case from the one just above.
+  {
+    QSet<Uuid> boardsToRotate;
+    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+            query.getBoardInstances()) {
+      boardsToRotate.insert(instance->getUuid());
+    }
+    if (!confirmUnbindLockedBoardVCuts(boardsToRotate)) {
+      return false;
+    }
   }
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Rotate item(s)"));  // can throw
-    foreach (const std::shared_ptr<PI_VCut>& vcut, selectedVCuts) {
+    foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
       std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
       cmd->rotate(angle, center, false);  // Ignores non-90° angles.
       cmd->setPosition(
@@ -2065,34 +1843,34 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            selectedBoards) {
+            query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->rotate(angle, center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
       std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
       cmd->rotate(angle, center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->rotate(angle, center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    if (!selectedBoards.isEmpty()) {
+    if (!query.getBoardInstances().isEmpty()) {
       // Any directly-selected V-cut that was itself bound to one of these
-      // boards was already unbound by the #selectedVCuts loop above (model
+      // boards was already unbound by the #query.getVCuts() loop above (model
       // change already applied via appendToCmdGroup()), so it's correctly
       // skipped here rather than double-processed.
       QSet<Uuid> rotatedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              selectedBoards) {
+              query.getBoardInstances()) {
         rotatedBoards.insert(instance->getUuid());
       }
-      followBoardBoundVCuts(rotatedBoards);  // can throw
+      followBoardBoundVCuts(rotatedBoards, true);  // can throw
     }
     mContext.undoStack.commitCmdGroup();  // can throw
   } catch (const Exception& e) {
@@ -2112,35 +1890,12 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
   // Collect the currently selected item(s) of all three types together -
   // not required to be homogeneous, unlike #getSelectionKind()'s parameter-
   // editing gate.
-  QVector<std::shared_ptr<PI_BoardInstance>> selectedBoards;
-  const auto& boardItems = scene->getBoardInstanceItems();
-  for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto instance = mContext.panel.getBoardInstances().find(it.key())) {
-        selectedBoards.append(instance);
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-  const auto& holeItems = scene->getHoleItems();
-  for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto hole = mContext.panel.getHoles().find(it.key())) {
-        selectedHoles.append(hole);
-      }
-    }
-  }
-  QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-  const auto& fiducialItems = scene->getFiducialItems();
-  for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-    if (it.value() && it.value()->isSelected()) {
-      if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-        selectedFiducials.append(fiducial);
-      }
-    }
-  }
-  if (selectedBoards.isEmpty() && selectedHoles.isEmpty() &&
-      selectedFiducials.isEmpty()) {
+  PanelSelectionQuery query(*scene, mContext.panel, true);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
+      query.getFiducials().isEmpty()) {
     return false;
   }
 
@@ -2148,7 +1903,7 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
     PanelClipboardData data;
     QSet<Uuid> copiedBoards;
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            selectedBoards) {
+            query.getBoardInstances()) {
       data.getInstances().append(
           std::make_shared<PI_BoardInstance>(*instance));
       // The board design's tabs are copied along (once per design), so
@@ -2161,10 +1916,10 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
         }
       }
     }
-    foreach (const std::shared_ptr<PI_Hole>& hole, selectedHoles) {
+    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
       data.getHoles().append(std::make_shared<PI_Hole>(*hole));
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selectedFiducials) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
       data.getFiducials().append(std::make_shared<PI_Fiducial>(*fiducial));
     }
     qApp->clipboard()->setMimeData(data.toMimeData().release());
@@ -2185,16 +1940,12 @@ std::shared_ptr<PI_Tab>
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return nullptr;
 
-  auto anySelected = [](const auto& items) {
-    for (auto it = items.begin(); it != items.end(); it++) {
-      if (it.value() && it.value()->isSelected()) return true;
-    }
-    return false;
-  };
-  if (anySelected(scene->getBoardInstanceItems()) ||
-      anySelected(scene->getHoleItems()) ||
-      anySelected(scene->getFiducialItems()) ||
-      anySelected(scene->getVCutItems())) {
+  PanelSelectionQuery query(*scene, mContext.panel, true);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  query.addSelectedVCuts();
+  if (!query.isResultEmpty()) {
     return nullptr;
   }
 
@@ -2236,65 +1987,44 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
   // ::librepcb::editor::EditorCommandSet::lock/unlock).
   bool hasUnlocked = false;
   bool hasLocked = false;
-  if (PanelGraphicsScene* scene = getActivePanelScene()) {
-    const auto& items = scene->getBoardInstanceItems();
-    for (auto it = items.begin(); it != items.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        hasSelection = true;
-        if (it.value()->getInstance().isLocked()) {
-          hasLocked = true;
-        } else {
-          hasUnlocked = true;
-        }
-      }
-    }
-    const auto& holeItems = scene->getHoleItems();
-    for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        hasSelection = true;
-        if (it.value()->getHole().isLocked()) {
-          hasLocked = true;
-        } else {
-          hasUnlocked = true;
-        }
-      }
-    }
-    const auto& fiducialItems = scene->getFiducialItems();
-    for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        hasSelection = true;
-        if (it.value()->getFiducial().isLocked()) {
-          hasLocked = true;
-        } else {
-          hasUnlocked = true;
-        }
-      }
-    }
-  }
   // Selected tab markers can only be removed (they follow their board for
   // everything else, see the class doc comment). Selected V-cuts can be
   // removed, rotated (toggles horizontal/vertical) and locked/unlocked (no
   // Flip/Cut/Copy yet).
   if (PanelGraphicsScene* scene = getActivePanelScene()) {
-    foreach (const auto& item, scene->getTabItems()) {
-      if (item && item->isSelected()) {
-        features |= PanelEditorFsmAdapter::Feature::Remove;
-        break;
+    PanelSelectionQuery query(*scene, mContext.panel, true);
+    query.addSelectedBoardInstances();
+    query.addSelectedHoles();
+    query.addSelectedFiducials();
+    query.addSelectedVCuts();
+    query.addSelectedTabs();
+    auto noteLocked = [&hasLocked, &hasUnlocked](bool locked) {
+      if (locked) {
+        hasLocked = true;
+      } else {
+        hasUnlocked = true;
       }
+    };
+    hasSelection = (!query.getBoardInstances().isEmpty()) ||
+        (!query.getHoles().isEmpty()) || (!query.getFiducials().isEmpty());
+    foreach (const auto& instance, query.getBoardInstances()) {
+      noteLocked(instance->isLocked());
     }
-    const auto& vCutItems = scene->getVCutItems();
-    for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        features |= PanelEditorFsmAdapter::Feature::Remove;
-        if (getIgnoreLocks() || (!it.value()->getVCut().isLocked())) {
-          features |= PanelEditorFsmAdapter::Feature::Rotate;
-        }
-        if (it.value()->getVCut().isLocked()) {
-          hasLocked = true;
-        } else {
-          hasUnlocked = true;
-        }
+    foreach (const auto& hole, query.getHoles()) {
+      noteLocked(hole->isLocked());
+    }
+    foreach (const auto& fiducial, query.getFiducials()) {
+      noteLocked(fiducial->isLocked());
+    }
+    if (!query.getTabs().isEmpty()) {
+      features |= PanelEditorFsmAdapter::Feature::Remove;
+    }
+    foreach (const auto& vcut, query.getVCuts()) {
+      features |= PanelEditorFsmAdapter::Feature::Remove;
+      if (getIgnoreLocks() || (!vcut->isLocked())) {
+        features |= PanelEditorFsmAdapter::Feature::Rotate;
       }
+      noteLocked(vcut->isLocked());
     }
   }
   if ((!mIsUndoCmdActive) && getSingleSelectedTab()) {
@@ -2441,23 +2171,28 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
                    formatPosition(vcut.getOffset()),
                    PI_VCut::getBoundEdgeLabel(vcut.getBoundEdge()))));
     } else {
-      std::pair<Length, QString> edgeDistance;
-      if (vcut.isVertical()) {
-        const Length toRight = *mContext.panel.getWidth() - pos;
-        edgeDistance = (pos.abs() <= toRight.abs())
-            ? std::make_pair(pos, tr("to left panel edge"))
-            : std::make_pair(toRight, tr("to right panel edge"));
-      } else {
-        const Length toTop = *mContext.panel.getHeight() - pos;
-        edgeDistance = (toTop.abs() <= pos.abs())
-            ? std::make_pair(toTop, tr("to top panel edge"))
-            : std::make_pair(pos, tr("to bottom panel edge"));
+      const Panel::VCutEdgeDistance nearest =
+          mContext.panel.getNearestVCutPanelEdge(vcut);
+      QString edgeText;
+      switch (nearest.edge) {
+        case PI_VCut::BoundEdge::PanelLeft:
+          edgeText = tr("to left panel edge");
+          break;
+        case PI_VCut::BoundEdge::PanelRight:
+          edgeText = tr("to right panel edge");
+          break;
+        case PI_VCut::BoundEdge::PanelTop:
+          edgeText = tr("to top panel edge");
+          break;
+        default:
+          edgeText = tr("to bottom panel edge");
+          break;
       }
       keyValues.append(std::make_pair(
           tr("Distance"),
           QString("%1 %2 %3")
-              .arg(formatPosition(edgeDistance.first), unit.toShortStringTr(),
-                   edgeDistance.second)));
+              .arg(formatPosition(nearest.distance), unit.toShortStringTr(),
+                   edgeText)));
     }
   }
 
@@ -2480,51 +2215,18 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
 
   PanelGraphicsScene* scene = getActivePanelScene();
   if (scene) {
-    bool anyBoardSelected = false;
-    const auto& boardItems = scene->getBoardInstanceItems();
-    for (auto it = boardItems.begin(); it != boardItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        anyBoardSelected = true;
-        break;
-      }
-    }
-    // A selected tab marker makes the selection mixed too.
-    foreach (const auto& item, scene->getTabItems()) {
-      if (item && item->isSelected()) {
-        anyBoardSelected = true;
-        break;
-      }
-    }
-
-    QVector<std::shared_ptr<PI_VCut>> selectedVCuts;
-    const auto& vCutItems = scene->getVCutItems();
-    for (auto it = vCutItems.begin(); it != vCutItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        if (auto vcut = mContext.panel.getVCuts().find(it.key())) {
-          selectedVCuts.append(vcut);
-        }
-      }
-    }
-
-    QVector<std::shared_ptr<PI_Hole>> selectedHoles;
-    const auto& holeItems = scene->getHoleItems();
-    for (auto it = holeItems.begin(); it != holeItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        if (auto hole = mContext.panel.getHoles().find(it.key())) {
-          selectedHoles.append(hole);
-        }
-      }
-    }
-
-    QVector<std::shared_ptr<PI_Fiducial>> selectedFiducials;
-    const auto& fiducialItems = scene->getFiducialItems();
-    for (auto it = fiducialItems.begin(); it != fiducialItems.end(); it++) {
-      if (it.value() && it.value()->isSelected()) {
-        if (auto fiducial = mContext.panel.getFiducials().find(it.key())) {
-          selectedFiducials.append(fiducial);
-        }
-      }
-    }
+    PanelSelectionQuery query(*scene, mContext.panel, true);
+    query.addSelectedBoardInstances();
+    query.addSelectedHoles();
+    query.addSelectedFiducials();
+    query.addSelectedVCuts();
+    query.addSelectedTabs();
+    // A selected board or tab marker makes the selection mixed too.
+    const bool anyBoardSelected =
+        (!query.getBoardInstances().isEmpty()) || (!query.getTabs().isEmpty());
+    const auto& selectedVCuts = query.getVCuts();
+    const auto& selectedHoles = query.getHoles();
+    const auto& selectedFiducials = query.getFiducials();
 
     // Only expose parameter editing when the selection is homogeneously
     // all-holes or all-fiducials - a mixed selection (or one that also
@@ -2617,12 +2319,9 @@ void PanelEditorState_Select::setVCutVertical(bool vertical) noexcept {
 
 Point PanelEditorState_Select::getVCutsCenter(
     const QVector<std::shared_ptr<PI_VCut>>& vCuts) const noexcept {
-  const Length halfWidth = *mContext.panel.getWidth() / static_cast<int64_t>(2);
-  const Length halfHeight = *mContext.panel.getHeight() / static_cast<int64_t>(2);
   Point center(0, 0);
   foreach (const std::shared_ptr<PI_VCut>& vcut, vCuts) {
-    center += vcut->isVertical() ? Point(vcut->getPosition(), halfHeight)
-                                 : Point(halfWidth, vcut->getPosition());
+    center += mContext.panel.getVCutSectionMidpoint(*vcut);
   }
   if (!vCuts.isEmpty()) {
     center /= static_cast<int64_t>(vCuts.count());
@@ -2793,6 +2492,7 @@ bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
     mDragPasteOffsets.clear();
     mDragHolePasteOffsets.clear();
     mDragFiducialPasteOffsets.clear();
+    mDragHadLockedVCutBreak = false;
     mResizeCmd.reset();
 
     if (mIsUndoCmdActive) {

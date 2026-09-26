@@ -316,7 +316,7 @@ private:
    * reports as nearest to @p scenePos - a panel edge (#PI_VCut::
    * setBinding(), offset from #Panel::getVCutBoundEdgeOffset()) or a
    * board outline segment (#PI_VCut::setBoardBinding(), offset derived
-   * via #resolveBoardEdgeAxis() from the V-cut's current position) - then
+   * via ::librepcb::PI_VCut::resolveBoardEdge() from the V-cut's current position) - then
    * always calls #cancelVCutBindEdgePick() to leave picking mode, whether
    * or not the bind actually happened.
    *
@@ -383,64 +383,12 @@ private:
                                       const Point& cursorPos) noexcept;
 
   /**
-   * @brief Derive a bound V-cut's orientation/position axis from a board
-   *        outline segment's *current* (transformed) placement
-   *
-   * Transforms @p segStart/@p segEnd/@p segNormal (board-local, as stored
-   * by #PI_VCut::setBoardBinding()) through @p instance's current
-   * position/rotation/flip (::librepcb::Transform), matching
-   * ::librepcb::editor::PanelGraphicsScene::findNearestBoardEdge()'s own
-   * inverse-transform convention. The result is only meaningful if the
-   * transformed segment is still axis-aligned in panel coordinates, i.e.
-   * @p instance's rotation is (still) a multiple of 90° - otherwise
-   * `std::nullopt`, the caller's cue to unbind (see
-   * #confirmUnbindForRotate() for the V-cut's-own-rotation equivalent;
-   * board rotation/flip isn't wired up to call this yet - see
-   * claude/librepcb_panel_vcut_tool.md).
-   *
-   * @param instance    The board instance the V-cut is bound to.
-   * @param segStart    @see #PI_VCut::getBoundSegmentStart()
-   * @param segEnd      @see #PI_VCut::getBoundSegmentEnd()
-   * @param segNormal   @see #PI_VCut::getBoundSegmentNormal()
-   *
-   * @return `vertical` (the V-cut's orientation following this segment)
-   *         and `coord` (the segment's own transformed coordinate - X if
-   *         vertical, Y if horizontal) and `normalSign` (+1/-1: the sign
-   *         #getOffset() is relative to along that coordinate, from the
-   *         transformed @p segNormal) - or `std::nullopt`.
-   */
-  struct BoardEdgeAxis {
-    bool vertical;
-    Length coord;
-    int normalSign;
-  };
-  std::optional<BoardEdgeAxis> resolveBoardEdgeAxis(
-      const PI_BoardInstance& instance, const Point& segStart,
-      const Point& segEnd, const Angle& segNormal) const noexcept;
-
-  /**
-   * @brief #resolveBoardEdgeAxis(), looking the board instance up from
-   *        @p vcut itself
-   *
-   * Small convenience wrapper shared by #followBoardBoundVCuts(),
-   * #updateDragFollowerVCuts(), and the board-bound branch of the V-cut
-   * drag-move loop in #processGraphicsSceneMouseMoved() - all three need
-   * exactly "look up @p vcut's #PI_VCut::getBoundBoardInstance() in
-   * #Panel::getBoardInstances(), then #resolveBoardEdgeAxis() its stored
-   * segment/normal", and return `std::nullopt` if the board instance is
-   * gone. @p vcut does not need to actually be #PI_VCut::isBound() to
-   * #PI_VCut::BoundEdge::Board - callers already check that themselves.
-   */
-  std::optional<BoardEdgeAxis> resolveVCutBoardAxis(
-      const PI_VCut& vcut) const noexcept;
-
-  /**
    * @brief Re-derive one V-cut's position/orientation from
-   *        #resolveVCutBoardAxis(), or unbind it if that fails
+   *        ::librepcb::Panel::resolveVCutBoardEdge(), or unbind it if that fails
    *
    * Shared per-V-cut step used by both #followBoardBoundVCuts() (commit-
    * time) and #updateDragFollowerVCuts() (live drag preview): if
-   * #resolveVCutBoardAxis() still finds an axis-aligned edge, moves
+   * ::librepcb::Panel::resolveVCutBoardEdge() still finds an axis-aligned edge, moves
    * @p cmd to match it (#PI_VCut::getOffset() itself doesn't change -
    * only where it's measured from, same inverse of
    * #commitVCutBindEdgePick()'s offset formula); otherwise unbinds it and
@@ -463,7 +411,7 @@ private:
    * only applies the relevant single-axis component), snaps/clamps the
    * result onto the panel (same as every other V-cut move), then re-derives
    * its binding so it doesn't go stale:
-   *  - #PI_VCut::BoundEdge::Board: re-offsets it from #resolveVCutBoardAxis()
+   *  - #PI_VCut::BoundEdge::Board: re-offsets it from ::librepcb::Panel::resolveVCutBoardEdge()
    *    if the board edge is still axis-aligned, otherwise unbinds it -
    *    **this exact logic was the site of the panel-resize/drag-corruption
    *    bug fixed 2026-09-24 (see claude/librepcb_panel_vcut_tool.md)**, so
@@ -486,7 +434,7 @@ private:
    *
    * For each V-cut in #Panel::getVCuts() whose #PI_VCut::getBoundEdge() is
    * #PI_VCut::BoundEdge::Board and whose #PI_VCut::getBoundBoardInstance()
-   * is in @p boardInstances: if #resolveBoardEdgeAxis() still finds an
+   * is in @p boardInstances: if ::librepcb::PI_VCut::resolveBoardEdge() still finds an
    * axis-aligned edge (using the board's *current*, already-updated
    * placement), the V-cut's orientation/position are updated to match
    * (#PI_VCut::getOffset() itself doesn't change - only where it's
@@ -503,28 +451,43 @@ private:
    *
    * Only handles the *committed* result of a board move/rotate/flip -
    * this is used by the standalone Rotate/Flip commands
-   * (#rotateSelectedItems()/#flipSelectedItems()), which have no live
-   * preview to begin with. #updateDragFollowerVCuts() is the equivalent
-   * for an in-progress drag/in-drag-rotate/in-drag-flip.
+   * (#rotateSelectedItems()/#flipSelectedItems()) and by
+   * #moveSelectedItems(), which have no live preview to begin with.
+   * #updateDragFollowerVCuts() is the equivalent for an in-progress drag/
+   * in-drag-rotate/in-drag-flip.
    *
-   * **Known gap (not yet raised with Sean - see
-   * claude/librepcb_panel_vcut_tool.md): no confirmation prompt yet for
-   * the "board rotated non-orthogonally" or "board moved with a locked
-   * bound V-cut" cases from the original design** (same doc); a locked
-   * bound V-cut is simply left bound-but-stale (not moved, not unbound)
-   * until it's manually dealt with, rather than being silently unbound.
+   * **Locked V-cuts (Sean's design, 2026-09-25):** a locked, board-bound
+   * V-cut can't be *reoriented* by its board (that would move/rotate a
+   * locked item), so for @p isReorientation callers it's unbound instead
+   * of following - unless #getIgnoreLocks() is active, in which case it's
+   * treated exactly like an unlocked one. The caller must already have
+   * confirmed this via #confirmUnbindLockedBoardVCuts() (standalone) or the
+   * equivalent live-drag confirmation at commit
+   * (#processGraphicsSceneLeftMouseButtonReleased()) before calling this -
+   * see those for why. A locked V-cut's *position*, though, always follows
+   * a plain move of its board (@p isReorientation `false`) regardless of
+   * lock state - translating a bound V-cut to keep it on its edge isn't the
+   * same as independently moving/reorienting a locked item, so this case
+   * never unbinds and never needs confirmation.
    *
-   * @param boardInstances  Uuids of the board placements that were just
-   *                        moved/rotated/flipped.
-   * @param excludeVCuts    Uuids of V-cuts to skip even if bound to one of
-   *                        @p boardInstances - for a caller (currently only
-   *                        #moveSelectedItems()) that already applied its
-   *                        own #CmdPanelVCutEdit to some of those V-cuts
-   *                        directly (e.g. a V-cut selected and nudged
-   *                        alongside its own bound board), so they aren't
-   *                        edited a second, redundant time here.
+   * @param boardInstances    Uuids of the board placements that were just
+   *                          moved/rotated/flipped.
+   * @param isReorientation   `true` if @p boardInstances were just rotated
+   *                          or flipped (a locked bound V-cut may need to
+   *                          be unbound - see above); `false` if they were
+   *                          only translated (a locked bound V-cut still
+   *                          just follows, offset unchanged).
+   * @param excludeVCuts      Uuids of V-cuts to skip even if bound to one
+   *                          of @p boardInstances - for a caller (currently
+   *                          only #moveSelectedItems()) that already
+   *                          applied its own #CmdPanelVCutEdit to some of
+   *                          those V-cuts directly (e.g. a V-cut selected
+   *                          and nudged alongside its own bound board), so
+   *                          they aren't edited a second, redundant time
+   *                          here.
    */
   void followBoardBoundVCuts(const QSet<Uuid>& boardInstances,
+                             bool isReorientation,
                              const QSet<Uuid>& excludeVCuts = QSet<Uuid>());
   ///< Not noexcept - calls #UndoStack::appendToCmdGroup(), which can
   ///< throw; callers already run inside a try/catch around their own
@@ -545,19 +508,42 @@ private:
    *
    * Callers must call this only after the boards in #mDragCmds have
    * already had their own live position/rotation update applied for this
-   * step, so #resolveBoardEdgeAxis() sees the board's current placement.
-   * Same per-V-cut logic as #followBoardBoundVCuts(): moves it if
-   * #resolveBoardEdgeAxis() still finds an axis-aligned edge, unbinds it
-   * (leaving it at its last position) otherwise.
+   * step, so ::librepcb::PI_VCut::resolveBoardEdge() sees the board's current placement.
+   * For an unlocked follower (or any follower while #getIgnoreLocks() is
+   * active): moves it if ::librepcb::PI_VCut::resolveBoardEdge() still finds an
+   * axis-aligned edge, unbinds it (leaving it at its last position)
+   * otherwise - same as #followBoardBoundVCuts().
+   *
+   * **Locked followers (Sean's design, 2026-09-25):** for a plain move step
+   * (@p isReorientation `false`), a locked follower still follows like an
+   * unlocked one (its position updates, orientation doesn't change). For a
+   * reorientation step (@p isReorientation `true` - an in-drag rotate or
+   * flip), a locked follower's binding is **silently broken right here**
+   * instead of being reoriented (no dialog mid-drag, same convention as
+   * #rotateSelection()'s silent in-drag unbind of a directly-selected
+   * V-cut) - it's simply left exactly where it currently sits.
+   * Sets #mDragHadLockedVCutBreak when it performs a break, so
+   * #processGraphicsSceneLeftMouseButtonReleased() knows to ask for
+   * confirmation once, at commit, covering every locked V-cut broken this
+   * way during the whole drag (**not** re-derived by re-scanning for a
+   * locked, still-board-bound V-cut at commit time - by then the binding
+   * has already been broken live, right here, so that scan would find
+   * nothing; see #mDragHadLockedVCutBreak's own doc comment) - Cancel
+   * there aborts the entire drag, reverting this break along with
+   * everything else.
    *
    * Used by the three live-preview drag steps that can move/rotate/flip a
-   * board: an ordinary drag move (#processGraphicsSceneMouseMoved()), the
-   * in-drag right-click rotate (#rotateSelection()), and the in-drag Flip
-   * (#flipSelection()). The standalone Flip command (#flipSelectedItems())
-   * uses #followBoardBoundVCuts() instead, since it has no live preview to
+   * board: an ordinary drag move (#processGraphicsSceneMouseMoved(),
+   * @p isReorientation `false`), the in-drag right-click rotate
+   * (#rotateSelection(), `true`), and the in-drag Flip (#flipSelection(),
+   * `true`). The standalone Flip command (#flipSelectedItems()) uses
+   * #followBoardBoundVCuts() instead, since it has no live preview to
    * begin with.
+   *
+   * @param isReorientation  `true` for an in-drag rotate/flip step, `false`
+   *                         for a plain translate step - see above.
    */
-  void updateDragFollowerVCuts() noexcept;
+  void updateDragFollowerVCuts(bool isReorientation) noexcept;
 
   /**
    * @brief Ask the user to confirm unbinding before a rotate, if needed
@@ -580,6 +566,55 @@ private:
    */
   bool confirmUnbindForRotate(
       const QVector<std::shared_ptr<PI_VCut>>& vCuts) noexcept;
+
+  /**
+   * @brief Ask the user to confirm unbinding locked V-cuts before rotating/
+   *        flipping their bound board(s), if needed
+   *
+   * Companion to #confirmUnbindForRotate() for the "the board being rotated/
+   * flipped has a locked V-cut bound to it" case (Sean's design,
+   * 2026-09-25) instead of "the V-cut itself is being rotated". Does
+   * nothing (returns `true`) if #getIgnoreLocks() is active (those V-cuts
+   * will simply follow like unlocked ones - see #followBoardBoundVCuts())
+   * or if none of @p boardInstances currently has a locked, board-bound
+   * V-cut. Otherwise shows the dialog via #confirmUnbindLockedVCuts().
+   *
+   * Used by the standalone #rotateSelectedItems()/#flipSelectedItems(),
+   * right before #UndoStack::beginCmdGroup() (so a "No" simply does
+   * nothing - nothing was touched yet). **Not** used by the drag-commit
+   * path (#processGraphicsSceneLeftMouseButtonReleased()) - that path
+   * calls #confirmUnbindLockedVCuts() directly instead, since by the time
+   * a drag reaches commit any affected locked V-cut has already been
+   * unbound live (see #mDragHadLockedVCutBreak), so this method's own
+   * "currently has a locked, board-bound V-cut" scan would find nothing.
+   *
+   * @param boardInstances  Uuids of the board placements about to be
+   *                        rotated/flipped.
+   *
+   * @return `true` if the rotate/flip should proceed, `false` if the user
+   *         cancelled.
+   */
+  bool confirmUnbindLockedBoardVCuts(
+      const QSet<Uuid>& boardInstances) noexcept;
+
+  /**
+   * @brief Just the confirmation dialog itself, shared by
+   *        #confirmUnbindLockedBoardVCuts() and the drag-commit path
+   *
+   * #confirmUnbindLockedBoardVCuts() decides *whether* to ask by scanning
+   * for a currently locked, board-bound V-cut - which only works
+   * *before* anything has changed (the standalone Rotate/Flip commands).
+   * The drag-commit path (#processGraphicsSceneLeftMouseButtonReleased())
+   * can't use that same scan, because by the time a drag reaches commit,
+   * any affected locked V-cut has *already* been unbound live by
+   * #updateDragFollowerVCuts() - it tracks the fact that a break happened
+   * itself (#mDragHadLockedVCutBreak) instead, and calls straight through
+   * to this method for the actual dialog, so the two paths still show
+   * the exact same prompt.
+   *
+   * @return `true` if the user confirmed, `false` if they cancelled.
+   */
+  bool confirmUnbindLockedVCuts() noexcept;
 
   /**
    * @brief Get the tab if the selection consists of just one tab
@@ -677,6 +712,16 @@ private:
   /// Whether the next move step of a selection drag still has to align the
   /// dragged group to the current grid (see processGraphicsSceneMouseMoved())
   bool mDragSnapPending;
+  /// Whether #updateDragFollowerVCuts() has silently broken at least one
+  /// locked, board-bound V-cut's binding during the current drag (Sean's
+  /// design, 2026-09-25) - set right where that break happens, reset at
+  /// drag start (#startMovingSelection()) and on abort (#abortCommand()).
+  /// Deliberately **not** derived by re-scanning for a locked, still-bound
+  /// V-cut at commit time - the break already happened live by then, so
+  /// that scan would find nothing. Checked by
+  /// #processGraphicsSceneLeftMouseButtonReleased() to decide whether a
+  /// commit needs #confirmUnbindLockedVCuts().
+  bool mDragHadLockedVCutBreak;
   Point mDragLastPos;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;

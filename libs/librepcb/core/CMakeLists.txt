@@ -439,6 +439,7 @@ add_library(
   project/panel/items/pi_tab.h
   project/panel/items/pi_vcut.cpp
   project/panel/items/pi_vcut.h
+  project/panel/items/panelplacement.h
   project/panel/panel.cpp
   project/panel/panel.h
   project/panel/paneloutlinebuilder.cpp

@@ -248,6 +248,87 @@ void PI_VCut::serialize(SExpression& root) const {
   root.ensureLineBreak();
 }
 
+Length PI_VCut::getPanelEdgePosition(BoundEdge edge, const Length& offset,
+                                     const Length& width,
+                                     const Length& height) noexcept {
+  switch (edge) {
+    case BoundEdge::PanelLeft:
+    case BoundEdge::PanelBottom:
+      return offset;
+    case BoundEdge::PanelRight:
+      return width - offset;
+    case BoundEdge::PanelTop:
+      return height - offset;
+    default:
+      return Length(0);
+  }
+}
+
+Length PI_VCut::getPanelEdgeOffset(BoundEdge edge, const Length& position,
+                                   const Length& width,
+                                   const Length& height) noexcept {
+  switch (edge) {
+    case BoundEdge::PanelLeft:
+    case BoundEdge::PanelBottom:
+      return position;
+    case BoundEdge::PanelRight:
+      return width - position;
+    case BoundEdge::PanelTop:
+      return height - position;
+    default:
+      return Length(0);
+  }
+}
+
+std::optional<PI_VCut::BoardEdgeAxis> PI_VCut::resolveBoardEdge(
+    const Transform& boardTransform, const Point& segStart,
+    const Point& segEnd, const Angle& segNormal) noexcept {
+  const Angle rot = boardTransform.getRotation().mappedTo0_360deg();
+  if ((rot != Angle::deg0()) && (rot != Angle::deg90()) &&
+      (rot != Angle::deg180()) && (rot != Angle::deg270())) {
+    return std::nullopt;
+  }
+
+  const Transform& transform = boardTransform;
+  const Point start = transform.map(segStart);
+  const Point end = transform.map(segEnd);
+  const bool vertical = (start.getX() == end.getX());
+  const bool horizontal = (start.getY() == end.getY());
+  if ((!vertical) && (!horizontal)) {
+    // Shouldn't happen given the rotation check above, but guard anyway
+    // rather than returning a bogus axis.
+    return std::nullopt;
+  }
+
+  // The transformed normal must land exactly on a cardinal direction too -
+  // its sign along the segment's coordinate is what the offset is relative
+  // to.
+  const Angle normal = transform.mapNonMirrorable(segNormal).mappedTo0_360deg();
+  if (vertical) {
+    if (normal == Angle::deg0()) {
+      return BoardEdgeAxis{true, start.getX(), +1};
+    } else if (normal == Angle::deg180()) {
+      return BoardEdgeAxis{true, start.getX(), -1};
+    }
+  } else {
+    if (normal == Angle::deg90()) {
+      return BoardEdgeAxis{false, start.getY(), +1};
+    } else if (normal == Angle::deg270()) {
+      return BoardEdgeAxis{false, start.getY(), -1};
+    }
+  }
+  return std::nullopt;
+}
+
+Length PI_VCut::getBoardEdgePosition(const BoardEdgeAxis& axis) const noexcept {
+  return axis.coord + (mOffset * axis.normalSign);
+}
+
+Length PI_VCut::getBoardEdgeOffset(const BoardEdgeAxis& axis,
+                                   const Length& position) noexcept {
+  return (position - axis.coord) * axis.normalSign;
+}
+
 /*******************************************************************************
  *  Operator Overloadings
  ******************************************************************************/

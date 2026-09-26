@@ -251,8 +251,7 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
     const std::optional<BoardEdgeSnap::Result> snap =
         BoardEdgeSnap::snap(*outlines, boardPos);
     if (snap && ((!best) || (snap->distance < best->distance))) {
-      const Transform transform(instance.getPosition(), instance.getRotation(),
-                                instance.getFlipped());
+      const Transform transform = instance.getTransform();
       best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
                           snap->position,
                           transform.map(snap->position),
@@ -297,8 +296,7 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
     const std::optional<BoardEdgeSnap::Result> snap =
         BoardEdgeSnap::snap(*outlines, boardPos, localVertical);
     if (snap && ((!best) || (snap->distance < best->distance))) {
-      const Transform transform(instance.getPosition(), instance.getRotation(),
-                                instance.getFlipped());
+      const Transform transform = instance.getTransform();
       best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
                           snap->position,
                           transform.map(snap->position),

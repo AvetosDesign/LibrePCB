@@ -198,7 +198,7 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   // Mouse bite planes and outline preview: recalculated shortly after
   // changes.
   mPanelGeometryTimer.setSingleShot(true);
-  mPanelGeometryTimer.setInterval(300);
+  mPanelGeometryTimer.setInterval(200);
   connect(&mPanelGeometryTimer, &QTimer::timeout, this,
           &PanelTab::updatePanelGeometry);
 
