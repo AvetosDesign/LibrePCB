@@ -42,6 +42,7 @@
 #include <QtCore>
 
 #include <memory>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -520,6 +521,9 @@ public:
   /**
    * @brief Get the position a V-cut bound to a panel edge would have
    *
+   * Convenience wrapper around ::librepcb::PI_VCut::getPanelEdgePosition()
+   * using this panel's size.
+   *
    * @param edge      The bound edge (#PI_VCut::BoundEdge::None yields 0).
    * @param offset    Signed offset from that edge, see
    *                  ::librepcb::PI_VCut::getOffset().
@@ -533,7 +537,8 @@ public:
    * @brief Get the offset a V-cut bound to a panel edge would have at a
    *        given position
    *
-   * The inverse of #getVCutBoundEdgePosition().
+   * Convenience wrapper around ::librepcb::PI_VCut::getPanelEdgeOffset()
+   * using this panel's size.
    *
    * @param edge      The bound edge (#PI_VCut::BoundEdge::None yields 0).
    * @param position  A #PI_VCut::getPosition() value.
@@ -542,6 +547,78 @@ public:
    */
   Length getVCutBoundEdgeOffset(PI_VCut::BoundEdge edge,
                                 const Length& position) const noexcept;
+
+  /**
+   * @brief Get the midpoint of a V-cut's section across the panel
+   *
+   * @param vcut  The V-cut.
+   *
+   * @return The point on the V-cut's line halfway across the panel, in
+   *         panel coordinates.
+   */
+  Point getVCutSectionMidpoint(const PI_VCut& vcut) const noexcept;
+
+  /// Result of #getNearestVCutPanelEdge()
+  struct VCutEdgeDistance {
+    /// One of the four `PanelLeft/Right/Top/Bottom` values.
+    PI_VCut::BoundEdge edge;
+    /// Signed distance from that edge, see ::librepcb::PI_VCut::getOffset().
+    Length distance;
+  };
+
+  /**
+   * @brief Get the parallel panel edge nearest to a V-cut
+   *
+   * Vertical V-cuts are compared against the left and right edge,
+   * horizontal ones against the bottom and top edge. Ties go to the left
+   * resp. top edge.
+   *
+   * @param vcut  The V-cut.
+   *
+   * @return The nearest edge and the V-cut's offset from it.
+   */
+  VCutEdgeDistance getNearestVCutPanelEdge(const PI_VCut& vcut) const noexcept;
+
+  /**
+   * @brief Check whether a V-cut position lies on the panel
+   *
+   * @param vertical  Orientation of the V-cut.
+   * @param position  X (vertical) or Y (horizontal) coordinate of the V-cut.
+   *
+   * @return `true` if the V-cut lies strictly inside the panel (a V-cut on
+   *         or beyond the panel edge is not allowed).
+   */
+  bool isVCutOnPanel(bool vertical, const Length& position) const noexcept;
+
+  /**
+   * @brief Clamp a V-cut position onto the panel
+   *
+   * Positions already on the panel (see #isVCutOnPanel()) are returned as
+   * is. Others are moved @p inset inside the nearer panel edge (at most to
+   * the panel's center, for a panel smaller than two @p inset).
+   *
+   * @param vertical  Orientation of the V-cut.
+   * @param position  X (vertical) or Y (horizontal) coordinate of the V-cut.
+   * @param inset     Distance from the panel edge to move an off-panel
+   *                  V-cut to (the editor passes its grid interval).
+   *
+   * @return The clamped position.
+   */
+  Length clampVCutToPanel(bool vertical, const Length& position,
+                          const Length& inset) const noexcept;
+
+  /**
+   * @brief Resolve the current panel-space edge of a board-bound V-cut
+   *
+   * @param vcut  The V-cut (should have `getBoundEdge() == Board`).
+   *
+   * @return The edge axis, or `std::nullopt` if the V-cut isn't bound to a
+   *         board, the board instance no longer exists, or its placement
+   *         is no longer orthogonal. See
+   *         ::librepcb::PI_VCut::resolveBoardEdge().
+   */
+  std::optional<PI_VCut::BoardEdgeAxis> resolveVCutBoardEdge(
+      const PI_VCut& vcut) const noexcept;
 
   /**
    * @brief Get the UUIDs of all distinct board designs referenced by this

@@ -409,32 +409,60 @@ void Panel::removeVCut(std::shared_ptr<PI_VCut> vcut) {
 
 Length Panel::getVCutBoundEdgePosition(PI_VCut::BoundEdge edge,
                                        const Length& offset) const noexcept {
-  switch (edge) {
-    case PI_VCut::BoundEdge::PanelLeft:
-    case PI_VCut::BoundEdge::PanelBottom:
-      return offset;
-    case PI_VCut::BoundEdge::PanelRight:
-      return *mWidth - offset;
-    case PI_VCut::BoundEdge::PanelTop:
-      return *mHeight - offset;
-    default:
-      return Length(0);
-  }
+  return PI_VCut::getPanelEdgePosition(edge, offset, *mWidth, *mHeight);
 }
 
 Length Panel::getVCutBoundEdgeOffset(PI_VCut::BoundEdge edge,
                                      const Length& position) const noexcept {
-  switch (edge) {
-    case PI_VCut::BoundEdge::PanelLeft:
-    case PI_VCut::BoundEdge::PanelBottom:
-      return position;
-    case PI_VCut::BoundEdge::PanelRight:
-      return *mWidth - position;
-    case PI_VCut::BoundEdge::PanelTop:
-      return *mHeight - position;
-    default:
-      return Length(0);
+  return PI_VCut::getPanelEdgeOffset(edge, position, *mWidth, *mHeight);
+}
+
+Point Panel::getVCutSectionMidpoint(const PI_VCut& vcut) const noexcept {
+  return vcut.isVertical()
+      ? Point(vcut.getPosition(), *mHeight / static_cast<int64_t>(2))
+      : Point(*mWidth / static_cast<int64_t>(2), vcut.getPosition());
+}
+
+Panel::VCutEdgeDistance Panel::getNearestVCutPanelEdge(
+    const PI_VCut& vcut) const noexcept {
+  const Length pos = vcut.getPosition();
+  if (vcut.isVertical()) {
+    const Length toRight = *mWidth - pos;
+    return (pos.abs() <= toRight.abs())
+        ? VCutEdgeDistance{PI_VCut::BoundEdge::PanelLeft, pos}
+        : VCutEdgeDistance{PI_VCut::BoundEdge::PanelRight, toRight};
+  } else {
+    const Length toTop = *mHeight - pos;
+    return (toTop.abs() <= pos.abs())
+        ? VCutEdgeDistance{PI_VCut::BoundEdge::PanelTop, toTop}
+        : VCutEdgeDistance{PI_VCut::BoundEdge::PanelBottom, pos};
   }
+}
+
+bool Panel::isVCutOnPanel(bool vertical,
+                          const Length& position) const noexcept {
+  const Length extent = vertical ? *mWidth : *mHeight;
+  return (position > 0) && (position < extent);
+}
+
+Length Panel::clampVCutToPanel(bool vertical, const Length& position,
+                               const Length& inset) const noexcept {
+  if (isVCutOnPanel(vertical, position)) {
+    return position;
+  }
+  const Length extent = vertical ? *mWidth : *mHeight;
+  const Length clampedInset = std::min(inset, extent / static_cast<int64_t>(2));
+  return (position <= 0) ? clampedInset : (extent - clampedInset);
+}
+
+std::optional<PI_VCut::BoardEdgeAxis> Panel::resolveVCutBoardEdge(
+    const PI_VCut& vcut) const noexcept {
+  const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
+  const auto instance = boundBoard ? mBoardInstances.find(*boundBoard) : nullptr;
+  return instance ? PI_VCut::resolveBoardEdge(
+                        instance->getTransform(), vcut.getBoundSegmentStart(),
+                        vcut.getBoundSegmentEnd(), vcut.getBoundSegmentNormal())
+                  : std::nullopt;
 }
 
 /*******************************************************************************

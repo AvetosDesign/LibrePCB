@@ -687,6 +687,10 @@ add_library(
   project/cmd/cmdpanelvcutedit.h
   project/cmd/cmdpanelvcutremove.cpp
   project/cmd/cmdpanelvcutremove.h
+  project/cmd/cmdremoveselectedpanelitems.cpp
+  project/cmd/cmdremoveselectedpanelitems.h
+  project/cmd/cmdlockselectedpanelitems.cpp
+  project/cmd/cmdlockselectedpanelitems.h
   project/cmd/cmdpasteboarditems.cpp
   project/cmd/cmdpasteboarditems.h
   project/cmd/cmdpasteschematicitems.cpp
@@ -832,6 +836,8 @@ add_library(
   project/panel/paneleditor.h
   project/panel/panelgraphicsscene.cpp
   project/panel/panelgraphicsscene.h
+  project/panel/panelselectionquery.cpp
+  project/panel/panelselectionquery.h
   project/panel/panelsetupdialog.cpp
   project/panel/panelsetupdialog.h
   project/panel/panelsetupdialog.ui

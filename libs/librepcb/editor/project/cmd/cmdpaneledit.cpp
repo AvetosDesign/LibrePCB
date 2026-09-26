@@ -241,23 +241,8 @@ void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,
     // A panel-edge-bound V-cut follows its edge at the given (new or
     // reverted) size, keeping its offset - regardless of orientation,
     // since the edge already implies it.
-    const Length& offset = entry.first->getOffset();
-    Length pos(0);
-    switch (edge) {
-      case PI_VCut::BoundEdge::PanelLeft:
-      case PI_VCut::BoundEdge::PanelBottom:
-        pos = offset;
-        break;
-      case PI_VCut::BoundEdge::PanelRight:
-        pos = *width - offset;
-        break;
-      case PI_VCut::BoundEdge::PanelTop:
-        pos = *height - offset;
-        break;
-      default:
-        break;
-    }
-    entry.first->setPosition(pos);
+    entry.first->setPosition(PI_VCut::getPanelEdgePosition(
+        edge, entry.first->getOffset(), *width, *height));
   }
 }
 
