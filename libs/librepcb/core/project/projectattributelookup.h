@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 #ifndef LIBREPCB_CORE_PROJECTATTRIBUTELOOKUP_H
 #define LIBREPCB_CORE_PROJECTATTRIBUTELOOKUP_H
 
@@ -38,6 +40,7 @@ class BI_Device;
 class Board;
 class Circuit;
 class ComponentInstance;
+class Panel;
 class Part;
 class Project;
 class SI_Symbol;
@@ -80,6 +83,7 @@ public:
                          std::shared_ptr<AssemblyVariant> av) noexcept;
   ProjectAttributeLookup(const Board& obj,
                          std::shared_ptr<AssemblyVariant> av) noexcept;
+  explicit ProjectAttributeLookup(const Panel& obj) noexcept;
   ProjectAttributeLookup(const SI_Symbol& obj, QPointer<const BI_Device> device,
                          std::shared_ptr<const Part> part,
                          std::shared_ptr<AssemblyVariant> av) noexcept;
@@ -111,6 +115,8 @@ private:  // Methods
   static bool query(const Schematic& schematic, const QString& key,
                     QString& value) noexcept;
   static bool query(const Board& board, const QString& key,
+                    QString& value) noexcept;
+  static bool query(const Panel& panel, const QString& key,
                     QString& value) noexcept;
   static bool query(const SI_Symbol& symbol, const QString& key,
                     QString& value) noexcept;

@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -59,6 +61,9 @@
 #include "board/realisticboardpainter.h"
 #include "bomgenerator.h"
 #include "circuit/circuit.h"
+#include "panel/items/pi_boardinstance.h"
+#include "panel/panel.h"
+#include "panel/paneloutlinebuilder.h"
 #include "project.h"
 #include "projectattributelookup.h"
 #include "projectjsonexport.h"
@@ -362,6 +367,87 @@ void OutputJobRunner::runImpl(const GerberExcellonOutputJob& job) {
 
     // Now actually export Gerber/Excellon.
     BoardGerberExport grbExport(*board);
+    grbExport.setRemoveObsoleteFiles(false);  // must be done by this runner!
+    grbExport.setBeforeWriteCallback([this, &job](const FilePath& fp) {
+      mWriter->beginWritingFile(job.getUuid(),
+                                fp.toRelative(mWriter->getDirectoryPath()));
+    });
+    grbExport.exportPcbLayers(settings);  // can throw
+  }
+
+  // Determine panels (independent of, and in addition to, the boards above -
+  // a job may export any combination of both, all with the same settings).
+  const QList<Panel*> panels = getPanels(job.getPanels());
+
+  // Perform export.
+  foreach (Panel* panel, panels) {
+    // Calculate the panel's routed outline and mouse bite holes - the
+    // panel-only geometry that doesn't belong to any single placed board.
+    // Done before building the placements below since the mouse bite holes
+    // (per board design, in that design's own coordinates) are needed to
+    // recalculate its planes first.
+    const PanelOutlineBuilder::Result outline =
+        PanelOutlineBuilder(*panel, mProject).build();  // can throw
+
+    // Recalculate the planes of every mouse-bitten board design with those
+    // holes cut into the board edge, so the panel's Gerber copper is pulled
+    // back from the mouse bites exactly like the panel editor's canvas
+    // already shows live (see ::librepcb::editor::BoardProxy, which does
+    // the same substitution for on-screen rendering). The board itself is
+    // never modified - these holes don't exist in the board, only in this
+    // panel. Board designs without mouse bites are left out of this map
+    // entirely, so BoardGerberExport falls back to each plane's own real
+    // fragments for them, same as a plain single-board export.
+    QHash<Uuid, QHash<Uuid, QVector<Path>>> planeOverridesByBoard;
+    for (auto it = outline.mouseBitesPerBoard.constBegin();
+         it != outline.mouseBitesPerBoard.constEnd(); ++it) {
+      if (it.value().isEmpty()) {
+        continue;
+      }
+      if (Board* board = mProject.getBoardByUuid(it.key())) {
+        BoardPlaneFragmentsBuilder builder;
+        if (builder.startWithEdgeHoles(*board, it.value())) {
+          BoardPlaneFragmentsBuilder::Result result = builder.waitForFinished();
+          result.throwOnError();  // can throw
+          planeOverridesByBoard.insert(board->getUuid(), result.planes);
+        }
+      }
+    }
+
+    // Build one BoardPlacement per board instance placed on the panel, each
+    // referencing its own real, unmodified Board - see
+    // BoardGerberExport::BoardPlacement and
+    // claude/librepcb_panel_gerber_export_plan.md for why this reuses the
+    // exact same per-board drawing logic instead of duplicating it.
+    QVector<BoardGerberExport::BoardPlacement> placements;
+    for (const PI_BoardInstance& instance : panel->getBoardInstances()) {
+      if (Board* board = mProject.getBoardByUuid(instance.getBoard())) {
+        // Rebuild planes to be sure no outdated planes are exported! Note
+        // this is for the board's OWN fragments (used when there's no
+        // mouse-bite override below); it doesn't touch planeOverridesByBoard,
+        // which was calculated from scratch above regardless of whether the
+        // board's own planes were previously outdated.
+        rebuildOutdatedPlanes(*board);  // can throw
+        BoardGerberExport::BoardPlacement placement{
+            board, instance.getTransform()};
+        const auto overrideIt =
+            planeOverridesByBoard.constFind(board->getUuid());
+        if (overrideIt != planeOverridesByBoard.constEnd()) {
+          placement.planeFragmentsOverride = &(*overrideIt);
+        }
+        placements.append(placement);
+      }
+      // Board instances referencing a board which doesn't exist (anymore)
+      // are silently skipped, same as PanelOutlineBuilder::build() does.
+    }
+    if (placements.isEmpty()) {
+      continue;  // Nothing to export for this panel.
+    }
+
+    BoardGerberExport grbExport(placements);
+    grbExport.setPanel(panel);
+    grbExport.setOutlineOverride(outline.outlines);
+    grbExport.setExtraNpthDrills(outline.mouseBites);
     grbExport.setRemoveObsoleteFiles(false);  // must be done by this runner!
     grbExport.setBeforeWriteCallback([this, &job](const FilePath& fp) {
       mWriter->beginWritingFile(job.getUuid(),
@@ -847,6 +933,31 @@ QList<Board*> OutputJobRunner::getBoards(
     foreach (const auto& uuid, remainingUuids) {
       throw RuntimeError(__FILE__, __LINE__,
                          QString("Board does not exist: %1").arg(uuid.toStr()));
+    }
+  }
+  return result;
+}
+
+QList<Panel*> OutputJobRunner::getPanels(
+    const OutputJob::ObjectSet<Uuid>& set) const {
+  QList<Panel*> result;
+  if (set.isAll()) {
+    result = mProject.getPanels();
+  } else if (set.isDefault()) {
+    if (auto panel = mProject.getPanelByIndex(0)) {
+      result.append(panel);
+    }
+  } else {
+    QSet<Uuid> remainingUuids = set.getSet();
+    foreach (auto panel, mProject.getPanels()) {
+      if (remainingUuids.contains(panel->getUuid())) {
+        result.append(panel);
+        remainingUuids.remove(panel->getUuid());
+      }
+    }
+    foreach (const auto& uuid, remainingUuids) {
+      throw RuntimeError(__FILE__, __LINE__,
+                         QString("Panel does not exist: %1").arg(uuid.toStr()));
     }
   }
   return result;

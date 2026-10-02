@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 #ifndef LIBREPCB_CORE_GERBEREXCELLONOUTPUTJOB_H
 #define LIBREPCB_CORE_GERBEREXCELLONOUTPUTJOB_H
 
@@ -48,6 +50,7 @@ class GerberExcellonOutputJob final : public OutputJob {
 
 public:
   using BoardSet = ObjectSet<Uuid>;
+  using PanelSet = ObjectSet<Uuid>;
 
   // Constructors / Destructor
   GerberExcellonOutputJob(const GerberExcellonOutputJob& other) noexcept;
@@ -104,6 +107,19 @@ public:
     return mEnableSolderPasteBot;
   }
   const BoardSet& getBoards() const noexcept { return mBoards; }
+  /**
+   * @brief Get the panels whose Gerber/Excellon output is exported by this
+   *        job, in addition to #getBoards()
+   *
+   * A job can export any combination of individual boards and whole panels
+   * at once, all with the same suffix/settings above - the two selections
+   * are independent. Exporting a panel uses the same
+   * ::librepcb::BoardGerberExport logic as a board (see its multi-placement
+   * constructor), just fed every board placed on the panel plus the panel's
+   * own routed outline/mouse-bite overlay instead of one board's own
+   * outline.
+   */
+  const PanelSet& getPanels() const noexcept { return mPanels; }
   const QString& getOutputPath() const noexcept { return mOutputPath; }
 
   // Setters
@@ -126,6 +142,7 @@ public:
   void setEnableSolderPasteTop(bool e) noexcept;
   void setEnableSolderPasteBot(bool e) noexcept;
   void setBoards(const BoardSet& boards) noexcept;
+  void setPanels(const PanelSet& panels) noexcept;
   void setOutputPath(const QString& path) noexcept;
 
   // General Methods
@@ -166,6 +183,7 @@ private:  // Data
   bool mEnableSolderPasteTop;
   bool mEnableSolderPasteBot;
   BoardSet mBoards;
+  PanelSet mPanels;
   QString mOutputPath;
 };
 

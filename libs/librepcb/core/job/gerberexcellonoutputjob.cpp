@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -59,6 +61,7 @@ GerberExcellonOutputJob::GerberExcellonOutputJob() noexcept
     mEnableSolderPasteTop(true),
     mEnableSolderPasteBot(true),
     mBoards(BoardSet::onlyDefault()),
+    mPanels(PanelSet::set({})),
     mOutputPath("gerber/{{PROJECT}}_{{VERSION}}") {
 }
 
@@ -84,6 +87,7 @@ GerberExcellonOutputJob::GerberExcellonOutputJob(
     mEnableSolderPasteTop(other.mEnableSolderPasteTop),
     mEnableSolderPasteBot(other.mEnableSolderPasteBot),
     mBoards(other.mBoards),
+    mPanels(other.mPanels),
     mOutputPath(other.mOutputPath) {
 }
 
@@ -113,6 +117,7 @@ GerberExcellonOutputJob::GerberExcellonOutputJob(const SExpression& node)
     mEnableSolderPasteBot(
         deserialize<bool>(node.getChild("solderpaste_bot/create/@0"))),
     mBoards(node, "board"),
+    mPanels(node, "panel"),
     mOutputPath(node.getChild("output/@0").getValue()) {
 }
 
@@ -275,6 +280,13 @@ void GerberExcellonOutputJob::setBoards(const BoardSet& boards) noexcept {
   }
 }
 
+void GerberExcellonOutputJob::setPanels(const PanelSet& panels) noexcept {
+  if (panels != mPanels) {
+    mPanels = panels;
+    onEdited.notify(Event::PropertyChanged);
+  }
+}
+
 void GerberExcellonOutputJob::setOutputPath(const QString& path) noexcept {
   if (path != mOutputPath) {
     mOutputPath = path;
@@ -372,6 +384,8 @@ void GerberExcellonOutputJob::serializeDerived(SExpression& root) const {
 
   mBoards.serialize(root, "board");
   root.ensureLineBreak();
+  mPanels.serialize(root, "panel");
+  root.ensureLineBreak();
   root.appendChild("output", mOutputPath);
 }
 
@@ -397,6 +411,7 @@ bool GerberExcellonOutputJob::equals(const OutputJob& rhs) const noexcept {
   if (mEnableSolderPasteTop != other.mEnableSolderPasteTop) return false;
   if (mEnableSolderPasteBot != other.mEnableSolderPasteBot) return false;
   if (mBoards != other.mBoards) return false;
+  if (mPanels != other.mPanels) return false;
   if (mOutputPath != other.mOutputPath) return false;
   return true;
 }
