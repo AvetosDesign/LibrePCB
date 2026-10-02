@@ -58,8 +58,8 @@ class PanelSetupDialog;
  * to it through an undo command) but scoped down to just what exists on
  * ::librepcb::Panel today, on four tabs: "General" (name, outline
  * width/height), "Design" (groups "Tabs": default width - see
- * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bites": whether mouse
- * bites are included, default hole size, spacing and offset; "Framing": routing
+ * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bite Defaults": whether
+ * mouse bites are included, default hole size, spacing and offset; "Framing": routing
  * style, frame widths and backbone width) and "Manufacturing" (router bit size), all
  * applied together via a single
  * ::librepcb::editor::CmdPanelEdit, plus "DRC Settings". DRC rules (e.g.

@@ -118,7 +118,7 @@
        <item>
         <widget class="QGroupBox" name="grpMouseBites">
          <property name="title">
-          <string>Mouse Bites</string>
+          <string>Mouse Bite Defaults</string>
          </property>
          <layout class="QFormLayout" name="formLayoutMouseBites">
           <property name="fieldGrowthPolicy">
