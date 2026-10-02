@@ -942,6 +942,16 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
     }
   }
 
+  // Panel's own Gerber/drill fabrication output settings. Older panel.lp
+  // files (from before this feature existed) have no
+  // "fabrication_output_settings" node at all - Panel's constructor already
+  // default-constructed one, so there's nothing more to do for those.
+  if (const SExpression* fabOut =
+          root->tryGetChild("fabrication_output_settings")) {
+    panel->getFabricationOutputSettings() =
+        BoardFabricationOutputSettings(*fabOut);
+  }
+
   // Note: panel.lp files from development builds may contain a
   // "vcut_defaults" node (minimum V-cut to panel edge distance). That
   // setting was removed since it's a DRC rule, so the node is ignored.

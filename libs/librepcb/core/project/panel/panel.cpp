@@ -28,6 +28,7 @@
 #include "../../application.h"
 #include "../../exceptions.h"
 #include "../../serialization/sexpression.h"
+#include "../board/boardfabricationoutputsettings.h"
 #include "../project.h"
 
 #include <QtCore>
@@ -100,6 +101,7 @@ Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory
     mFrameWidthTopBottom(initialFrameWidth),
     mFrameWidthLeftRight(initialFrameWidth),
     mBackboneWidth(initialBackboneWidth),
+    mFabricationOutputSettings(new BoardFabricationOutputSettings()),
     mOnBoardInstancesEditedSlot(*this, &Panel::boardInstancesEdited),
     mOnHolesEditedSlot(*this, &Panel::holesEdited),
     mOnFiducialsEditedSlot(*this, &Panel::fiducialsEdited),
@@ -541,6 +543,9 @@ void Panel::save() {
   routingNode.appendChild("frame_width_top_bottom", mFrameWidthTopBottom);
   routingNode.appendChild("frame_width_left_right", mFrameWidthLeftRight);
   routingNode.appendChild("backbone_width", mBackboneWidth);
+  root->ensureLineBreak();
+  mFabricationOutputSettings->serialize(
+      root->appendList("fabrication_output_settings"));
   root->ensureLineBreak();
   mBoardInstances.serialize(*root);
   root->ensureLineBreak();

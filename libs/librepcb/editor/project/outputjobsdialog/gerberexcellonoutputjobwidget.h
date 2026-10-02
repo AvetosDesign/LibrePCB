@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 #ifndef LIBREPCB_EDITOR_GERBEREXCELLONOUTPUTJOBWIDGET_H
 #define LIBREPCB_EDITOR_GERBEREXCELLONOUTPUTJOBWIDGET_H
 
@@ -71,7 +73,7 @@ signals:
   void orderPcbDialogTriggered();
 
 private:  // Methods
-  void applyBoards(bool checked = true) noexcept;
+  void apply(bool checked = true) noexcept;
 
 private:  // Data
   Project& mProject;

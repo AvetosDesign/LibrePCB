@@ -279,7 +279,7 @@ export component MainMenuBar {
 
                 export-fabrication-data-item := MenuItem {
                     cmd: Cmd.generate-fabrication-data;
-                    enabled: Data.current-tab.type == TabType.board-2d;
+                    enabled: (Data.current-tab.type == TabType.board-2d) || (Data.current-tab.type == TabType.panel);
 
                     clicked => {
                         Helpers.trigger-current-tab-action(TabAction.export-fabrication-data);

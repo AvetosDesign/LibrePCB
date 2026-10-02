@@ -20,6 +20,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 #include "projectattributelookup.h"
 
 #include "../library/cmp/component.h"
@@ -30,6 +32,7 @@
 #include "board/items/bi_device.h"
 #include "circuit/circuit.h"
 #include "circuit/componentinstance.h"
+#include "panel/panel.h"
 #include "project.h"
 #include "schematic/items/si_symbol.h"
 #include "schematic/schematic.h"
@@ -103,6 +106,18 @@ ProjectAttributeLookup::ProjectAttributeLookup(
       const Circuit& circuit = ptr->getProject().getCircuit();
       query(*ptr, key, value)  // Board
           || (av && query(*av, circuit, key, value))  // Assembly Variant
+          || query(ptr->getProject(), key, value);  // Project
+    }
+    return value;
+  };
+}
+
+ProjectAttributeLookup::ProjectAttributeLookup(const Panel& obj) noexcept {
+  QPointer<const Panel> ptr(&obj);
+  mFunction = [ptr](const QString& key) {
+    QString value;
+    if (ptr) {
+      query(*ptr, key, value)  // Panel
           || query(ptr->getProject(), key, value);  // Project
     }
     return value;
@@ -273,6 +288,30 @@ bool ProjectAttributeLookup::query(const Board& board, const QString& key,
     return true;
   } else if (key == QLatin1String("BOARD_INDEX")) {
     value = QString::number(board.getProject().getBoardIndex(board));
+    return true;
+  }
+  return false;
+}
+
+bool ProjectAttributeLookup::query(const Panel& panel, const QString& key,
+                                   QString& value) noexcept {
+  // Distinct PANEL/PANEL_DIRNAME/PANEL_INDEX keys, mirroring Board's
+  // BOARD/BOARD_DIRNAME/BOARD_INDEX exactly. Deliberately does NOT also
+  // respond to the BOARD_* keys: a GerberExcellonOutputJob's output path
+  // template is shared between its board set and panel set, so a template
+  // using only {{BOARD}} would otherwise resolve to the same (empty) value
+  // for every panel and collide. To produce a unique path for a job that
+  // exports both boards and panels, the template should use "{{BOARD}}{{PANEL}}"
+  // (exactly one of the two resolves to a non-empty value for any given
+  // export target) rather than {{BOARD}} alone.
+  if (key == QLatin1String("PANEL")) {
+    value = *panel.getName();
+    return true;
+  } else if (key == QLatin1String("PANEL_DIRNAME")) {
+    value = panel.getDirectoryName();
+    return true;
+  } else if (key == QLatin1String("PANEL_INDEX")) {
+    value = QString::number(panel.getProject().getPanelIndex(panel));
     return true;
   }
   return false;

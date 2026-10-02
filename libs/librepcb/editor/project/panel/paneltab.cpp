@@ -50,6 +50,7 @@
 #include "panelgraphicsscene.h"
 
 #include <librepcb/core/exceptions.h>
+#include <librepcb/core/job/gerberexcellonoutputjob.h>
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/types/layer.h>
 #include <librepcb/core/project/panel/panel.h>
@@ -642,6 +643,11 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
         updateBoardOutlinesForPreview();
       }
       onDerivedUiDataChanged.notify();
+      break;
+    }
+    case ui::TabAction::ExportFabricationData: {
+      mProjectEditor.execOutputJobsDialog(
+          GerberExcellonOutputJob::getTypeName());
       break;
     }
     default: {
@@ -1252,8 +1258,19 @@ void PanelTab::schedulePanelGeometryUpdate() noexcept {
 
 void PanelTab::updatePanelGeometry() noexcept {
   mPanelGeometryTimer.stop();
-  updateMouseBitePlanes();
-  updateOutlinePreview();
+  if (isOutlinePreviewShown()) {
+    // updateOutlinePreview() already calculates the mouse bite holes as
+    // part of its build(), so it passes them straight to
+    // updateMouseBitePlanes(bites) instead of updateMouseBitePlanes()
+    // triggering a second calculation here (see both methods' doc
+    // comments).
+    updateOutlinePreview();
+  } else {
+    updateMouseBitePlanes();
+    if (mScene) {
+      mScene->setOutlinePreview(std::nullopt);
+    }
+  }
 }
 
 void PanelTab::updateMouseBitePlanes() noexcept {
@@ -1261,13 +1278,22 @@ void PanelTab::updateMouseBitePlanes() noexcept {
     return;  // Tab is not active.
   }
   try {
-    mScene->setMouseBites(
+    updateMouseBitePlanes(
         PanelOutlineBuilder(mPanel, mProject).buildMouseBites());  // can throw
   } catch (const Exception& e) {
     qCritical().noquote() << "Failed to calculate the mouse bites:"
                           << e.getMsg();
     mScene->setMouseBites({});
   }
+}
+
+void PanelTab::updateMouseBitePlanes(
+    const QHash<Uuid, QVector<PanelOutlineBuilder::MouseBite>>&
+        bites) noexcept {
+  if (!mScene) {
+    return;  // Tab is not active.
+  }
+  mScene->setMouseBites(bites);
 }
 
 void PanelTab::updateOutlinePreview() noexcept {
@@ -1289,6 +1315,10 @@ void PanelTab::updateOutlinePreview() noexcept {
                              .arg(timer.elapsed())
                              .arg(result.mouseBites.count())
                              .arg(result.unreachedTabs.count());
+    // The same calculation already covers the mouse bite planes, so pass
+    // them along instead of letting updateMouseBitePlanes() recalculate
+    // them from scratch.
+    updateMouseBitePlanes(result.mouseBitesPerBoard);
     // Mouse bite holes are drawn as circles along with the outline.
     QVector<Path> paths = result.outlines;
     for (const PanelOutlineBuilder::MouseBite& bite : result.mouseBites) {
@@ -1299,6 +1329,11 @@ void PanelTab::updateOutlinePreview() noexcept {
     qCritical().noquote() << "Failed to calculate the panel outline:"
                           << e.getMsg();
     mScene->setOutlinePreview(std::nullopt);
+    // The outline build failed before reaching the mouse bite calculation
+    // (or partway through it), so the planes weren't updated above - fall
+    // back to calculating them on their own rather than leaving them
+    // stale.
+    updateMouseBitePlanes();
   }
 }
 

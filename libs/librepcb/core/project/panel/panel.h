@@ -49,6 +49,7 @@
  ******************************************************************************/
 namespace librepcb {
 
+class BoardFabricationOutputSettings;
 class Project;
 
 /*******************************************************************************
@@ -412,6 +413,25 @@ public:
     return mLayersVisibility;
   }
 
+  /**
+   * @brief Get the panel's own Gerber/drill fabrication output settings
+   *
+   * A panel exports its own set of Gerber/Excellon files (see
+   * ::librepcb::BoardGerberExport, multi-placement constructor), independent
+   * of any referenced board's own #Board::getFabricationOutputSettings() -
+   * a panel can combine boards with different settings and needs one
+   * authoritative set of export options of its own. Same class as Board's,
+   * reused as-is; this is simply a second, separate instance living on the
+   * panel.
+   */
+  BoardFabricationOutputSettings& getFabricationOutputSettings() noexcept {
+    return *mFabricationOutputSettings;
+  }
+  const BoardFabricationOutputSettings& getFabricationOutputSettings()
+      const noexcept {
+    return *mFabricationOutputSettings;
+  }
+
   // Setters: Attributes
   void setName(const ElementName& name) noexcept;
   void setWidth(const PositiveLength& width) noexcept;
@@ -710,6 +730,7 @@ private:  // Data
   UnsignedLength mFrameWidthTopBottom;
   UnsignedLength mFrameWidthLeftRight;
   UnsignedLength mBackboneWidth;
+  QScopedPointer<BoardFabricationOutputSettings> mFabricationOutputSettings;
 
   // User settings (saved in settings.user.lp, see #getLayersVisibility())
   QMap<QString, bool> mLayersVisibility;

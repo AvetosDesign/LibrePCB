@@ -33,6 +33,7 @@
 #include "windowtab.h"
 #include "fsm/paneleditorfsmadapter.h"
 
+#include <librepcb/core/project/panel/paneloutlinebuilder.h>
 #include <librepcb/core/types/angle.h>
 
 #include <QtCore>
@@ -233,15 +234,32 @@ private:
   void updatePanelGeometry() noexcept;
 
   /**
-   * @brief Pass the mouse bite holes of all board designs to the scene
+   * @brief Calculate the mouse bite holes of all board designs, then pass
+   *        them to the scene
    *
-   * Calculated with ::librepcb::PanelOutlineBuilder::buildMouseBites(),
-   * independent of the outline preview. The boards' planes are then
-   * recalculated in the background with these holes (see
-   * PanelGraphicsScene::setMouseBites()), only for board designs whose
-   * holes changed.
+   * Calculated with ::librepcb::PanelOutlineBuilder::buildMouseBites().
+   * Only used when the outline preview is not shown - #updateOutlinePreview()
+   * already calculates the same holes as part of its own
+   * ::librepcb::PanelOutlineBuilder::build() call in that case, so it passes
+   * them to the overload below instead of triggering a second, redundant
+   * calculation here. See #updatePanelGeometry() for which one runs.
    */
   void updateMouseBitePlanes() noexcept;
+
+  /**
+   * @brief Pass already-calculated mouse bite holes of all board designs to
+   *        the scene
+   *
+   * @param bites   Holes per board UUID, as returned by
+   *                ::librepcb::PanelOutlineBuilder::buildMouseBites() (or
+   *                the equally-named field of
+   *                ::librepcb::PanelOutlineBuilder::Result, returned by
+   *                #updateOutlinePreview()'s ::librepcb::PanelOutlineBuilder::build()
+   *                call).
+   */
+  void updateMouseBitePlanes(
+      const QHash<Uuid, QVector<PanelOutlineBuilder::MouseBite>>&
+          bites) noexcept;
 
   /**
    * @brief Recalculate and show (or hide) the panel outline preview

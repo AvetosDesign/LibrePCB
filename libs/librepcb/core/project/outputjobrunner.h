@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 #ifndef LIBREPCB_CORE_OUTPUTJOBRUNNER_H
 #define LIBREPCB_CORE_OUTPUTJOBRUNNER_H
 
@@ -50,6 +52,7 @@ class LppzOutputJob;
 class NetlistOutputJob;
 class OutputDirectoryWriter;
 class OutputJob;
+class Panel;
 class PickPlaceOutputJob;
 class Project;
 class ProjectJsonOutputJob;
@@ -114,6 +117,7 @@ private:  // Methods
   QList<Board*> getBoards(const OutputJob::ObjectSet<std::optional<Uuid>>& set,
                           bool includeNullInAll) const;
   QList<Board*> getBoards(const OutputJob::ObjectSet<Uuid>& set) const;
+  QList<Panel*> getPanels(const OutputJob::ObjectSet<Uuid>& set) const;
   QVector<std::shared_ptr<AssemblyVariant>> getAssemblyVariants(
       const OutputJob::ObjectSet<std::optional<Uuid>>& set,
       bool includeNullInAll) const;

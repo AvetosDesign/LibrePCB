@@ -1855,6 +1855,12 @@ export global Data {
             current-rule-check-project-index = -1; // Hide ERC
             current-rule-check-board-index = -1; // Hide ERC
             restore-previous-panel-page(previous-project-panel-page);
+        } else if current-tab.type == TabType.panel {
+            current-library-index = -1;
+            current-project-index = current-panel-tab.project-index;
+            current-rule-check-project-index = -1; // No DRC/ERC for a panel itself
+            current-rule-check-board-index = -1;
+            restore-previous-panel-page(previous-project-panel-page);
         } else if current-tab.type != TabType.home {
             current-library-index = -1;
             current-project-index = -1;

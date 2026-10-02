@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -50,6 +52,7 @@
 #include "items/bi_polygon.h"
 #include "items/bi_stroketext.h"
 #include "items/bi_via.h"
+#include "../panel/panel.h"
 
 #include <QtCore>
 
@@ -70,8 +73,18 @@ static bool operator<(const BoardGerberExport::LayerPair& lhs,
  ******************************************************************************/
 
 BoardGerberExport::BoardGerberExport(const Board& board) noexcept
-  : mProject(board.getProject()),
-    mBoard(board),
+  : BoardGerberExport(
+        QVector<BoardPlacement>{BoardPlacement{&board, Transform()}}) {
+}
+
+BoardGerberExport::BoardGerberExport(
+    const QVector<BoardPlacement>& placements) noexcept
+  : mProject(placements.first().board->getProject()),
+    mBoard(*placements.first().board),
+    mPlacements(placements),
+    mPanel(nullptr),
+    mOutlineOverride(std::nullopt),
+    mExtraNpthDrills(),
     mRemoveObsoleteFiles(true),
     mBeforeWriteCallback(),
     mCreationDateTime(QDateTime::currentDateTime()),
@@ -79,11 +92,8 @@ BoardGerberExport::BoardGerberExport(const Board& board) noexcept
     mCurrentInnerCopperLayer(0),
     mCurrentStartLayer(nullptr),
     mCurrentEndLayer(nullptr) {
-  // If the project contains multiple boards, add the board name to the
-  // Gerber file metadata as well to distinguish between the different boards.
-  if (mProject.getBoards().count() > 1) {
-    mProjectName += " (" % mBoard.getName() % ")";
-  }
+  Q_ASSERT(!placements.isEmpty());
+  updateProjectName();
 }
 
 BoardGerberExport::~BoardGerberExport() noexcept {
@@ -109,6 +119,21 @@ void BoardGerberExport::setRemoveObsoleteFiles(bool remove) {
 
 void BoardGerberExport::setBeforeWriteCallback(BeforeWriteCallback cb) {
   mBeforeWriteCallback = cb;
+}
+
+void BoardGerberExport::setOutlineOverride(
+    const std::optional<QVector<Path>>& outline) {
+  mOutlineOverride = outline;
+}
+
+void BoardGerberExport::setExtraNpthDrills(
+    const QVector<std::pair<Point, PositiveLength>>& holes) {
+  mExtraNpthDrills = holes;
+}
+
+void BoardGerberExport::setPanel(const Panel* panel) noexcept {
+  mPanel = panel;
+  updateProjectName();
 }
 
 /*******************************************************************************
@@ -402,9 +427,11 @@ void BoardGerberExport::exportDrillsBlindBuried(
     std::unique_ptr<ExcellonGenerator> gen =
         BoardGerberExport::createExcellonGenerator(
             settings, ExcellonGenerator::Plating::Yes);
-    foreach (const BI_Via* via, it.value()) {
-      gen->drill(via->getPosition(), via->getActualDrillDiameter(), true,
-                 ExcellonGenerator::Function::ViaDrill);
+    for (const auto& pair : it.value()) {
+      const BI_Via* via = pair.first;
+      const Transform& xf = pair.second;
+      gen->drill(xf.map(via->getPosition()), via->getActualDrillDiameter(),
+                 true, ExcellonGenerator::Function::ViaDrill);
     }
     gen->generate();
     trackFileBeforeWrite(fp);  // can throw
@@ -419,14 +446,25 @@ void BoardGerberExport::exportLayerBoardOutlines(
   GerberGenerator gen(mCreationDateTime, mProjectName, mBoard.getUuid(),
                       *mProject.getVersion());
   gen.setFileFunctionOutlines(false);
-  drawLayer(gen, Layer::boardOutlines());
-  drawLayer(gen, Layer::boardCutouts());
-  // Note: Currently the "plated cutouts" layer is exported to the normal board
-  // outlines Gerber file, which is not ideal but unfortunately there doesn't
-  // exist a standardized way of exporting plated cutouts :-( This way may
-  // still work fine if there is copper around the plated cutout polygons,
-  // therefore we have implemented a DRC warning if this is not the case.
-  drawLayer(gen, Layer::boardPlatedCutouts());
+  if (mOutlineOverride) {
+    // Panel export: draw the panel's own routed outline instead of each
+    // placement's individual board outline/cutout layers.
+    for (const Path& path : *mOutlineOverride) {
+      drawPolygon(gen, Layer::boardOutlines(), path, UnsignedLength(0), false,
+                  GerberAttribute::ApertureFunction::Profile, std::nullopt,
+                  QString());
+    }
+  } else {
+    drawLayer(gen, Layer::boardOutlines());
+    drawLayer(gen, Layer::boardCutouts());
+    // Note: Currently the "plated cutouts" layer is exported to the normal
+    // board outlines Gerber file, which is not ideal but unfortunately there
+    // doesn't exist a standardized way of exporting plated cutouts :-( This
+    // way may still work fine if there is copper around the plated cutout
+    // polygons, therefore we have implemented a DRC warning if this is not
+    // the case.
+    drawLayer(gen, Layer::boardPlatedCutouts());
+  }
   gen.generate();
   trackFileBeforeWrite(fp);  // can throw
   gen.saveToFile(fp);
@@ -610,19 +648,33 @@ void BoardGerberExport::exportLayerBottomSolderPaste(
 int BoardGerberExport::drawNpthDrills(ExcellonGenerator& gen) const {
   int count = 0;
 
-  // footprint holes
-  foreach (const BI_Device* device, mBoard.getDeviceInstances()) {
-    const Transform transform(*device);
-    for (const Hole& hole : device->getLibFootprint().getHoles()) {
-      gen.drill(transform.map(hole.getPath()), hole.getDiameter(), false,
+  for (const BoardPlacement& placement : mPlacements) {
+    const Transform& xf = placement.transform;
+
+    // footprint holes
+    foreach (const BI_Device* device, placement.board->getDeviceInstances()) {
+      const Transform transform(*device);
+      for (const Hole& hole : device->getLibFootprint().getHoles()) {
+        gen.drill(xf.map(transform.map(hole.getPath())), hole.getDiameter(),
+                  false, ExcellonGenerator::Function::MechanicalDrill);
+        ++count;
+      }
+    }
+
+    // board holes
+    foreach (const BI_Hole* hole, placement.board->getHoles()) {
+      gen.drill(xf.map(hole->getData().getPath()),
+                hole->getData().getDiameter(), false,
                 ExcellonGenerator::Function::MechanicalDrill);
       ++count;
     }
   }
 
-  // board holes
-  foreach (const BI_Hole* hole, mBoard.getHoles()) {
-    gen.drill(hole->getData().getPath(), hole->getData().getDiameter(), false,
+  // Extra NPTH holes contributed by the panel itself (not owned by any
+  // placed board, e.g. mouse bites), already in the shared/panel coordinate
+  // system.
+  for (const auto& pair : mExtraNpthDrills) {
+    gen.drill(pair.first, pair.second, false,
               ExcellonGenerator::Function::MechanicalDrill);
     ++count;
   }
@@ -633,38 +685,43 @@ int BoardGerberExport::drawNpthDrills(ExcellonGenerator& gen) const {
 int BoardGerberExport::drawPthDrills(ExcellonGenerator& gen) const {
   int count = 0;
 
-  // Helper to draw a pad.
-  auto drawPad = [&gen, &count](const BI_Pad* pad) {
-    const BoardPadData& data = pad->getProperties();
-    const Transform transform(*pad);
-    const ExcellonGenerator::Function function =
-        (data.getFunction() == Pad::Function::PressFitPad)
-        ? ExcellonGenerator::Function::ComponentDrillPressFit
-        : ExcellonGenerator::Function::ComponentDrill;
-    for (const PadHole& hole : data.getHoles()) {
-      gen.drill(transform.map(hole.getPath()), hole.getDiameter(), true,
-                function);  // can throw
-      ++count;
-    }
-  };
+  for (const BoardPlacement& placement : mPlacements) {
+    const Transform& xf = placement.transform;
 
-  // footprint pads
-  foreach (const BI_Device* device, mBoard.getDeviceInstances()) {
-    foreach (const BI_Pad* pad, device->getPads()) {
-      drawPad(pad);
-    }
-  }
-
-  // board pads & vias
-  foreach (const BI_NetSegment* netsegment, mBoard.getNetSegments()) {
-    foreach (const BI_Pad* pad, netsegment->getPads()) {
-      drawPad(pad);
-    }
-    foreach (const BI_Via* via, netsegment->getVias()) {
-      if (via->getVia().isThrough()) {
-        gen.drill(via->getPosition(), via->getActualDrillDiameter(), true,
-                  ExcellonGenerator::Function::ViaDrill);
+    // Helper to draw a pad.
+    auto drawPad = [&gen, &count, &xf](const BI_Pad* pad) {
+      const BoardPadData& data = pad->getProperties();
+      const Transform transform(*pad);
+      const ExcellonGenerator::Function function =
+          (data.getFunction() == Pad::Function::PressFitPad)
+          ? ExcellonGenerator::Function::ComponentDrillPressFit
+          : ExcellonGenerator::Function::ComponentDrill;
+      for (const PadHole& hole : data.getHoles()) {
+        gen.drill(xf.map(transform.map(hole.getPath())), hole.getDiameter(),
+                  true, function);  // can throw
         ++count;
+      }
+    };
+
+    // footprint pads
+    foreach (const BI_Device* device, placement.board->getDeviceInstances()) {
+      foreach (const BI_Pad* pad, device->getPads()) {
+        drawPad(pad);
+      }
+    }
+
+    // board pads & vias
+    foreach (const BI_NetSegment* netsegment,
+             placement.board->getNetSegments()) {
+      foreach (const BI_Pad* pad, netsegment->getPads()) {
+        drawPad(pad);
+      }
+      foreach (const BI_Via* via, netsegment->getVias()) {
+        if (via->getVia().isThrough()) {
+          gen.drill(xf.map(via->getPosition()), via->getActualDrillDiameter(),
+                    true, ExcellonGenerator::Function::ViaDrill);
+          ++count;
+        }
       }
     }
   }
@@ -672,14 +729,17 @@ int BoardGerberExport::drawPthDrills(ExcellonGenerator& gen) const {
   return count;
 }
 
-QMap<BoardGerberExport::LayerPair, QList<const BI_Via*>>
+QMap<BoardGerberExport::LayerPair, QVector<std::pair<const BI_Via*, Transform>>>
     BoardGerberExport::getBlindBuriedVias() const {
-  QMap<LayerPair, QList<const BI_Via*>> result;
-  foreach (const BI_NetSegment* netsegment, mBoard.getNetSegments()) {
-    foreach (const BI_Via* via, netsegment->getVias()) {
-      if (via->getVia().isBlind() || via->getVia().isBuried()) {
-        if (auto span = via->getDrillLayerSpan()) {
-          result[*span].append(via);
+  QMap<LayerPair, QVector<std::pair<const BI_Via*, Transform>>> result;
+  for (const BoardPlacement& placement : mPlacements) {
+    foreach (const BI_NetSegment* netsegment,
+             placement.board->getNetSegments()) {
+      foreach (const BI_Via* via, netsegment->getVias()) {
+        if (via->getVia().isBlind() || via->getVia().isBuried()) {
+          if (auto span = via->getDrillLayerSpan()) {
+            result[*span].append(std::make_pair(via, placement.transform));
+          }
         }
       }
     }
@@ -689,14 +749,22 @@ QMap<BoardGerberExport::LayerPair, QList<const BI_Via*>>
 
 void BoardGerberExport::drawLayer(GerberGenerator& gen,
                                   const Layer& layer) const {
-  // draw footprints incl. pads
-  foreach (const BI_Device* device, mBoard.getDeviceInstances()) {
-    Q_ASSERT(device);
-    drawDevice(gen, *device, layer);
-  }
+  for (const BoardPlacement& placement : mPlacements) {
+    // Map the target (panel-space) layer back into the placement's own
+    // board-local frame. Since Layer mapping is a pure mirror-based
+    // involution, an item whose *local* layer equals this local layer will,
+    // once transformed by `placement.transform`, end up exactly on `layer`.
+    const Layer& localLayer = placement.transform.map(layer);
 
-  // draw all non-footprint objects
-  drawLayerExceptDevices(gen, layer);
+    // draw footprints incl. pads
+    foreach (const BI_Device* device, placement.board->getDeviceInstances()) {
+      Q_ASSERT(device);
+      drawDevice(gen, *device, localLayer, placement.transform);
+    }
+
+    // draw all non-footprint objects
+    drawLayerExceptDevices(gen, localLayer, placement);
+  }
 }
 
 void BoardGerberExport::drawGlueLayer(GerberGenerator& gen, const Layer& layer,
@@ -706,34 +774,39 @@ void BoardGerberExport::drawGlueLayer(GerberGenerator& gen, const Layer& layer,
     Q_ASSERT(device);
     if (device->isGlueEnabled() &&
         device->isInAssemblyVariant(assemblyVariant)) {
-      drawDevice(gen, *device, layer);
+      drawDevice(gen, *device, layer, Transform());
     }
   }
 
   // draw all non-footprint objects
-  drawLayerExceptDevices(gen, layer);
+  drawLayerExceptDevices(gen, layer, BoardPlacement{&mBoard, Transform()});
 }
 
-void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
-                                               const Layer& layer) const {
+void BoardGerberExport::drawLayerExceptDevices(
+    GerberGenerator& gen, const Layer& layer,
+    const BoardPlacement& placement) const {
+  const Board& board = *placement.board;
+  const Transform& xf = placement.transform;
+
   // draw board pads, vias and traces (grouped by net)
-  foreach (const BI_NetSegment* netsegment, mBoard.getNetSegments()) {
+  foreach (const BI_NetSegment* netsegment, board.getNetSegments()) {
     Q_ASSERT(netsegment);
     QString net = netsegment->getNetSignal()
         ? *netsegment->getNetSignal()->getName()  // Named net.
         : "N/C";  // Anonymous net (reserved name by Gerber specs).
     foreach (const BI_Pad* pad, netsegment->getPads()) {
-      drawPad(gen, *pad, layer);
+      drawPad(gen, *pad, layer, xf);
     }
     foreach (const BI_Via* via, netsegment->getVias()) {
       Q_ASSERT(via);
-      drawVia(gen, *via, layer, net);
+      drawVia(gen, *via, layer, net, xf);
     }
     foreach (const BI_NetLine* netline, netsegment->getNetLines()) {
       Q_ASSERT(netline);
       if (netline->getLayer() == layer) {
         gen.drawLine(
-            netline->getP1().getPosition(), netline->getP2().getPosition(),
+            xf.map(netline->getP1().getPosition()),
+            xf.map(netline->getP2().getPosition()),
             positiveToUnsigned(netline->getWidth()),
             GerberAttribute::ApertureFunction::Conductor, net, QString());
       }
@@ -741,12 +814,21 @@ void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
   }
 
   // draw planes
-  foreach (const BI_Plane* plane, mBoard.getPlanes()) {
+  foreach (const BI_Plane* plane, board.getPlanes()) {
     Q_ASSERT(plane);
     if (plane->getLayer() == layer) {
-      foreach (const Path& fragment, plane->getFragments()) {
+      // A panel export with mouse bites provides recalculated fragments
+      // for this board design (see BoardPlacement::planeFragmentsOverride)
+      // so the copper is pulled back from the holes exactly like the panel
+      // editor's canvas already shows; a plain board export (or a
+      // placement whose board design has no mouse bites) has no override
+      // and draws the board's own fragments unmodified, as before.
+      const QVector<Path> fragments = placement.planeFragmentsOverride
+          ? placement.planeFragmentsOverride->value(plane->getUuid())
+          : plane->getFragments();
+      foreach (const Path& fragment, fragments) {
         gen.drawPathArea(
-            fragment, GerberAttribute::ApertureFunction::Conductor,
+            xf.map(fragment), GerberAttribute::ApertureFunction::Conductor,
             plane->getNetSignal()
                 ? std::make_optional(*plane->getNetSignal()->getName())
                 : std::nullopt,
@@ -764,10 +846,10 @@ void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
     graphicsFunction = GerberAttribute::ApertureFunction::Conductor;
     graphicsNet = "";  // Not connected to any net.
   }
-  foreach (const BI_Polygon* polygon, mBoard.getPolygons()) {
+  foreach (const BI_Polygon* polygon, board.getPolygons()) {
     Q_ASSERT(polygon);
     if (layer == polygon->getData().getLayer()) {
-      drawPolygon(gen, layer, polygon->getData().getPath(),
+      drawPolygon(gen, layer, xf.map(polygon->getData().getPath()),
                   polygon->getData().getLineWidth(),
                   polygon->getData().isFilled(), graphicsFunction, graphicsNet,
                   QString());
@@ -779,13 +861,13 @@ void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
   if (layer.isCopper()) {
     textFunction = GerberAttribute::ApertureFunction::NonConductor;
   }
-  foreach (const BI_StrokeText* text, mBoard.getStrokeTexts()) {
+  foreach (const BI_StrokeText* text, board.getStrokeTexts()) {
     Q_ASSERT(text);
     if (layer == text->getData().getLayer()) {
       UnsignedLength lineWidth =
           calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
       const Transform transform(text->getData());
-      foreach (Path path, transform.map(text->getPaths())) {
+      foreach (Path path, xf.map(transform.map(text->getPaths()))) {
         gen.drawPathOutline(path, lineWidth, textFunction, graphicsNet,
                             QString());
       }
@@ -794,11 +876,11 @@ void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
 
   // Draw holes.
   if (layer.isStopMask()) {
-    foreach (const BI_Hole* hole, mBoard.getHoles()) {
+    foreach (const BI_Hole* hole, board.getHoles()) {
       if (const std::optional<Length>& offset = hole->getStopMaskOffset()) {
         const Length diameter =
             (*hole->getData().getDiameter()) + (*offset) + (*offset);
-        const Path path = hole->getData().getPath()->cleaned();
+        const Path path = xf.map(hole->getData().getPath()->cleaned());
         if (diameter > 0) {
           if (path.getVertices().count() == 1) {
             gen.flashCircle(path.getVertices().first().getPos(),
@@ -815,8 +897,8 @@ void BoardGerberExport::drawLayerExceptDevices(GerberGenerator& gen,
 }
 
 void BoardGerberExport::drawVia(GerberGenerator& gen, const BI_Via& via,
-                                const Layer& layer,
-                                const QString& netName) const {
+                                const Layer& layer, const QString& netName,
+                                const Transform& xf) const {
   const bool drawCopper = via.getVia().isOnLayer(layer);
   const std::optional<PositiveLength> stopMaskDiameter = layer.isStopMask()
       ? (layer.isTop() ? via.getStopMaskDiameterTop()
@@ -833,14 +915,15 @@ void BoardGerberExport::drawVia(GerberGenerator& gen, const BI_Via& via,
 
     const PositiveLength diameter =
         stopMaskDiameter ? (*stopMaskDiameter) : via.getActualSize();
-    gen.flashCircle(via.getPosition(), diameter, function, net, QString(),
-                    QString(), QString());
+    gen.flashCircle(xf.map(via.getPosition()), diameter, function, net,
+                    QString(), QString(), QString());
   }
 }
 
 void BoardGerberExport::drawDevice(GerberGenerator& gen,
                                    const BI_Device& device,
-                                   const Layer& layer) const {
+                                   const Layer& layer,
+                                   const Transform& xf) const {
   GerberGenerator::Function graphicsFunction = std::nullopt;
   std::optional<QString> graphicsNet = std::nullopt;
   if (layer.isBoardEdge()) {
@@ -853,7 +936,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
 
   // draw pads
   foreach (const BI_Pad* pad, device.getPads()) {
-    drawPad(gen, *pad, layer);
+    drawPad(gen, *pad, layer, xf);
   }
 
   // draw polygons
@@ -862,7 +945,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
        device.getLibFootprint().getPolygons().sortedByUuid()) {
     const Layer& polygonLayer = transform.map(polygon.getLayer());
     if (polygonLayer == layer) {
-      const Path path = transform.map(polygon.getPath());
+      const Path path = xf.map(transform.map(polygon.getPath()));
       drawPolygon(gen, layer, path, polygon.getLineWidth(), polygon.isFilled(),
                   graphicsFunction, graphicsNet, component);
     }
@@ -873,7 +956,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
        device.getLibFootprint().getCircles().sortedByUuid()) {
     const Layer& circleLayer = transform.map(circle.getLayer());
     if (circleLayer == layer) {
-      Point absolutePos = transform.map(circle.getCenter());
+      Point absolutePos = xf.map(transform.map(circle.getCenter()));
       if (circle.isFilled()) {
         PositiveLength outerDia = circle.getDiameter() + circle.getLineWidth();
         gen.drawPathArea(Path::circle(outerDia).translated(absolutePos),
@@ -898,7 +981,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
       UnsignedLength lineWidth =
           calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
       Transform transform(text->getData());
-      foreach (Path path, transform.map(text->getPaths())) {
+      foreach (Path path, xf.map(transform.map(text->getPaths()))) {
         gen.drawPathOutline(path, lineWidth, textFunction, graphicsNet,
                             component);
       }
@@ -913,7 +996,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
               device.getHoleStopMasks().value(hole.getUuid())) {
         const Length diameter = (*hole.getDiameter()) + (*offset) + (*offset);
         if (diameter > 0) {
-          const Path path = transform.map(hole.getPath()->cleaned());
+          const Path path = xf.map(transform.map(hole.getPath()->cleaned()));
           if (path.getVertices().count() == 1) {
             gen.flashCircle(path.getVertices().first().getPos(),
                             PositiveLength(diameter), std::nullopt,
@@ -929,7 +1012,8 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
 }
 
 void BoardGerberExport::drawPad(GerberGenerator& gen, const BI_Pad& pad,
-                                const Layer& layer) const {
+                                const Layer& layer,
+                                const Transform& xf) const {
   using PadFunction = Pad::Function;
   using ApertureFunction = GerberAttribute::ApertureFunction;
   const QMap<PadFunction, ApertureFunction> functionMap = {
@@ -975,12 +1059,12 @@ void BoardGerberExport::drawPad(GerberGenerator& gen, const BI_Pad& pad,
     auto flashPadOutline = [&]() {
       foreach (Path outline, geometry.toOutlines()) {
         outline.flattenArcs(PositiveLength(5000));
-        if (pad.getMirrored()) {
+        if (xf.map(pad.getMirrored())) {
           outline.mirror(Qt::Horizontal);
         }
-        gen.flashOutline(pad.getPosition(), StraightAreaPath(outline),
-                         pad.getRotation(), function, net, component, pin,
-                         signal);  // can throw
+        gen.flashOutline(xf.map(pad.getPosition()), StraightAreaPath(outline),
+                         xf.mapMirrorable(pad.getRotation()), function, net,
+                         component, pin, signal);  // can throw
       }
     };
 
@@ -990,26 +1074,26 @@ void BoardGerberExport::drawPad(GerberGenerator& gen, const BI_Pad& pad,
     switch (geometry.getShape()) {
       case PadGeometry::Shape::RoundedRect: {
         if ((width > 0) && (height > 0)) {
-          gen.flashRect(pad.getPosition(), PositiveLength(width),
+          gen.flashRect(xf.map(pad.getPosition()), PositiveLength(width),
                         PositiveLength(height), geometry.getCornerRadius(),
-                        pad.getRotation(), function, net, component, pin,
-                        signal);
+                        xf.mapMirrorable(pad.getRotation()), function, net,
+                        component, pin, signal);
         }
         break;
       }
       case PadGeometry::Shape::RoundedOctagon: {
         if ((width > 0) && (height > 0)) {
-          gen.flashOctagon(pad.getPosition(), PositiveLength(width),
+          gen.flashOctagon(xf.map(pad.getPosition()), PositiveLength(width),
                            PositiveLength(height), geometry.getCornerRadius(),
-                           pad.getRotation(), function, net, component, pin,
-                           signal);
+                           xf.mapMirrorable(pad.getRotation()), function, net,
+                           component, pin, signal);
         }
         break;
       }
       case PadGeometry::Shape::Stroke: {
         if ((width > 0) && (!geometry.getPath().getVertices().isEmpty())) {
           const Transform transform(pad);
-          const Path path = transform.map(geometry.getPath());
+          const Path path = xf.map(transform.map(geometry.getPath()));
           if (path.getVertices().count() == 1) {
             // For maximum compatibility, convert the stroke to a circle.
             gen.flashCircle(path.getVertices().first().getPos(),
@@ -1151,9 +1235,29 @@ QString BoardGerberExport::getAttributeValue(
     return QString::number(mCurrentStartLayer->getCopperNumber() + 1);
   } else if ((mCurrentEndLayer) && (key == QLatin1String("END_NUMBER"))) {
     return QString::number(mCurrentEndLayer->getCopperNumber() + 1);
+  } else if (mPanel) {
+    const ProjectAttributeLookup lookup(*mPanel);
+    return lookup(key);
   } else {
     const ProjectAttributeLookup lookup(mBoard, nullptr);
     return lookup(key);
+  }
+}
+
+void BoardGerberExport::updateProjectName() noexcept {
+  mProjectName = *mProject.getName();
+  if (mPanel) {
+    // If the project contains multiple panels, add the panel name to the
+    // Gerber file metadata as well to distinguish between the different
+    // panels (mirrors the board-name disambiguation below).
+    if (mProject.getPanels().count() > 1) {
+      mProjectName += " (" % mPanel->getName() % ")";
+    }
+  } else if (mProject.getBoards().count() > 1) {
+    // If the project contains multiple boards, add the board name to the
+    // Gerber file metadata as well to distinguish between the different
+    // boards.
+    mProjectName += " (" % mBoard.getName() % ")";
   }
 }
 
