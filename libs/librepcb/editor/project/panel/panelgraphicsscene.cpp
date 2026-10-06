@@ -17,14 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #include "panelgraphicsscene.h"
 
 #include "../../graphics/graphicslayerlist.h"
 #include "boardproxy.h"
 #include "graphicsitems/pgi_outline.h"
 #include "graphicsitems/pgi_boardinstance.h"
+#include "graphicsitems/pgi_edge.h"
 #include "graphicsitems/pgi_fiducial.h"
 #include "graphicsitems/pgi_hole.h"
 #include "graphicsitems/pgi_tab.h"
@@ -72,6 +71,7 @@ PanelGraphicsScene::PanelGraphicsScene(
 
   mOutlineItem = std::make_shared<PGI_Outline>(mPanel);
   addItem(*mOutlineItem);
+  updateOutlineHighlightItems();
 
   // Phantom tab marker - hidden until the Add Tab tool shows it. Not
   // selectable, and above the real tab markers (PGI_Tab uses Z=10).
@@ -169,6 +169,10 @@ PanelGraphicsScene::~PanelGraphicsScene() noexcept {
   foreach (const Uuid& uuid, mFiducialItems.keys()) {
     removeFiducialItem(uuid);
   }
+  for (const auto& item : mOutlineHighlightItems) {
+    removeItem(*item);
+  }
+  mOutlineHighlightItems.clear();
   if (mOutlineItem) {
     removeItem(*mOutlineItem);
     mOutlineItem.reset();
@@ -256,55 +260,7 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
                           snap->position,
                           transform.map(snap->position),
                           transform.mapNonMirrorable(snap->direction),
-                          snap->distance,
-                          snap->segStart,
-                          snap->segEnd,
-                          snap->direction};
-    }
-  }
-  return best;
-}
-
-std::optional<PanelGraphicsScene::BoardEdgeHit>
-    PanelGraphicsScene::findNearestBoardEdgeForVCut(
-        const Point& scenePos, bool vertical) const noexcept {
-  std::optional<BoardEdgeHit> best;
-  for (const PI_BoardInstance& instance : mPanel.getBoardInstances()) {
-    // Only a placement rotated by a multiple of 90° can have an
-    // axis-aligned edge in panel coordinates at all - see this method's
-    // doc comment.
-    const Angle rot = instance.getRotation().mappedTo0_360deg();
-    const bool orthogonal = (rot == Angle::deg0()) || (rot == Angle::deg90()) ||
-        (rot == Angle::deg180()) || (rot == Angle::deg270());
-    if (!orthogonal) continue;
-    const bool swapped = (rot == Angle::deg90()) || (rot == Angle::deg270());
-    // A horizontal flip doesn't swap which local axis is constant along
-    // an edge (it only negates X), only a 90°/270° rotation does.
-    const bool localVertical = (vertical != swapped);
-
-    const Board* board = mProject.getBoardByUuid(instance.getBoard());
-    if (!board) continue;
-    const std::optional<QVector<Path>> outlines = board->calculateOutlinePath();
-    if (!outlines) continue;
-
-    Point boardPos = (scenePos - instance.getPosition())
-                         .rotated(-instance.getRotation());
-    if (instance.getFlipped()) {
-      boardPos.mirror(Qt::Horizontal);
-    }
-
-    const std::optional<BoardEdgeSnap::Result> snap =
-        BoardEdgeSnap::snap(*outlines, boardPos, localVertical);
-    if (snap && ((!best) || (snap->distance < best->distance))) {
-      const Transform transform = instance.getTransform();
-      best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
-                          snap->position,
-                          transform.map(snap->position),
-                          transform.mapNonMirrorable(snap->direction),
-                          snap->distance,
-                          snap->segStart,
-                          snap->segEnd,
-                          snap->direction};
+                          snap->distance};
     }
   }
   return best;
@@ -321,6 +277,15 @@ void PanelGraphicsScene::setBoardInstanceColors(
       item->setColors(mBoardInstanceColor, mBoardInstanceSelectedLineColor,
                       mBoardInstanceSelectedFillColor);
     }
+  }
+}
+
+void PanelGraphicsScene::clearEdgeHighlights() noexcept {
+  for (const auto& item : mOutlineHighlightItems) {
+    item->setHighlighted(false);
+  }
+  foreach (const auto& item, mBoardInstanceItems) {
+    if (item) item->clearEdgeHighlights();
   }
 }
 
@@ -484,6 +449,7 @@ void PanelGraphicsScene::outlineChanged() noexcept {
   if (mOutlineItem) {
     mOutlineItem->updateOutline();
   }
+  updateOutlineHighlightItems();
   // V-cut lines span the whole panel, so their extent depends on its size.
   foreach (const auto& item, mVCutItems) {
     if (item) item->updateGeometry();
@@ -511,6 +477,38 @@ void PanelGraphicsScene::boardInstanceRemoved(int index) noexcept {
     }
   }
   updateTabItems();
+}
+
+void PanelGraphicsScene::updateOutlineHighlightItems() noexcept {
+  // The panel always starts at the origin, so its edges are simple.
+  const Length w = *mPanel.getWidth();
+  const Length h = *mPanel.getHeight();
+  struct Def {
+    PI_VCut::BoundEdge edge;
+    BoardEdgeSnap::Segment segment;
+  };
+  const Def defs[] = {
+      {PI_VCut::BoundEdge::PanelLeft,
+       {Point(0, 0), Point(0, h), Angle::deg180()}},
+      {PI_VCut::BoundEdge::PanelRight,
+       {Point(w, 0), Point(w, h), Angle::deg0()}},
+      {PI_VCut::BoundEdge::PanelTop,
+       {Point(0, h), Point(w, h), Angle::deg90()}},
+      {PI_VCut::BoundEdge::PanelBottom,
+       {Point(0, 0), Point(w, 0), Angle::deg270()}},
+  };
+  if (mOutlineHighlightItems.empty()) {
+    for (const Def& def : defs) {
+      std::unique_ptr<PGI_Edge> item(
+          new PGI_Edge(nullptr, std::nullopt, def.edge, def.segment));
+      addItem(*item);
+      mOutlineHighlightItems.push_back(std::move(item));
+    }
+  } else {
+    for (std::size_t i = 0; i < mOutlineHighlightItems.size(); ++i) {
+      mOutlineHighlightItems[i]->setSegment(defs[i].segment);
+    }
+  }
 }
 
 void PanelGraphicsScene::addBoardInstanceItem(

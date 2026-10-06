@@ -17,14 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #include "pgi_boardinstance.h"
 
 #include "../boardproxy.h"
 #include "../panelgraphicsscene.h"
+#include "pgi_edge.h"
 
 #include <librepcb/core/project/board/board.h>
+#include <librepcb/core/project/panel/boardedgesnap.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
@@ -44,13 +44,11 @@ PGI_BoardInstance::PGI_BoardInstance(
     mProject(project),
     mScene(scene),
     mBoardProxy(nullptr),
-    // Placeholders until PanelTab::applyWorkspaceSettings() calls
-    // #setColors() with the active color scheme's real colors, which
-    // happens immediately after construction - see the class doc comment.
     mColor(Qt::gray),
     mSelectedLineColor(Qt::gray),
     mSelectedFillColor(Qt::transparent),
-    mOnEditedSlot(*this, &PGI_BoardInstance::instanceEdited) {
+    mOnEditedSlot(*this, &PGI_BoardInstance::instanceEdited),
+    mOnProxyEditedSlot(*this, &PGI_BoardInstance::proxyEdited) {
   setFlag(QGraphicsItem::ItemIsSelectable, true);
   setFlag(QGraphicsItem::ItemIsFocusable, true);
 
@@ -84,18 +82,12 @@ void PGI_BoardInstance::paint(QPainter* painter,
   const QRectF boundsPx = mOutlinePath.boundingRect();
 
   if (mBoardProxy) {
-    // Render the board's real, live content (traces, pads, vias, planes,
-    // silkscreen, holes - everything) via the hidden BoardGraphicsScene
-    // BoardProxy owns for this design. Source and target rects are the
-    // same rect (mOutlinePath's bounds, in this item's own local
-    // coordinates) so the board's content lines up 1:1 with the outline
-    // drawn below - both were built from the same board-origin px space.
-    // A board-name label would just be visual noise on top of real
-    // content, so it's skipped here (see the "else" branch below).
+    // Render the board's real, live content via the hidden BoardGraphicsScene
+    // BoardProxy owns for this design. 
     mBoardProxy->getScene().render(painter, boundsPx, boundsPx);
   } else {
-    // No live content available (referenced board no longer exists) -
-    // fall back to a centered board-name label so the placement isn't
+    // No live content available (the referenced board no longer exists).
+    // Fall back to a centered board-name label so the placement isn't
     // just a bare outline.
     painter->setPen(QPen(mColor, 0));
     QFont font = painter->font();
@@ -104,13 +96,9 @@ void PGI_BoardInstance::paint(QPainter* painter,
     painter->drawText(boundsPx, Qt::AlignCenter, mBoardName);
   }
 
-  // Outline and selection highlight are drawn last, on top of the board
-  // content, so the selection is always clearly visible (drawn first, it
-  // would be hidden underneath e.g. copper planes).
+  // Outline and selection highlight are drawn last, so the selection is always clearly visible.
   if (selected) {
-    // Highlight the whole board area (not just its perimeter) - on the
-    // Panel tab, the thing being selected is the entire placed board, so a
-    // full-area fill reads more clearly than an outline alone. Filling
+    // Highlight the whole board area (not just its perimeter). Filling
     // mOutlinePath itself (rather than its bounding rect) keeps the
     // highlight matching the board's real (possibly non-rectangular) shape.
     painter->setPen(QPen(mSelectedLineColor, 0));
@@ -142,6 +130,12 @@ void PGI_BoardInstance::setColors(const QColor& color,
   }
 }
 
+void PGI_BoardInstance::clearEdgeHighlights() noexcept {
+  for (const auto& item : mEdgeItems) {
+    item->setHighlighted(false);
+  }
+}
+
 Point PGI_BoardInstance::getCenter() const noexcept {
   return Point::fromPx(mapToScene(mOutlinePath.boundingRect().center()));
 }
@@ -167,7 +161,8 @@ void PGI_BoardInstance::instanceEdited(
       // A flipped board is rendered by another BoardProxy (see
       // BoardProxy::Side).
       updateRotationAndFlip();
-      updateOutline();
+      updateBoardProxy(mProject.getBoardByUuid(mInstance->getBoard()));
+      update();
       break;
     default:
       break;
@@ -194,13 +189,26 @@ void PGI_BoardInstance::updateRotationAndFlip() noexcept {
   setTransform(t);
 }
 
-void PGI_BoardInstance::updateOutline() noexcept {
-  prepareGeometryChange();
-
-  if (mBoardProxy) {
-    mScene.releaseBoardProxy(mBoardProxy);
-    mBoardProxy = nullptr;
+void PGI_BoardInstance::proxyEdited(const BoardProxy& obj,
+                                    BoardProxy::Event event) noexcept {
+  Q_UNUSED(obj);
+  switch (event) {
+    case BoardProxy::Event::OutlineChanged:
+      // Do not touch the proxy here, as it is currently notifying us.
+      updateOutlineShape();
+      break;
+    default:
+      break;
   }
+}
+
+void PGI_BoardInstance::updateOutline() noexcept {
+  updateBoardProxy(mProject.getBoardByUuid(mInstance->getBoard()));
+  updateOutlineShape();
+}
+
+void PGI_BoardInstance::updateOutlineShape() noexcept {
+  prepareGeometryChange();
 
   // A small placeholder rectangle, used whenever the referenced board has
   // no `Layer::boardOutlines()` content yet (or no longer exists at all).
@@ -212,17 +220,15 @@ void PGI_BoardInstance::updateOutline() noexcept {
     return p;
   };
 
-  Board* board = mProject.getBoardByUuid(mInstance->getBoard());
-  if (board) {
-    mBoardName = *board->getName();
-    mBoardProxy = mScene.acquireBoardProxy(
-        *board, mInstance->getFlipped() ? BoardProxy::Side::Bottom
-                                        : BoardProxy::Side::Top);
+  std::optional<QVector<Path>> edgeOutlines;
+  if (mBoardProxy) {
+    mBoardName = *mBoardProxy->getBoard().getName();
     // Use the board's real outline shape (not necessarily rectangular) -
     // it's just placement/move reference here, but should still reflect
     // the actual board perimeter rather than a generalized rectangle.
-    if (auto outlines = board->calculateOutlinePath()) {
+    if (auto outlines = mBoardProxy->getOutline()) {
       mOutlinePath = Path::toQPainterPathPx(*outlines, true);
+      edgeOutlines = outlines;
     } else {
       mOutlinePath = placeholderRect();
     }
@@ -234,7 +240,39 @@ void PGI_BoardInstance::updateOutline() noexcept {
     mOutlinePath = placeholderRect();
   }
 
+  updateEdgeItems(edgeOutlines);
   update();
+}
+
+void PGI_BoardInstance::updateBoardProxy(Board* board) noexcept {
+  if (mBoardProxy) {
+    mBoardProxy->onEdited.detach(mOnProxyEditedSlot);
+    mScene.releaseBoardProxy(mBoardProxy);
+    mBoardProxy = nullptr;
+  }
+  if (board) {
+    // A flipped board is rendered by another BoardProxy (see
+    // BoardProxy::Side).
+    mBoardProxy = mScene.acquireBoardProxy(
+        *board, mInstance->getFlipped() ? BoardProxy::Side::Bottom
+                                        : BoardProxy::Side::Top);
+    mBoardProxy->onEdited.attach(mOnProxyEditedSlot);
+  }
+}
+
+void PGI_BoardInstance::updateEdgeItems(
+    const std::optional<QVector<Path>>& outlines) noexcept {
+  // The old items are deleted with their unique_ptr, which also removes
+  // them from this item.
+  mEdgeItems.clear();
+  if (!outlines) {
+    return;  // Placeholder outline, nothing to hover.
+  }
+  for (const BoardEdgeSnap::Segment& segment :
+       BoardEdgeSnap::axisAlignedSegments(*outlines)) {
+    mEdgeItems.push_back(std::unique_ptr<PGI_Edge>(new PGI_Edge(
+        this, mInstance->getUuid(), PI_VCut::BoundEdge::None, segment)));
+  }
 }
 
 }  // namespace editor

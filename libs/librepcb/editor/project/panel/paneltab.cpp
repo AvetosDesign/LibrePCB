@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by a human on 2026-09-17.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -242,8 +239,11 @@ int PanelTab::getProjectObjectIndex() const noexcept {
 ui::TabData PanelTab::getUiData() const noexcept {
   ui::TabFeatures features = {};
   features.save = toFs(mProject.getDirectory().isWritable());
-  features.undo = toFs(mProjectEditor.getUndoStack().canUndo());
-  features.redo = toFs(mProjectEditor.getUndoStack().canRedo());
+  const bool blockUndoRedo = mToolFeatures.testFlag(Feature::BlockUndoRedo);
+  features.undo =
+      toFs((!blockUndoRedo) && mProjectEditor.getUndoStack().canUndo());
+  features.redo =
+      toFs((!blockUndoRedo) && mProjectEditor.getUndoStack().canRedo());
   features.grid = toFs(mProject.getDirectory().isWritable());
   features.zoom = toFs(true);
   features.select = toFs(mToolFeatures.testFlag(Feature::Select));
@@ -474,11 +474,15 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       break;
     }
     case ui::TabAction::Undo: {
-      mProjectEditor.undo();
+      if (!mToolFeatures.testFlag(Feature::BlockUndoRedo)) {
+        mProjectEditor.undo();
+      }
       break;
     }
     case ui::TabAction::Redo: {
-      mProjectEditor.redo();
+      if (!mToolFeatures.testFlag(Feature::BlockUndoRedo)) {
+        mProjectEditor.redo();
+      }
       break;
     }
     case ui::TabAction::ZoomIn: {
@@ -1122,6 +1126,9 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     // substrate outline. Selected state uses the role's secondary color,
     // same as holes/fiducials above.
     mScene->setTabColors(outline.primary, outline.secondary);
+
+    // Edge glow (highlight) color 
+    mScene->setEdgeGlowColor(outline.secondary);
 
     // The tabs' triangles (shown instead of the markers) have the
     // alpha of a placed part's origin cross, i.e. of the top references

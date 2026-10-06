@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_SELECT_H
 #define LIBREPCB_EDITOR_PANELEDITORSTATE_SELECT_H
 
@@ -57,6 +54,7 @@ class CmdPanelFiducialEdit;
 class CmdPanelHoleEdit;
 class CmdPanelTabEdit;
 class CmdPanelVCutEdit;
+class PGI_Edge;
 class PGI_Tab;
 
 /*******************************************************************************
@@ -270,32 +268,29 @@ private:
   bool clearSelection() noexcept;
 
   /**
-   * @brief Start picking a panel or board edge to bind the selected V-cut
-   *        to
+   * @brief Pick a panel or board edge to bind the selected V-cut to
    *
    * Requires exactly one selected V-cut and enters "picking" mode
-   * (#mIsPickingVCutBindEdge): mouse moves compute the nearest candidate
-   * edge - either a panel edge or a board outline segment, whichever is
-   * closer to the cursor (#candidateBindEdge()) - and show it in the
-   * status bar, a left click binds the V-cut to that candidate
+   * (#mIsPickingVCutBindEdge). Mouse moves look for an edge (either a panel
+   * edge or a board outline segment, ::librepcb::editor::PGI_Edge) under the
+   * cursor (see #candidateBindEdge()).  Candidates are highlighted
+   * and show in the status bar. A left click on a glowing edge binds the
+   * V-cut to it
    * (#commitVCutBindEdgePick()) with its offset derived from the V-cut's
-   * *current* position, and Escape cancels (#cancelVCutBindEdgePick()).
-   * Unlike the other drag-style interactions in this class, this isn't
-   * backed by an "immediate" edit command and has no on-canvas highlight -
-   * just the status bar text - a simplified first pass. A board edge can
-   * only be picked on a board placed at a rotation that's a multiple of
-   * 90° - see ::librepcb::editor::PanelGraphicsScene::
-   * findNearestBoardEdgeForVCut().
+   * *current* position.  <ESC> cancels (#cancelVCutBindEdgePick()).
+   * A click away from a highlighted edge is ignored. A board edge can only be
+   * picked if its edge is parallel to the V-cut.
    *
    * @return Whether the action was handled.
    */
   bool bindSelectedVCutToEdge() noexcept;
 
   /**
-   * @brief Remove the bound edge of the selected V-cut
+   * @brief Unbind the selected V-cut
    *
-   * The V-cut keeps its current position but no longer follows an edge.
-   * Only offered in the context menu if the V-cut has a bound edge.
+   * Remove the edge binding from the selected V-cut. The V-cut keeps its
+   * current position, but no longer follows an edge. This is only offered in
+   * the context menu if the V-cut has a bound edge.
    *
    * @return Whether the action was handled.
    */
@@ -304,83 +299,59 @@ private:
   /**
    * @brief Cancel an in-progress #bindSelectedVCutToEdge() pick
    *
-   * Resets #mIsPickingVCutBindEdge/#mPickingVCut and clears the status bar
-   * message. Safe to call even if no pick is in progress.
+   * Resets #mIsPickingVCutBindEdge/#mPickingVCut, removes the edge glow and
+   * clears the status bar message. Safe to call even if no pick is in
+   * progress. Called automatically when the undo stack is modified while
+   * picking (e.g. an undo which removes the V-cut being bound) and when the
+   * scene is destroyed (the Panel tab was deactivated), see
+   * #mVCutPickConnections.
    */
   void cancelVCutBindEdgePick() noexcept;
 
   /**
-   * @brief Finish an in-progress #bindSelectedVCutToEdge() pick
+   * @brief Finish an in-progress edge binding pick
    *
-   * Binds #mPickingVCut to whichever candidate #candidateBindEdge()
-   * reports as nearest to @p scenePos - a panel edge (#PI_VCut::
-   * setBinding(), offset from #Panel::getVCutBoundEdgeOffset()) or a
-   * board outline segment (#PI_VCut::setBoardBinding(), offset derived
-   * via ::librepcb::PI_VCut::resolveBoardEdge() from the V-cut's current position) - then
-   * always calls #cancelVCutBindEdgePick() to leave picking mode, whether
-   * or not the bind actually happened.
+   * Binds #mPickingVCut to the candidate #candidateBindEdge() found at
+   * @p scenePos (the edge that glows). If there is no candidate at
+   * @p scenePos, nothing happens and picking continues.
    *
    * @param scenePos  Cursor position (panel coordinates) at the click that
-   *                  committed the pick.
+   *                  commits the pick.
    *
-   * @return Whether the action was handled (always `true` once picking was
-   *         in progress).
+   * @return Whether the action was handled (always `true` while picking).
    */
   bool commitVCutBindEdgePick(const Point& scenePos) noexcept;
 
   /**
-   * @brief Update the status bar hint while #bindSelectedVCutToEdge() is
-   *        picking
+   * @brief Update the edge glow and the status bar hint while
+   *        #bindSelectedVCutToEdge() is picking
+   *
+   * Moves the glow to the edge #candidateBindEdge() finds at @p scenePos
+   * (or removes it if there is none).
    *
    * @param scenePos  Current cursor position (panel coordinates).
    */
   void updateVCutBindEdgeHover(const Point& scenePos) noexcept;
 
   /**
-   * @brief What #candidateBindEdge() found nearest to the cursor
+   * @brief The panel or board edge at a position, for a given V-cut's
+   *        orientation
    *
-   * Either a panel edge (@a isBoard `false`, @a panelEdge meaningful) or a
-   * board outline segment (@a isBoard `true`, the rest meaningful) -
-   * never both. @a boardSegStart/@a boardSegEnd/@a boardSegNormal are in
-   * the *board's own* (untransformed) coordinates, exactly what
-   * #PI_VCut::setBoardBinding() stores - see
-   * ::librepcb::editor::PanelGraphicsScene::BoardEdgeHit, which this is
-   * built from for the board case.
-   */
-  struct VCutEdgeCandidate {
-    bool isBoard = false;
-    PI_VCut::BoundEdge panelEdge = PI_VCut::BoundEdge::None;
-    std::optional<Uuid> boardInstance;  // Set iff isBoard.
-    Point boardSegStart;
-    Point boardSegEnd;
-    Angle boardSegNormal;
-  };
-
-  /**
-   * @brief The panel or board edge nearest to a position, for a given
-   *        V-cut's orientation
-   *
-   * A vertical V-cut can only bind to a panel #PI_VCut::BoundEdge::
-   * PanelLeft/PanelRight or a board segment with a constant X in panel
-   * coordinates (its own orientation is perpendicular to those); a
-   * horizontal one only to #PI_VCut::BoundEdge::PanelTop/PanelBottom or a
-   * constant-Y board segment. Compares @p cursorPos's distance to the
-   * nearer of the two applicable panel edges against the nearest matching
-   * board segment from ::librepcb::editor::PanelGraphicsScene::
-   * findNearestBoardEdgeForVCut(), and returns whichever is closer overall
-   * (a board edge wins ties, being the more specific choice).
+   * Looks at the ::librepcb::editor::PGI_Edge items within a few screen
+   * pixels of @p cursorPos. A vertical V-cut can only bind to a vertical
+   * edge, a horizontal one only to a horizontal edge. Among those, the
+   * edge nearest to @p cursorPos is returned.
    *
    * @param vcut       The V-cut being bound (only its orientation matters).
-   * @param cursorPos  Position to measure from, in panel coordinates.
+   * @param cursorPos  Position to look at, in panel coordinates.
    *
-   * @return The nearest candidate. Falls back to the nearer panel edge if
-   *         no board edge candidate is found (or the scene is
-   *         unavailable) - there's always at least a panel edge on each
-   *         side of the V-cut's orientation, so this never has to signal
-   *         "nothing found".
+   * @return The edge item, or `nullptr` if no
+   *         matching edge is within reach of the cursor (or the scene is
+   *         unavailable). Only valid until the scene rebuilds its edge
+   *         items.
    */
-  VCutEdgeCandidate candidateBindEdge(const PI_VCut& vcut,
-                                      const Point& cursorPos) noexcept;
+  PGI_Edge* candidateBindEdge(const PI_VCut& vcut,
+                              const Point& cursorPos) noexcept;
 
   /**
    * @brief Re-derive one V-cut's position/orientation from
@@ -703,12 +674,29 @@ private:
   QString buildInfoBoxText() noexcept;
   bool abortCommand(bool showErrMsgBox) noexcept;
 
+  /**
+   * @brief Whether an uninterruptable operation is in progress
+   *
+   * Either a drag, resize or paste placement, which has an open undo command
+   * group (#mIsUndoCmdActive), or the pick of an edge to bind a V-cut to
+   * (#mIsPickingVCutBindEdge), which has none. Used to ignore actions which
+   * would start another command or change the project in the middle of it.
+   */
+  bool isBusy() const noexcept {
+    return mIsUndoCmdActive || mIsPickingVCutBindEdge;
+  }
+
   // State
   bool mIsUndoCmdActive;
   /// See #bindSelectedVCutToEdge().
   bool mIsPickingVCutBindEdge;
   /// The V-cut being bound while #mIsPickingVCutBindEdge is active.
   std::shared_ptr<PI_VCut> mPickingVCut;
+  /// The status bar text last set while picking, see #updateVCutBindEdgeHover().
+  QString mVCutPickHoverText;
+  /// Cancel the pick when the undo stack is modified or the scene goes away;
+  /// connected while picking only.
+  QList<QMetaObject::Connection> mVCutPickConnections;
   /// Whether the next move step of a selection drag still has to align the
   /// dragged group to the current grid (see processGraphicsSceneMouseMoved())
   bool mDragSnapPending;

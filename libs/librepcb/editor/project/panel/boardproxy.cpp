@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #include "boardproxy.h"
 
 #include "../../graphics/graphicslayerlist.h"
@@ -36,7 +34,8 @@ namespace editor {
 BoardProxy::BoardProxy(
     Board& board, const GraphicsLayerList& layers,
     std::shared_ptr<BoardGraphicsScene::Context> context, Side side) noexcept
-  : mBoard(board),
+  : onEdited(*this),
+    mBoard(board),
     mSide(side),
     mFlippedLayers((side == Side::Bottom)
                        ? GraphicsLayerList::flippedView(
@@ -47,7 +46,11 @@ BoardProxy::BoardProxy(
     mPlanesRebuildTimer(),
     mPlanesRebuildDuration(),
     mOnPlaneEditedSlot(*this, &BoardProxy::planeEdited),
-    mPlanesBuilder() {
+    mPlanesBuilder(),
+    mOutline(board.calculateOutlinePath()),
+    mOutlineUpdateTimer(),
+    mOnPolygonEditedSlot(*this, &BoardProxy::polygonEdited),
+    mOnDeviceEditedSlot(*this, &BoardProxy::deviceEdited) {
   if (mSide == Side::Bottom) {
     // Own copy of the context, viewed from the (former) bottom side.
     auto flippedContext = std::make_shared<BoardGraphicsScene::Context>(
@@ -59,14 +62,9 @@ BoardProxy::BoardProxy(
     mScene = std::make_unique<BoardGraphicsScene>(mBoard, layers, context);
   }
 
-  // This scene is only ever used as a QGraphicsScene::render() source for
-  // PGI_BoardInstance::paint() (see the class doc comment) - never shown
-  // in its own QGraphicsView - so its own background fill and grid must
-  // be suppressed. Left enabled, GraphicsScene::drawBackground() would
-  // paint an opaque background color plus a full grid overlay across the
-  // render() target rect on every repaint, blotting out Panel's own
-  // dimmed-outline/selection-highlight rendering underneath and drawing
-  // a second, redundant grid on top of Panel's own.
+  // This scene is only used as a QGraphicsScene::render() source for
+  // PGI_BoardInstance::paint() (see the class doc comment), so its own
+  // background fill and grid must be suppressed.
   mScene->setBackgroundColors(Qt::transparent, Qt::transparent);
   mScene->setGridStyle(GridStyle::None);
 
@@ -90,9 +88,45 @@ BoardProxy::BoardProxy(
                      plane.onEdited.detach(mOnPlaneEditedSlot);
                      if (!mMouseBites.isEmpty()) mPlanesRebuildTimer.start();
                    });
+
+  // Keep the outline up to date. It is derived from the board's polygons
+  // and the footprints of its devices, so watch all of them. All changes
+  // within one event loop iteration (e.g. one undo command) are merged into
+  // a single update.
+  mOutlineUpdateTimer.setSingleShot(true);
+  mOutlineUpdateTimer.setInterval(0);
+  QObject::connect(&mOutlineUpdateTimer, &QTimer::timeout,
+                   &mOutlineUpdateTimer, [this]() { updateOutline(); });
+  foreach (BI_Polygon* polygon, mBoard.getPolygons()) {
+    polygon->onEdited.attach(mOnPolygonEditedSlot);
+  }
+  foreach (BI_Device* device, mBoard.getDeviceInstances()) {
+    device->onEdited.attach(mOnDeviceEditedSlot);
+  }
+  QObject::connect(&mBoard, &Board::polygonAdded, &mOutlineUpdateTimer,
+                   [this](BI_Polygon& polygon) {
+                     polygon.onEdited.attach(mOnPolygonEditedSlot);
+                     mOutlineUpdateTimer.start();
+                   });
+  QObject::connect(&mBoard, &Board::polygonRemoved, &mOutlineUpdateTimer,
+                   [this](BI_Polygon& polygon) {
+                     polygon.onEdited.detach(mOnPolygonEditedSlot);
+                     mOutlineUpdateTimer.start();
+                   });
+  QObject::connect(&mBoard, &Board::deviceAdded, &mOutlineUpdateTimer,
+                   [this](BI_Device& device) {
+                     device.onEdited.attach(mOnDeviceEditedSlot);
+                     mOutlineUpdateTimer.start();
+                   });
+  QObject::connect(&mBoard, &Board::deviceRemoved, &mOutlineUpdateTimer,
+                   [this](BI_Device& device) {
+                     device.onEdited.detach(mOnDeviceEditedSlot);
+                     mOutlineUpdateTimer.start();
+                   });
 }
 
 BoardProxy::~BoardProxy() noexcept {
+  mOutlineUpdateTimer.stop();
   mPlanesRebuildTimer.stop();
   mPlanesBuilder.reset();  // Cancels a running calculation.
 }
@@ -168,6 +202,35 @@ void BoardProxy::applyPlanes(
       fragments = planes->value(it.key()->getUuid());
     }
     it.value()->setFragmentsOverride(fragments);
+  }
+}
+
+void BoardProxy::updateOutline() noexcept {
+  std::optional<QVector<Path>> outline = mBoard.calculateOutlinePath();
+  if (outline != mOutline) {
+    mOutline = outline;
+    onEdited.notify(Event::OutlineChanged);
+  }
+}
+
+void BoardProxy::polygonEdited(const BI_Polygon& obj,
+                               BI_Polygon::Event event) noexcept {
+  Q_UNUSED(obj);
+  Q_UNUSED(event);
+  mOutlineUpdateTimer.start();
+}
+
+void BoardProxy::deviceEdited(const BI_Device& obj,
+                              BI_Device::Event event) noexcept {
+  Q_UNUSED(obj);
+  switch (event) {
+    case BI_Device::Event::PositionChanged:
+    case BI_Device::Event::RotationChanged:
+    case BI_Device::Event::MirroredChanged:
+      mOutlineUpdateTimer.start();
+      break;
+    default:
+      break;
   }
 }
 

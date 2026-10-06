@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORFSMADAPTER_H
 #define LIBREPCB_EDITOR_PANELEDITORFSMADAPTER_H
 
@@ -74,6 +72,7 @@ public:
     Lock = (1 << 7),
     Unlock = (1 << 8),
     EditProperties = (1 << 9),
+    BlockUndoRedo = (1 << 10), /// Undo and redo are not available
   };
   Q_DECLARE_FLAGS(Features, Feature)
 
