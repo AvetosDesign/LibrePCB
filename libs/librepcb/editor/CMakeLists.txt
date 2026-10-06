@@ -1,6 +1,3 @@
-# AI DISCLAIMER: This file was modified by Claude AI.  
-# Modifications were last reviewed by a human on 2026-09-17.
-
 # Enable Qt MOC/UIC/RCC
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -820,6 +817,8 @@ add_library(
   project/panel/fsm/paneleditorstate_select.h
   project/panel/graphicsitems/pgi_boardinstance.cpp
   project/panel/graphicsitems/pgi_boardinstance.h
+  project/panel/graphicsitems/pgi_edge.cpp
+  project/panel/graphicsitems/pgi_edge.h
   project/panel/graphicsitems/pgi_fiducial.cpp
   project/panel/graphicsitems/pgi_fiducial.h
   project/panel/graphicsitems/pgi_hole.cpp

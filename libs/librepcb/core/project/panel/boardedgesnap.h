@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_BOARDEDGESNAP_H
 #define LIBREPCB_CORE_BOARDEDGESNAP_H
 
@@ -44,20 +42,17 @@ namespace librepcb {
  ******************************************************************************/
 
 /**
- * @brief Projects a point onto a board outline and determines the outward
- *        edge direction at that point
+ * @brief Snaps a point onto a board outline and determines the outward normal
  *
  * Used to anchor ::librepcb::PI_Tab markers to a board's edge: the tab's
  * dot sits on the nearest outline point, and its arrow points
- * perpendicular to the edge, away from the board (into the panel gap,
- * where the tab material will extend). Also used for the "Bind to Edge..."
- * board-outline-segment picker in the panel's Select tool
- * (::librepcb::editor::PanelEditorState_Select, see
- * claude/librepcb_panel_vcut_tool.md) - #Result::segStart/#Result::segEnd
- * were added for that.
+ * perpendicular to the edge, into the panel gap (where the tab material will
+ * extend). #axisAlignedSegments() lists the
+ * straight, axis-aligned outline segments, which the panel editor makes
+ * hoverable for the "Bind to Edge..." picker of V-cuts
+ * (::librepcb::editor::PGI_Edge, see claude/librepcb_panel_vcut_tool.md).
  *
- * All coordinates are in the board's own coordinate system (the outline
- * paths as returned by ::librepcb::Board::calculateOutlinePath()). Since a
+ * All coordinates are in the board's own coordinate system. Since a
  * board placement only rotates/flips/translates, the returned distance is
  * the same in panel coordinates, so callers can compare results across
  * several placed boards directly.
@@ -76,15 +71,17 @@ public:
     Point position;  ///< Nearest point on the outline
     Angle direction;  ///< Edge normal at #position, pointing off the board
     UnsignedLength distance;  ///< Distance from the queried point
-    /// Start of the straight outline segment #position lies on (board
-    /// coordinates, same coordinate system as #position). Added for
-    /// ::librepcb::PI_VCut board-edge binding (claude/
-    /// librepcb_panel_vcut_tool.md) - #position's original users
-    /// (::librepcb::PI_Tab anchoring) only need #position/#direction and
-    /// can ignore these.
-    Point segStart;
-    /// End of the straight outline segment, see #segStart.
-    Point segEnd;
+  };
+
+  /**
+   * @brief One straight, axis-aligned outline segment
+   *
+   * See #axisAlignedSegments()
+   */
+  struct Segment {
+    Point start;  ///< Segment start (board coordinates).
+    Point end;  ///< Segment end (board coordinates).
+    Angle normal;  ///< Outward normal (board coordinates), 0/90/180/270 deg.
   };
 
   // Constructors / Destructor
@@ -95,24 +92,32 @@ public:
   /**
    * @brief Find the nearest point on a board outline
    *
-   * @param outlines     The board outline paths (board coordinates).
-   * @param pos          The point to project (board coordinates).
-   * @param verticalOnly  If set, only straight segments with a constant X
-   *                      (`true`, "vertical") or constant Y (`false`,
-   *                      "horizontal") are considered - added for
-   *                      ::librepcb::PI_VCut board-edge binding
-   *                      (claude/librepcb_panel_vcut_tool.md), which can
-   *                      only bind to a segment parallel to the V-cut.
-   *                      `std::nullopt` (the default) considers every
-   *                      segment, unfiltered, as before.
+   * @param outlines  The board outline paths (board coordinates).
+   * @param pos       The point to project (board coordinates).
    *
-   * @return The nearest outline point with its outward direction, or
-   *         `std::nullopt` if @p outlines contains no usable (matching)
-   *         segment.
+   * @return The nearest outline point with its outward normal, or
+   *         `std::nullopt` if @p outlines contains no usable segment.
    */
-  static std::optional<Result> snap(
-      const QVector<Path>& outlines, const Point& pos,
-      std::optional<bool> verticalOnly = std::nullopt) noexcept;
+  static std::optional<Result> snap(const QVector<Path>& outlines,
+                                    const Point& pos) noexcept;
+
+  /**
+   * @brief Get all straight, axis-aligned segments of a board outline
+   *
+   * Used to build the hoverable edge items (::librepcb::editor::PGI_Edge),
+   * which are created once per board placement. Only straight outline 
+   * segments are returned, and only those with a constant X or
+   * a constant Y, because a V-cut can only ever be bound to such an edge.
+   * Zero-length segments are skipped.
+   *
+   * @param outlines  The board outline paths (board coordinates), as
+   *                  returned by ::librepcb::Board::calculateOutlinePath().
+   *
+   * @return The segments, each with its outward normal (determined like
+   *         in #snap(): inner cutouts count as outside).
+   */
+  static QVector<Segment> axisAlignedSegments(
+      const QVector<Path>& outlines) noexcept;
 
   // Operator Overloadings
   BoardEdgeSnap& operator=(const BoardEdgeSnap& rhs) = delete;

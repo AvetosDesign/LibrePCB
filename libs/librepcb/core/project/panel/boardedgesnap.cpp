@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -37,19 +35,64 @@
  ******************************************************************************/
 namespace librepcb {
 
+namespace {
+
+/*******************************************************************************
+ *  Helpers
+ ******************************************************************************/
+
+// Arc flattening tolerance - fine enough that the snapped point is
+// visually on the (curved) edge.
+Path flatten(const Path& outline) noexcept {
+  return outline.flattenedArcs(PositiveLength(5000));  // 5um
+}
+
+// Adds a (flattened) outline to the board area used for the inside/outside
+// test. The area is filled even-odd so that inner cutouts count as
+// "outside".
+void addToArea(QPainterPath& area, const Path& flattened) noexcept {
+  QPolygonF polygon;
+  for (const Vertex& v : flattened.getVertices()) {
+    polygon.append(v.getPos().toPxQPointF());
+  }
+  area.addPolygon(polygon);
+  area.closeSubpath();
+}
+
+// Return the outward normal of the non-zero straight segment a-b
+Angle outwardNormal(const Point& a, const Point& b, const Point& origin,
+                    const QPainterPath& area) noexcept {
+  const qreal dx = static_cast<qreal>((b - a).getX().toNm());
+  const qreal dy = static_cast<qreal>((b - a).getY().toNm());
+  const qreal length = std::hypot(dx, dy);
+  qreal nx = dy / length;
+  qreal ny = -dx / length;
+
+  const qreal probeNm = 10000;  // 10um
+  const Point probe =
+      origin +
+      Point(Length(qRound64(nx * probeNm)), Length(qRound64(ny * probeNm)));
+  if (area.contains(probe.toPxQPointF())) {
+    nx = -nx;
+    ny = -ny;
+  }
+
+  try {
+    return Angle::fromRad(std::atan2(ny, nx)).mappedTo0_360deg();
+  } catch (const Exception&) {
+    // Can't happen for a non-zero-length segment, keep 0 degrees.
+    return Angle(0);
+  }
+}
+
+}  // namespace
+
 /*******************************************************************************
  *  Static Methods
  ******************************************************************************/
 
 std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
-    const QVector<Path>& outlines, const Point& pos,
-    std::optional<bool> verticalOnly) noexcept {
-  // Arc flattening tolerance - fine enough that the snapped point is
-  // visually on the (curved) edge.
-  const PositiveLength flattenTolerance(5000);  // 5um
-
-  // Board area for the inside/outside test, even-odd so that inner
-  // cutouts count as "outside".
+    const QVector<Path>& outlines, const Point& pos) noexcept {
   QPainterPath area;
   area.setFillRule(Qt::OddEvenFill);
 
@@ -57,18 +100,12 @@ std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
   Point bestStart;
   Point bestEnd;
   for (const Path& outline : outlines) {
-    const Path path = outline.flattenedArcs(flattenTolerance);
+    const Path path = flatten(outline);
     const QVector<Vertex>& vertices = path.getVertices();
     if (vertices.count() < 2) {
       continue;
     }
-
-    QPolygonF polygon;
-    for (const Vertex& v : vertices) {
-      polygon.append(v.getPos().toPxQPointF());
-    }
-    area.addPolygon(polygon);
-    area.closeSubpath();
+    addToArea(area, path);
 
     // All segments, plus the implicit closing segment if the path isn't
     // explicitly closed.
@@ -80,20 +117,11 @@ std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
       if (a == b) {
         continue;
       }
-      if (verticalOnly.has_value()) {
-        const bool segVertical = (a.getX() == b.getX());
-        const bool segHorizontal = (a.getY() == b.getY());
-        const bool wanted =
-            *verticalOnly ? segVertical : segHorizontal;
-        if (!wanted) {
-          continue;
-        }
-      }
       Point nearest;
       const UnsignedLength distance =
           Toolbox::shortestDistanceBetweenPointAndLine(pos, a, b, &nearest);
       if ((!best) || (distance < best->distance)) {
-        best = Result{nearest, Angle(0), distance, a, b};
+        best = Result{nearest, Angle(0), distance};
         bestStart = a;
         bestEnd = b;
       }
@@ -103,30 +131,45 @@ std::optional<BoardEdgeSnap::Result> BoardEdgeSnap::snap(
     return std::nullopt;
   }
 
-  // Perpendicular of the nearest segment (one of the two candidates).
-  const qreal dx = static_cast<qreal>((bestEnd - bestStart).getX().toNm());
-  const qreal dy = static_cast<qreal>((bestEnd - bestStart).getY().toNm());
-  const qreal length = std::hypot(dx, dy);
-  qreal nx = dy / length;
-  qreal ny = -dx / length;
-
-  // If a point just beside the edge in that direction lies on the board,
-  // the candidate points inward, so use the opposite one.
-  const qreal probeNm = 10000;  // 10um
-  const Point probe =
-      best->position +
-      Point(Length(qRound64(nx * probeNm)), Length(qRound64(ny * probeNm)));
-  if (area.contains(probe.toPxQPointF())) {
-    nx = -nx;
-    ny = -ny;
-  }
-
-  try {
-    best->direction = Angle::fromRad(std::atan2(ny, nx)).mappedTo0_360deg();
-  } catch (const Exception&) {
-    // Can't happen for a non-zero-length segment, keep 0 degrees.
-  }
+  best->direction = outwardNormal(bestStart, bestEnd, best->position, area);
   return best;
+}
+
+QVector<BoardEdgeSnap::Segment> BoardEdgeSnap::axisAlignedSegments(
+    const QVector<Path>& outlines) noexcept {
+  QPainterPath area;
+  area.setFillRule(Qt::OddEvenFill);
+  for (const Path& outline : outlines) {
+    const Path path = flatten(outline);
+    if (path.getVertices().count() >= 2) {
+      addToArea(area, path);
+    }
+  }
+
+  QVector<Segment> result;
+  for (const Path& outline : outlines) {
+    // Iterate the original (not flattened) vertices, so only straight
+    // segments are found (a vertex with an angle starts a curved segment).
+    const QVector<Vertex>& vertices = outline.getVertices();
+    const int count = vertices.count();
+    if (count < 2) {
+      continue;
+    }
+    const int segments = outline.isClosed() ? (count - 1) : count;
+    for (int i = 0; i < segments; ++i) {
+      if (vertices.at(i).getAngle() != Angle(0)) {
+        continue;  // Curved segment.
+      }
+      const Point& a = vertices.at(i).getPos();
+      const Point& b = vertices.at((i + 1) % count).getPos();
+      if ((a == b) || ((a.getX() != b.getX()) && (a.getY() != b.getY()))) {
+        continue;  // Zero-length or not axis-aligned.
+      }
+      const Point middle((a.getX() + b.getX()) / 2, (a.getY() + b.getY()) / 2);
+      result.append(Segment{a, b, outwardNormal(a, b, middle, area)});
+    }
+  }
+  return result;
 }
 
 /*******************************************************************************

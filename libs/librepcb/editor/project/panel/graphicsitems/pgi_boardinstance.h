@@ -17,14 +17,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_BOARDINSTANCE_H
 #define LIBREPCB_EDITOR_PGI_BOARDINSTANCE_H
 
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../boardproxy.h"
+
 #include <librepcb/core/geometry/path.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/utils/signalslot.h>
@@ -32,16 +32,21 @@
 #include <QtCore>
 #include <QtWidgets>
 
+#include <memory>
+#include <optional>
+#include <vector>
+
 /*******************************************************************************
  *  Namespace / Forward Declarations
  ******************************************************************************/
 namespace librepcb {
 
+class Board;
 class Project;
 
 namespace editor {
 
-class BoardProxy;
+class PGI_Edge;
 class PanelGraphicsScene;
 
 /*******************************************************************************
@@ -51,48 +56,26 @@ class PanelGraphicsScene;
 /**
  * @brief The PGI_BoardInstance class
  *
- * Renders one ::librepcb::PI_BoardInstance (a placed reference to a board
- * design) on the panel canvas. This panel data model never contains real
- * board *content* itself (see ::librepcb::Panel - decisions 1/2 in
- * claude/librepcb_panel_design_decisions.md); instead, a
+ * Renders one ::librepcb::PI_BoardInstance on the panel canvas. This panel
+ * data model never contains real board *content* itself. Instead, a
  * ::librepcb::editor::BoardProxy (acquired from
- * ::librepcb::editor::PanelGraphicsScene::acquireBoardProxy(), one shared
- * per distinct referenced board design) owns a hidden, live
+ * ::librepcb::editor::PanelGraphicsScene::acquireBoardProxy()) owns a hidden, live
  * ::librepcb::editor::BoardGraphicsScene built over the project's real
- * ::librepcb::Board, and #paint() renders that scene's real content
- * (traces, pads, vias, planes, silkscreen, holes - everything) via
+ * ::librepcb::Board. #paint() renders that scene's real content via
  * `QGraphicsScene::render()`, always reflecting the board's current state
  * live, even while it's being edited in its own Board tab. The referenced
- * ::librepcb::Board's own outline shape (via `calculateOutlinePath()` -
- * not necessarily rectangular, so a fallback placeholder rectangle is used
- * only if the board has no outline content yet, or no longer exists) is
- * drawn on top as the placement/move reference border (only while the Panel
- * tab's "Board Outlines" display toggle is on, see #setOutlineShown()), as
- * is the selection highlight (always, so neither can be hidden by the
- * board's content, e.g. copper planes); see the next paragraph for its
- * color. A centered board-name label is drawn only as a
- * fallback when there's no real content to show (missing board).
+ * ::librepcb::Board's own outline shape (via `calculateOutlinePath()`) is
+ * drawn on top as the placement/move reference border (see #setOutlineShown()), as
+ * is the selection highlight. A centered board-name label is drawn only as a
+ * fallback when there's no real content to show (a missing board).
  *
- * Selectable only for now - not movable. Dragging isn't wired up yet because
- * there is no FSM/undo-command plumbing in this slice to commit a moved
- * position back to the model (see PanelEditorState_AddBoard, still to come);
- * making the item silently draggable without that would just let the visual
- * position drift out of sync with ::librepcb::PI_BoardInstance's real
- * position on the next re-render.
- *
- * Unlike PGI_Outline (which draws the panel's own perimeter - the
- * actual PCB/tooling edge in the Panel tool's context, so it reuses
- * ::librepcb::ColorRole::boardOutlines() directly), an individual board's
- * outline here is placement/move reference only: it may overlap tooling
- * paths carved into the panel, which is expected and irrelevant. So its
+ * Unlike PGI_Outline (which draws the panel's own perimeter), an individual board's
+ * outline here is a visual placement/move reference only. Its
  * normal-state color is a dimmed (lower-alpha) copy of
  * `ColorRole::boardOutlines()`'s color rather than the full-strength color,
  * to visually demote it below the panel outline. When selected, the whole
- * board area is filled using `ColorRole::boardSelection()`'s colors (the
- * same role used for the panel's own rubber-band selection rectangle),
- * rather than just outlining the perimeter as Board's own item selection
- * does - on the Panel tab the "thing" being selected is the whole placed
- * board, so highlighting its full area reads more clearly than a border
+ * board area is filled using `ColorRole::boardSelection()`'s colors,
+ * because highlighting its full area reads more clearly than a border
  * alone. #setColors() is called by
  * ::librepcb::editor::PanelTab::applyWorkspaceSettings(), both on tab
  * activation and whenever the active color scheme is edited.
@@ -123,8 +106,7 @@ public:
    *
    * @param color              Normal (not selected) reference-outline color -
    *                           a dimmed copy of `ColorRole::boardOutlines()`'s
-   *                           primary color (see the class doc comment for
-   *                           why it's dimmed rather than full-strength).
+   *                           primary color.
    * @param selectedLineColor  Border color when selected -
    *                           `ColorRole::boardSelection()`'s primary color.
    * @param selectedFillColor  Fill color for the whole board area when
@@ -138,8 +120,7 @@ public:
    * @brief Show or hide the (unselected) placement outline
    *
    * Driven by the Panel tab's "Board Outlines" display toggle. Only the
-   * normal-state reference outline is affected - a selected placement
-   * always draws its selection highlight, so the selection stays visible.
+   * normal-state reference outline is affected.
    *
    * @param shown   Whether the outline should be drawn when not selected.
    */
@@ -148,17 +129,19 @@ public:
   /**
    * @brief Get the outline's current geometric center, in scene coordinates
    *
-   * Used for the rotation/flip pivot refinement (see
-   * claude/librepcb_panelization_tool_addboard_slice.md): a board's outline
+   * Used for the rotation/flip pivot refinement. A board's outline
    * isn't necessarily rectangular and isn't necessarily centered on its own
    * origin, so pivoting rotate/flip about PI_BoardInstance::getPosition()
    * (the origin) can visibly "orbit" an off-center board around a point
    * that isn't actually its center. This returns #mOutlinePath's
-   * bounding-box center instead, mapped through the item's current
-   * position/rotation/flip transform - i.e. the board's actual on-screen
-   * outline center right now.
+   * bounding-box center instead.
    */
   Point getCenter() const noexcept;
+
+  /**
+   * @brief Remove the highlight from all edge items of this board
+   */
+  void clearEdgeHighlights() noexcept;
 
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
@@ -177,6 +160,10 @@ private:  // Methods
   void updatePosition() noexcept;
   void updateRotationAndFlip() noexcept;
   void updateOutline() noexcept;
+  void updateOutlineShape() noexcept;
+  void updateBoardProxy(Board* board) noexcept;
+  void proxyEdited(const BoardProxy& obj, BoardProxy::Event event) noexcept;
+  void updateEdgeItems(const std::optional<QVector<Path>>& outlines) noexcept;
 
 private:  // Data
   std::shared_ptr<PI_BoardInstance> mInstance;
@@ -190,8 +177,20 @@ private:  // Data
   QColor mSelectedFillColor;
   bool mOutlineShown = false;  ///< See #setOutlineShown()
 
+  /**
+   * @brief The hoverable edges of the board outline
+   *
+   * The board-local straight, axis-aligned segments are cached here to avoid
+   * outline calculation while hovering. They need no update on
+   * move/rotate/flip of the placement, as they are represented in board-local
+   * coordinates, and thus transformed with the board.
+   * See also ::librepcb::editor::PGI_Edge
+   */
+  std::vector<std::unique_ptr<PGI_Edge>> mEdgeItems;
+
   // Slots
   PI_BoardInstance::OnEditedSlot mOnEditedSlot;
+  BoardProxy::OnEditedSlot mOnProxyEditedSlot;
 };
 
 /*******************************************************************************
