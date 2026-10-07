@@ -25,7 +25,6 @@
 #include "../../../undostack.h"
 #include "../../cmd/cmdpanelboardinstanceadd.h"
 #include "../../cmd/cmdpanelboardinstanceedit.h"
-#include "../panelgraphicsscene.h"
 
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
@@ -100,8 +99,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneMouseMoved(
   if (!mIsUndoCmdActive) return false;
   if (!mCurrentInstanceEditCmd) return false;
 
-  const Point pos = snapPosition(e.scenePos.mappedToGrid(getGridInterval()),
-                                 isSnapActive(e.modifiers));
+  const Point pos = snapPosition(
+      e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
   // set temporary position of the current board placement
   mCurrentInstanceEditCmd->setPosition(pos, true);
   return true;
@@ -119,8 +118,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
   const bool flipped =
       mCurrentInstance ? mCurrentInstance->getFlipped() : false;
 
-  const Point pos = snapPosition(e.scenePos.mappedToGrid(getGridInterval()),
-                                 isSnapActive(e.modifiers));
+  const Point pos = snapPosition(
+      e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
   try {
     // place the current board placement finally
     if (mCurrentInstanceEditCmd) {
@@ -132,8 +131,7 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
     mIsUndoCmdActive = false;
     mCurrentInstance.reset();
     mCurrentBoard = nullptr;
-    mSnapTargets.clear();
-    clearSnapGuides();
+    endSnap();
   } catch (const Exception& ex) {
     QMessageBox::critical(parentWidget(), tr("Error"), ex.getMsg());
     abortCommand(false);
@@ -192,7 +190,7 @@ bool PanelEditorState_AddBoard::addBoard(Board& board, const Angle& rotation,
     Q_ASSERT(mCurrentInstance);
 
     // Everything else on the panel is something to snap to.
-    mSnapTargets = calculateSnapTargets({mCurrentInstance->getUuid()});
+    beginSnap({mCurrentInstance->getUuid()});
 
     // add command to move the current board placement
     mCurrentInstanceEditCmd =
@@ -235,8 +233,7 @@ bool PanelEditorState_AddBoard::abortCommand(bool showErrMsgBox) noexcept {
     // Reset attributes, go back to idle state
     mCurrentInstance.reset();
     mCurrentBoard = nullptr;
-    mSnapTargets.clear();
-    clearSnapGuides();
+    endSnap();
     return true;
   } catch (const Exception& e) {
     if (showErrMsgBox) {
@@ -246,32 +243,21 @@ bool PanelEditorState_AddBoard::abortCommand(bool showErrMsgBox) noexcept {
   }
 }
 
-Point PanelEditorState_AddBoard::snapPosition(const Point& pos,
-                                              bool active) noexcept {
-  if (!active) {
-    clearSnapGuides();
-    return pos;
-  }
-  if ((!mCurrentInstance) || mSnapTargets.isEmpty()) {
+Point PanelEditorState_AddBoard::snapPosition(
+    const Point& pos, Qt::KeyboardModifiers modifiers) noexcept {
+  if (!mCurrentInstance) {
     return pos;
   }
   const std::optional<PanelSnap::Bounds> bounds =
       calculateBoardBounds(*mCurrentInstance);
   if (!bounds) {
-    clearSnapGuides();
     return pos;
   }
   // The bounds as they are now, moved to where the placement would be
   // without any correction.
   const PanelSnap::Bounds moving =
       bounds->translated(pos - mCurrentInstance->getPosition());
-  return pos + calculateSnap(moving, mSnapTargets, pos);
-}
-
-void PanelEditorState_AddBoard::clearSnapGuides() noexcept {
-  if (PanelGraphicsScene* scene = getActivePanelScene()) {
-    scene->clearSnapGuides();
-  }
+  return pos + calculateSnap(moving, pos, modifiers);
 }
 
 /*******************************************************************************

@@ -131,7 +131,7 @@ public:
    *
    * Backed by the per-client "Snap" toggle button of the panel tab. The
    * states combine it with the Alt modifier, see
-   * ::librepcb::editor::PanelEditorState::isSnapActive().
+   * ::librepcb::editor::PanelEditorState::calculateSnap().
    */
   virtual bool fsmGetSnapEnabled() const noexcept = 0;
 

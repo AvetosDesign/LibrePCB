@@ -28,7 +28,6 @@
 #include "paneleditorstate.h"
 
 #include <librepcb/core/project/panel/items/pi_vcut.h>
-#include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
 
@@ -522,46 +521,33 @@ private:
   void updateDragFollowerVCuts(bool isReorientation) noexcept;
 
   /**
-   * @brief Calculate the overall bounds of the dragged boards
-   *
-   * @return Their union as they are right now (including any live preview
-   *         position), or `std::nullopt` if none has a valid outline.
-   */
-  std::optional<PanelSnap::Bounds> calculateDragBounds() noexcept;
-
-  /**
    * @brief Prepare the smart snap of a selection drag
    *
-   * Called once when a drag starts, see #startMovingSelection(). Collects
-   * what the dragged boards can snap to (other placed boards and the
-   * panel) into #mDragSnapTargets; those cannot change during the drag.
-   * Does nothing unless boards are dragged, since only boards define the
-   * snapping geometry (see ::librepcb::PanelSnap).
+   * Called once when a drag (or paste placement) starts. Only boards define
+   * the snapping geometry (see ::librepcb::PanelSnap), the other dragged
+   * items just follow.
    */
   void beginDragSnap() noexcept;
 
   /**
-   * @brief Apply the smart snap to one move step of a selection drag
+   * @brief Calculate the smart snap of the dragged boards
    *
-   * @param delta   The move step as calculated from the grid-snapped
-   *                cursor.
-   * @param active  Whether snapping applies (see #isSnapActive()). If not,
-   *                any correction applied so far is taken back.
+   * @param offset    How far the dragged group would move from where it
+   *                  is right now, without any snapping.
+   * @param cursorPos The grid-snapped cursor position.
+   * @param modifiers The keyboard modifiers of the mouse event.
    *
-   * @return The move step to apply to every dragged item. @p delta
-   *         adjusted so the dragged boards' overall bounds line up with a
-   *         board or the panel, if one is within
-   *         #sSnapTolerancePx. Also shows or hides the guide lines.
-   *         Since it is derived from the grid-snapped position every time
-   *         (#mDragSnapCorrection only remembers what is already applied),
-   *         it engages and releases without any hysteresis.
+   * @return The correction to add to @p offset, so the overall bounds of
+   *         the dragged boards line up with another board or the panel
+   *         (see #calculateSnap()). Zero if there are no dragged boards.
    */
-  Point applyDragSnap(const Point& delta, bool active) noexcept;
+  Point calculateDragSnap(const Point& offset, const Point& cursorPos,
+                          Qt::KeyboardModifiers modifiers) noexcept;
 
   /**
    * @brief Forget the smart snap correction applied so far
    *
-   * Called after an in-drag rotate or flip.  The group's bounds changed, so
+   * Called after an in-drag rotate or flip. The group's bounds changed, so
    * the lines which were snapped are gone. The current position becomes
    * the new baseline, and the next move step snaps again. Hides the guides.
    */
@@ -570,8 +556,7 @@ private:
   /**
    * @brief Finish the smart snap of a drag
    *
-   * Forgets the targets and the correction and hides the guides. Called
-   * wherever a drag ends, i.e. on commit and in #abortCommand().
+   * Called wherever a drag ends, i.e. on commit and in #abortCommand().
    */
   void endDragSnap() noexcept;
 
@@ -770,11 +755,8 @@ private:
   /// commit needs #confirmUnbindLockedVCuts().
   bool mDragHadLockedVCutBreak;
   Point mDragLastPos;
-  /// What the dragged boards can snap to during the current drag, see
-  /// #beginDragSnap(). Empty if nothing snaps (no board is dragged).
-  QVector<PanelSnap::Target> mDragSnapTargets;
   /// The smart snap correction currently applied on top of the grid-snapped
-  /// drag position, see #applyDragSnap().
+  /// drag position. It engages and releases without any hysteresis.
   Point mDragSnapCorrection;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;

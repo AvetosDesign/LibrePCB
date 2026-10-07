@@ -27,6 +27,7 @@
 
 #include <librepcb/core/geometry/path.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/utils/signalslot.h>
 
 #include <QtCore>
@@ -138,17 +139,13 @@ public:
   Point getCenter() const noexcept;
 
   /**
-   * @brief Get the outline of the board, in the board's own coordinates
+   * @brief Get the bounds of the board outline, in panel coordinates
    *
-   * The outline which the ::librepcb::editor::BoardProxy keeps up to date
-   * (see ::librepcb::editor::BoardProxy::getOutline()), so it is not
-   * calculated again. Used for the smart snap bounds, see
-   * ::librepcb::PanelSnap::calculateBounds().
-   *
-   * @return The outline paths, or `std::nullopt` if the board is missing or
-   *         has no valid outline.
+   * The axis-aligned bounding box of the outline as placed, including the
+   * placement's current (also live-previewed) position, rotation and flip.
+   * Used for the smart snap, see ::librepcb::PanelSnap.
    */
-  const std::optional<QVector<Path>>& getOutline() const noexcept;
+  PanelSnap::Bounds getBounds() const noexcept;
 
   /**
    * @brief Remove the highlight from all edge items of this board

@@ -566,16 +566,13 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     Q_ASSERT(mDragPasteOffsets.size() == mDragCmds.size());
 
     // Smart snap: the position is absolute here, so the correction is
-    // simply added to it (no bookkeeping needed). The pasted boards'
-    // bounds are tested where they would be without the correction.
+    // simply added to it (no bookkeeping needed). The pasted boards are
+    // tested where they would be without the correction.
     Point snap(0, 0);
-    const std::optional<PanelSnap::Bounds> group = calculateDragBounds();
-    if (group && (!mDragSnapTargets.isEmpty()) && isSnapActive(e.modifiers)) {
-      const Point shift =
-          (pos + mDragPasteOffsets[0]) - mDragCmds[0]->getPosition();
-      snap = calculateSnap(group->translated(shift), mDragSnapTargets, pos);
-    } else if (PanelGraphicsScene* scene = getActivePanelScene()) {
-      scene->clearSnapGuides();
+    if (!mDragCmds.empty()) {
+      snap = calculateDragSnap(
+          (pos + mDragPasteOffsets[0]) - mDragCmds[0]->getPosition(), pos,
+          e.modifiers);
     }
 
     for (std::size_t i = 0; i < mDragCmds.size(); ++i) {
@@ -621,7 +618,9 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     // the panel. Adjusts the step for every item type, so the group stays
     // rigid; must run after the one-time grid alignment above, which is
     // part of the step it adjusts.
-    delta = applyDragSnap(delta, isSnapActive(e.modifiers));
+    const Point unsnapped = delta - mDragSnapCorrection;
+    mDragSnapCorrection = calculateDragSnap(unsnapped, pos, e.modifiers);
+    delta = unsnapped + mDragSnapCorrection;
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
       cmd->translate(delta, true);
     }
@@ -1352,21 +1351,18 @@ bool PanelEditorState_Select::clearSelection() noexcept {
 }
 
 void PanelEditorState_Select::beginDragSnap() noexcept {
-  mDragSnapTargets.clear();
   mDragSnapCorrection = Point(0, 0);
-  if (mDragCmds.empty()) {
-    return;  // Only boards define the snapping geometry.
-  }
-
   QSet<Uuid> dragged;
   for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
     dragged.insert(cmd->getInstance().getUuid());
   }
-  mDragSnapTargets = calculateSnapTargets(dragged);
+  beginSnap(dragged);
 }
 
-std::optional<PanelSnap::Bounds>
-    PanelEditorState_Select::calculateDragBounds() noexcept {
+Point PanelEditorState_Select::calculateDragSnap(
+    const Point& offset, const Point& cursorPos,
+    Qt::KeyboardModifiers modifiers) noexcept {
+  // Overall bounds of the dragged boards, as they are right now.
   std::optional<PanelSnap::Bounds> group;
   for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
     const std::optional<PanelSnap::Bounds> bounds =
@@ -1381,49 +1377,21 @@ std::optional<PanelSnap::Bounds>
       group->bottom = qMin(group->bottom, bounds->bottom);
     }
   }
-  return group;
-}
-
-Point PanelEditorState_Select::applyDragSnap(const Point& delta,
-                                             bool active) noexcept {
-  PanelGraphicsScene* scene = getActivePanelScene();
-  if ((!scene) || mDragSnapTargets.isEmpty() || mDragCmds.empty()) {
-    return delta;
-  }
-
-  // Overall bounds of the dragged boards, as they are right now (including
-  // the correction applied so far).
-  const std::optional<PanelSnap::Bounds> group = calculateDragBounds();
   if (!group) {
-    scene->clearSnapGuides();
-    return delta;
+    clearSnapGuides();
+    return Point(0, 0);
   }
-
-  // Where the group would be without any correction, after this step.
-  const Point unsnapped = delta - mDragSnapCorrection;
-  if (!active) {
-    // Snapping is off (or bypassed with the modifier): take back any
-    // correction and follow the grid-snapped cursor again.
-    mDragSnapCorrection = Point(0, 0);
-    scene->clearSnapGuides();
-    return unsnapped;
-  }
-  const PanelSnap::Bounds moving = group->translated(unsnapped);
-
-  mDragSnapCorrection = calculateSnap(moving, mDragSnapTargets, mDragLastPos);
-  return unsnapped + mDragSnapCorrection;
+  return calculateSnap(group->translated(offset), cursorPos, modifiers);
 }
 
 void PanelEditorState_Select::resetDragSnap() noexcept {
   mDragSnapCorrection = Point(0, 0);
-  if (PanelGraphicsScene* scene = getActivePanelScene()) {
-    scene->clearSnapGuides();
-  }
+  clearSnapGuides();
 }
 
 void PanelEditorState_Select::endDragSnap() noexcept {
-  mDragSnapTargets.clear();
-  resetDragSnap();
+  mDragSnapCorrection = Point(0, 0);
+  endSnap();
 }
 
 bool PanelEditorState_Select::startMovingSelection(

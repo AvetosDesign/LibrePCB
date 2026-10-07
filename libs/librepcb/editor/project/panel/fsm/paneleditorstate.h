@@ -199,57 +199,52 @@ protected:  // Methods
   Length clampVCutToPanel(bool vertical, const Length& position) const noexcept;
 
   /**
-   * @brief Smart snap tolerance, in screen pixels
-   *
-   * In pixels so it feels the same at any zoom level.
-   */
-  static constexpr qreal sSnapTolerancePx = 10;
-
-  /**
-   * @brief Whether smart snapping applies right now
-   *
-   * @param modifiers   The keyboard modifiers of the current mouse event.
-   *
-   * @return The "Snap" toggle button's state, inverted while Alt is held.
-   */
-  bool isSnapActive(Qt::KeyboardModifiers modifiers) const noexcept;
-
-  /**
    * @brief Calculate the smart snap bounds of a placed board
    *
    * @param instance  The board placement (its current, possibly
    *                  live-previewed position is used).
    *
    * @return The bounds of its outline in panel coordinates, or
-   *         `std::nullopt` if it has no valid outline.
+   *         `std::nullopt` if it has no graphics item.
    */
   std::optional<PanelSnap::Bounds> calculateBoardBounds(
       const PI_BoardInstance& instance) noexcept;
 
   /**
-   * @brief Collect what a moving board (group) can snap to
+   * @brief Start a smart snap
    *
-   * @param excluded  Placements which are being moved (not snap targets).
+   * Collects what the moving boards can snap to: every other placed board
+   * and the panel. Those cannot change while moving.
    *
-   * @return Every other placed board, and the panel.
+   * @param moving  The placements which are being moved (not snap targets).
+   *
+   * @see #calculateSnap(), #endSnap()
    */
-  QVector<PanelSnap::Target> calculateSnapTargets(
-      const QSet<Uuid>& excluded) noexcept;
+  void beginSnap(const QSet<Uuid>& moving) noexcept;
 
   /**
-   * @brief Calculate the smart snap correction and show its guides
+   * @brief Calculate the smart snap of a moving board (group)
    *
-   * @param moving    Bounds of the moving group, at the position to test.
-   * @param targets   See #calculateSnapTargets().
-   * @param cursorPos Cursor position, to convert #sSnapTolerancePx.
+   * Shows the guide lines of the snap, or hides them if nothing snaps.
+   * Snapping applies if the "Snap" toggle is on, or if it is off and Alt is
+   * held (and the other way around), so it can be toggled temporarily.
+   *
+   * @param moving      Bounds of the moving group, at the position to test.
+   * @param cursorPos   Cursor position, to convert the snap tolerance (a
+   *                    fixed number of screen pixels) to a length.
+   * @param modifiers   The keyboard modifiers of the current mouse event.
    *
    * @return What to add to the position of the moving group (zero on an
-   *         axis where nothing is in reach). Shows the guides of the
-   *         matches, or hides them if there are none.
+   *         axis where nothing is in reach, or without any snapping).
    */
-  Point calculateSnap(const PanelSnap::Bounds& moving,
-                      const QVector<PanelSnap::Target>& targets,
-                      const Point& cursorPos) noexcept;
+  Point calculateSnap(const PanelSnap::Bounds& moving, const Point& cursorPos,
+                      Qt::KeyboardModifiers modifiers) noexcept;
+
+  /// Hide the guide lines of the smart snap
+  void clearSnapGuides() noexcept;
+
+  /// Finish the smart snap, i.e. forget the targets and hide the guides
+  void endSnap() noexcept;
 
   bool getIgnoreLocks() const noexcept;
   void abortBlockingToolsInOtherEditors() noexcept;
@@ -260,6 +255,9 @@ protected:  // Methods
 protected:  // Data
   Context mContext;
   PanelEditorFsmAdapter& mAdapter;
+
+private:  // Data
+  QVector<PanelSnap::Target> mSnapTargets;  ///< See #beginSnap()
 };
 
 }  // namespace editor

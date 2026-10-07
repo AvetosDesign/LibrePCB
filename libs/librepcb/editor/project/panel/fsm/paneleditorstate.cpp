@@ -37,6 +37,13 @@
 namespace librepcb {
 namespace editor {
 
+namespace {
+
+// Smart snap tolerance, in screen pixels (so it feels the same at any zoom)
+constexpr qreal sSnapTolerancePx = 10;
+
+}  // namespace
+
 /*******************************************************************************
  *  Constructors / Destructor
  ******************************************************************************/
@@ -64,44 +71,38 @@ PositiveLength PanelEditorState::getGridInterval() const noexcept {
   return PositiveLength(1000000);  // Fallback, should never happen.
 }
 
-bool PanelEditorState::isSnapActive(
-    Qt::KeyboardModifiers modifiers) const noexcept {
-  return mAdapter.fsmGetSnapEnabled() != modifiers.testFlag(Qt::AltModifier);
-}
-
 std::optional<PanelSnap::Bounds> PanelEditorState::calculateBoardBounds(
     const PI_BoardInstance& instance) noexcept {
-  PanelGraphicsScene* scene = getActivePanelScene();
-  if (!scene) return std::nullopt;
-  const std::shared_ptr<PGI_BoardInstance> item =
-      scene->getBoardInstanceItem(instance.getUuid());
-  if (!item) return std::nullopt;
-  const std::optional<QVector<Path>>& outlines = item->getOutline();
-  if (!outlines) return std::nullopt;
-  return PanelSnap::calculateBounds(*outlines, instance.getTransform());
-}
-
-QVector<PanelSnap::Target> PanelEditorState::calculateSnapTargets(
-    const QSet<Uuid>& excluded) noexcept {
-  QVector<PanelSnap::Target> targets;
-  for (const PI_BoardInstance& instance : mContext.panel.getBoardInstances()) {
-    if (excluded.contains(instance.getUuid())) continue;
-    if (const auto bounds = calculateBoardBounds(instance)) {
-      targets.append(PanelSnap::Target{*bounds, false});
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    if (const auto item = scene->getBoardInstanceItem(instance.getUuid())) {
+      return item->getBounds();
     }
   }
-  targets.append(
+  return std::nullopt;
+}
+
+void PanelEditorState::beginSnap(const QSet<Uuid>& moving) noexcept {
+  mSnapTargets.clear();
+  for (const PI_BoardInstance& instance : mContext.panel.getBoardInstances()) {
+    if (moving.contains(instance.getUuid())) continue;
+    if (const auto bounds = calculateBoardBounds(instance)) {
+      mSnapTargets.append(PanelSnap::Target{*bounds, false});
+    }
+  }
+  mSnapTargets.append(
       PanelSnap::Target{PanelSnap::panelBounds(mContext.panel.getWidth(),
                                                mContext.panel.getHeight()),
                         true});
-  return targets;
 }
 
-Point PanelEditorState::calculateSnap(const PanelSnap::Bounds& moving,
-                                      const QVector<PanelSnap::Target>& targets,
-                                      const Point& cursorPos) noexcept {
+Point PanelEditorState::calculateSnap(
+    const PanelSnap::Bounds& moving, const Point& cursorPos,
+    Qt::KeyboardModifiers modifiers) noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
-  if ((!scene) || targets.isEmpty()) {
+  const bool active =
+      mAdapter.fsmGetSnapEnabled() != modifiers.testFlag(Qt::AltModifier);
+  if ((!scene) || (!active)) {
+    clearSnapGuides();
     return Point(0, 0);
   }
 
@@ -113,9 +114,20 @@ Point PanelEditorState::calculateSnap(const PanelSnap::Bounds& moving,
           .width() /
       2;
   const PanelSnap::Result result = PanelSnap::snap(
-      moving, targets, UnsignedLength(Length::fromPx(tolerancePx)));
-  scene->setSnapGuides(result.matches);
+      moving, mSnapTargets, UnsignedLength(Length::fromPx(tolerancePx)));
+  scene->setSnapGuides(result.guides);
   return Point(result.dx, result.dy);
+}
+
+void PanelEditorState::clearSnapGuides() noexcept {
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    scene->clearSnapGuides();
+  }
+}
+
+void PanelEditorState::endSnap() noexcept {
+  mSnapTargets.clear();
+  clearSnapGuides();
 }
 
 bool PanelEditorState::isVCutOnPanel(bool vertical,

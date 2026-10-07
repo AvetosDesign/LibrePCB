@@ -292,70 +292,45 @@ void PanelGraphicsScene::clearEdgeHighlights() noexcept {
 }
 
 void PanelGraphicsScene::setSnapGuides(
-    const QVector<PanelSnap::Match>& matches) noexcept {
-  // One line per coordinate and axis: several pairs of lines (e.g. with
-  // several boards) can coincide on the same line, and drawing them on top
-  // of each other would make the translucent guide look brighter. Their
-  // spans are merged into one line (also bridging any gap between them).
-  struct Guide {
-    PanelSnap::Axis axis;
-    Length coordinate;
-    Length spanStart;
-    Length spanEnd;
-  };
-  QVector<Guide> guides;
-  for (const PanelSnap::Match& match : matches) {
-    bool merged = false;
-    for (Guide& guide : guides) {
-      if ((guide.axis == match.axis) &&
-          (guide.coordinate == match.coordinate)) {
-        guide.spanStart = qMin(guide.spanStart, match.spanStart);
-        guide.spanEnd = qMax(guide.spanEnd, match.spanEnd);
-        merged = true;
-        break;
-      }
-    }
-    if (!merged) {
-      guides.append(
-          Guide{match.axis, match.coordinate, match.spanStart, match.spanEnd});
-    }
-  }
-  QVector<BoardEdgeSnap::Segment> segments;
-  for (const Guide& guide : guides) {
-    BoardEdgeSnap::Segment segment{Point(0, 0), Point(0, 0), Angle::deg0()};
-    if (guide.axis == PanelSnap::Axis::X) {
-      segment.start = Point(guide.coordinate, guide.spanStart);
-      segment.end = Point(guide.coordinate, guide.spanEnd);
-    } else {
-      segment.start = Point(guide.spanStart, guide.coordinate);
-      segment.end = Point(guide.spanEnd, guide.coordinate);
-    }
-    segments.append(segment);
-  }
+    const QVector<PanelSnap::Guide>& guides) noexcept {
+  // Thin and dashed (and not the solid glow of the edge picker). A cosmetic
+  // pen keeps the same width and dashes at any zoom level.
+  QPen pen(mSnapGuideColor, 1);
+  pen.setCosmetic(true);
+  pen.setDashPattern({8, 4});
 
-  // Dashed and thin - clearly different from the solid glow of the edge
-  // picker, and not hiding what lies underneath.
-  const QColor& color = mSnapGuideColor;
-  const qreal widthPx = 1;
-  for (int i = 0; i < segments.count(); ++i) {
-    if (static_cast<std::size_t>(i) >= mSnapGuideItems.size()) {
-      std::unique_ptr<PGI_Edge> item(new PGI_Edge(
-          nullptr, std::nullopt, PI_VCut::BoundEdge::None, segments.at(i)));
-      addItem(*item);
-      mSnapGuideItems.push_back(std::move(item));
-    }
-    mSnapGuideItems[i]->setSegment(segments.at(i));
-    mSnapGuideItems[i]->setHighlighted(true, color, Qt::DashLine, widthPx);
+  const std::size_t count = static_cast<std::size_t>(guides.count());
+  while (mSnapGuideItems.size() < count) {
+    std::unique_ptr<QGraphicsLineItem> item(new QGraphicsLineItem());
+    item->setZValue(12);
+    item->setAcceptedMouseButtons(Qt::NoButton);
+    addItem(*item);
+    mSnapGuideItems.push_back(std::move(item));
   }
-  for (std::size_t i = static_cast<std::size_t>(segments.count());
-       i < mSnapGuideItems.size(); ++i) {
-    mSnapGuideItems[i]->setHighlighted(false);
+  for (std::size_t i = 0; i < mSnapGuideItems.size(); ++i) {
+    QGraphicsLineItem& item = *mSnapGuideItems[i];
+    if (i < count) {
+      const PanelSnap::Guide& guide = guides.at(static_cast<int>(i));
+      // Panel coordinates have Y pointing up, the scene's Y points down.
+      const qreal c = guide.coordinate.toPx();
+      const qreal start = guide.spanStart.toPx();
+      const qreal end = guide.spanEnd.toPx();
+      if (guide.axis == PanelSnap::Axis::X) {
+        item.setLine(QLineF(c, -start, c, -end));
+      } else {
+        item.setLine(QLineF(start, -c, end, -c));
+      }
+      item.setPen(pen);
+      item.setVisible(true);
+    } else {
+      item.setVisible(false);
+    }
   }
 }
 
 void PanelGraphicsScene::clearSnapGuides() noexcept {
   for (const auto& item : mSnapGuideItems) {
-    item->setHighlighted(false);
+    item->setVisible(false);
   }
 }
 
