@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_EDGE_H
 #define LIBREPCB_EDITOR_PGI_EDGE_H
 
@@ -51,12 +49,13 @@ namespace editor {
  * four edges of the panel, as a hoverable canvas item. It paints nothing
  * until it is highlighted (#setHighlighted()), then it paints a line along
  * the edge in the color passed to #setHighlighted(), like a selected item.
- * Its shape is a thin stroke along the edge, so the Panel editor can find the edges near the
- * cursor with `QGraphicsScene::items()` and a screen-pixel tolerance area
- * (see ::librepcb::editor::PanelEditorFsmAdapter::fsmCalcPosWithTolerance()).
- * The items are neither selectable nor movable, and they take no mouse
- * events. "Hover" is derived by the editor state from mouse move events,
- * as the canvas does not deliver hover events to scene items.
+ * Its shape is a thin stroke along the edge, so the Panel editor can find the
+ * edges near the cursor with `QGraphicsScene::items()` and a screen-pixel
+ * tolerance area (see
+ * ::librepcb::editor::PanelEditorFsmAdapter::fsmCalcPosWithTolerance()). The
+ * items are neither selectable nor movable, and they take no mouse events.
+ * "Hover" is derived by the editor state from mouse move events, as the canvas
+ * does not deliver hover events to scene items.
  *
  * The first user is the "Bind to Edge..." picker of
  * ::librepcb::editor::PanelEditorState_Select; the planned alignment
@@ -78,6 +77,9 @@ namespace editor {
  */
 class PGI_Edge final : public QGraphicsItem {
 public:
+  /// Default thickness of the highlight, in screen pixels
+  static constexpr qreal defaultWidthPx = 3;
+
   // Constructors / Destructor
   PGI_Edge() = delete;
   PGI_Edge(const PGI_Edge& other) = delete;
@@ -105,9 +107,7 @@ public:
   }
   PI_VCut::BoundEdge getPanelEdge() const noexcept { return mPanelEdge; }
   bool isBoardEdge() const noexcept { return mBoardInstance.has_value(); }
-  const BoardEdgeSnap::Segment& getSegment() const noexcept {
-    return mSegment;
-  }
+  const BoardEdgeSnap::Segment& getSegment() const noexcept { return mSegment; }
   bool isHighlighted() const noexcept { return mHighlighted; }
 
   // General Methods
@@ -122,10 +122,21 @@ public:
    *
    * @param highlighted  Whether the edge is highlighted.
    * @param color        Color of the highlight (the "glow"), only used
-   *                     while @p highlighted is `true`.
+   *                     while @p highlighted is `true`. May be
+   *                     translucent.
+   * @param style        Line style of the highlight, only used while
+   *                     @p highlighted is `true`. Qt::SolidLine (the
+   *                     default, with round caps) or one of the dashed
+   *                     styles (with flat caps, so the gaps stay visible).
+   *                     Qt::DashLine uses dashes of 8 and gaps of 4 line
+   *                     widths.
+   * @param widthPx      Thickness of the highlight in screen pixels (the
+   *                     same at any zoom level), only used while
+   *                     @p highlighted is `true`.
    */
-  void setHighlighted(bool highlighted,
-                      const QColor& color = Qt::white) noexcept;
+  void setHighlighted(bool highlighted, const QColor& color = Qt::white,
+                      Qt::PenStyle style = Qt::SolidLine,
+                      qreal widthPx = defaultWidthPx) noexcept;
 
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
@@ -145,6 +156,8 @@ private:  // Data
   BoardEdgeSnap::Segment mSegment;
   bool mHighlighted;
   QColor mGlowColor;  ///< Set with #setHighlighted().
+  Qt::PenStyle mGlowStyle;  ///< Set with #setHighlighted().
+  qreal mGlowWidthPx;  ///< Set with #setHighlighted().
   QPainterPath mShapePx;
 };
 

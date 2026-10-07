@@ -35,9 +35,6 @@ namespace editor {
 
 namespace {
 
-// Thickness of the highlighted edge in screen pixels.
-const qreal sLineWidthPx = 3;
-
 // Thickness of the shape used to find the edge with `items()`, in mm.
 const qreal sShapeWidthMm = 0.2;
 
@@ -64,7 +61,9 @@ PGI_Edge::PGI_Edge(QGraphicsItem* parent,
     mPanelEdge(panelEdge),
     mSegment(segment),
     mHighlighted(false),
-    mGlowColor(Qt::white) {
+    mGlowColor(Qt::white),
+    mGlowStyle(Qt::SolidLine),
+    mGlowWidthPx(defaultWidthPx) {
   setFlag(QGraphicsItem::ItemIsSelectable, false);
   setFlag(QGraphicsItem::ItemIsMovable, false);
   setAcceptedMouseButtons(Qt::NoButton);
@@ -89,10 +88,16 @@ void PGI_Edge::setSegment(const BoardEdgeSnap::Segment& segment) noexcept {
   }
 }
 
-void PGI_Edge::setHighlighted(bool highlighted, const QColor& color) noexcept {
-  if ((highlighted != mHighlighted) || (highlighted && (color != mGlowColor))) {
+void PGI_Edge::setHighlighted(bool highlighted, const QColor& color,
+                              Qt::PenStyle style, qreal widthPx) noexcept {
+  if ((highlighted != mHighlighted) ||
+      (highlighted &&
+       ((color != mGlowColor) || (style != mGlowStyle) ||
+        (widthPx != mGlowWidthPx)))) {
     mHighlighted = highlighted;
     mGlowColor = color;
+    mGlowStyle = style;
+    mGlowWidthPx = widthPx;
     update();
   }
 }
@@ -123,8 +128,15 @@ void PGI_Edge::paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
   // Constant thickness on screen, whatever the zoom level.
   const qreal lod =
       option->levelOfDetailFromTransform(painter->worldTransform());
-  painter->setPen(QPen(mGlowColor, sLineWidthPx / lod, Qt::SolidLine,
-                       Qt::RoundCap, Qt::RoundJoin));
+  // Dashes need flat caps, round ones would fill the gaps.
+  const Qt::PenCapStyle cap =
+      (mGlowStyle == Qt::SolidLine) ? Qt::RoundCap : Qt::FlatCap;
+  QPen pen(mGlowColor, mGlowWidthPx / lod, mGlowStyle, cap, Qt::RoundJoin);
+  if (mGlowStyle == Qt::DashLine) {
+    // Longer than Qt's default pattern, which looks like dots at thin widths.
+    pen.setDashPattern({8, 4});
+  }
+  painter->setPen(pen);
   painter->drawLine(
       QLineF(mSegment.start.toPxQPointF(), mSegment.end.toPxQPointF()));
 }

@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDBOARD_H
 #define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDBOARD_H
 
@@ -53,15 +51,17 @@ class CmdPanelBoardInstanceEdit;
  *
  * A multi-placement tool, cloned from BoardEditorState_AddDevice's
  * behavioral pattern: the triggering call creates the placement immediately
- * (no library-copy step is needed here, unlike CmdAddDeviceToBoard, since a
- * panel never duplicates board content - see CmdPanelBoardInstanceAdd),
+ * (no library-copy step is needed here),
  * mouse movement previews the position, a right click rotates the pending
  * placement by 90°, and a left click commits it and immediately starts
  * placing another copy of the same board (keeping the current rotation and
- * flip), like the Add Hole/Add Tab tools. Placing ends with Esc (or right
- * click when nothing is pending), or by switching to another tool;
- * choosing a different board from the Place Boards panel discards the
- * pending copy and continues with the newly chosen board.
+ * flip), like the Add Hole/Add Tab tools. Placing ends with Esc, or by
+ * switching to another tool; choosing a different board from the Place Boards
+ * panel discards the pending copy and continues with the newly chosen board.
+ *
+ * While placing, the board snaps to the other boards and the panel (see
+ * ::librepcb::PanelSnap).  Guide lines are shown
+ * when within the snap tolerance of the cursor.
  *
  * A double click is ignored (rather than handled as a second click), since
  * its preceding press already placed a copy - handling it too would stack
@@ -105,6 +105,21 @@ private:
   bool flipBoard() noexcept;
   bool abortCommand(bool showErrMsgBox) noexcept;
 
+  /**
+   * @brief Apply the smart snap to a placement position
+   *
+   * @param pos     The grid-snapped cursor position.
+   * @param active  Whether snapping applies (see #isSnapActive()).
+   *
+   * @return @p pos, adjusted so the current placement's bounds line up with
+   *         another board or the panel, if one is within the tolerance.
+   *         Also shows or hides the guide lines.
+   */
+  Point snapPosition(const Point& pos, bool active) noexcept;
+
+  /// Hide the smart snap guide lines
+  void clearSnapGuides() noexcept;
+
   // State
   bool mIsUndoCmdActive;
 
@@ -116,6 +131,10 @@ private:
   // mIsUndoCmdActive == true.
   std::shared_ptr<PI_BoardInstance> mCurrentInstance;
   std::unique_ptr<CmdPanelBoardInstanceEdit> mCurrentInstanceEditCmd;
+
+  /// What the current placement can snap to (every other placed board and
+  /// the panel). Only valid if mIsUndoCmdActive == true.
+  QVector<PanelSnap::Target> mSnapTargets;
 };
 
 /*******************************************************************************

@@ -28,6 +28,7 @@
 #include "paneleditorstate.h"
 
 #include <librepcb/core/project/panel/items/pi_vcut.h>
+#include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
 
@@ -260,8 +261,8 @@ signals:
    */
   void selectionPropertiesChanged(bool isHole, bool isFiducial, bool isVCut,
                                   const PositiveLength& diameter,
-                                  const UnsignedLength& clearance,
-                                  bool flipped, bool vCutVertical);
+                                  const UnsignedLength& clearance, bool flipped,
+                                  bool vCutVertical);
 
 private:
   // Private Methods
@@ -355,11 +356,13 @@ private:
 
   /**
    * @brief Re-derive one V-cut's position/orientation from
-   *        ::librepcb::Panel::resolveVCutBoardEdge(), or unbind it if that fails
+   *        ::librepcb::Panel::resolveVCutBoardEdge(), or unbind it if that
+   * fails
    *
    * Shared per-V-cut step used by both #followBoardBoundVCuts() (commit-
    * time) and #updateDragFollowerVCuts() (live drag preview): if
-   * ::librepcb::Panel::resolveVCutBoardEdge() still finds an axis-aligned edge, moves
+   * ::librepcb::Panel::resolveVCutBoardEdge() still finds an axis-aligned edge,
+   * moves
    * @p cmd to match it (#PI_VCut::getOffset() itself doesn't change -
    * only where it's measured from, same inverse of
    * #commitVCutBindEdgePick()'s offset formula); otherwise unbinds it and
@@ -382,8 +385,9 @@ private:
    * only applies the relevant single-axis component), snaps/clamps the
    * result onto the panel (same as every other V-cut move), then re-derives
    * its binding so it doesn't go stale:
-   *  - #PI_VCut::BoundEdge::Board: re-offsets it from ::librepcb::Panel::resolveVCutBoardEdge()
-   *    if the board edge is still axis-aligned, otherwise unbinds it -
+   *  - #PI_VCut::BoundEdge::Board: re-offsets it from
+   * ::librepcb::Panel::resolveVCutBoardEdge() if the board edge is still
+   * axis-aligned, otherwise unbinds it -
    *    **this exact logic was the site of the panel-resize/drag-corruption
    *    bug fixed 2026-09-24 (see claude/librepcb_panel_vcut_tool.md)**, so
    *    it's centralized here rather than duplicated at each call site.
@@ -405,8 +409,8 @@ private:
    *
    * For each V-cut in #Panel::getVCuts() whose #PI_VCut::getBoundEdge() is
    * #PI_VCut::BoundEdge::Board and whose #PI_VCut::getBoundBoardInstance()
-   * is in @p boardInstances: if ::librepcb::PI_VCut::resolveBoardEdge() still finds an
-   * axis-aligned edge (using the board's *current*, already-updated
+   * is in @p boardInstances: if ::librepcb::PI_VCut::resolveBoardEdge() still
+   * finds an axis-aligned edge (using the board's *current*, already-updated
    * placement), the V-cut's orientation/position are updated to match
    * (#PI_VCut::getOffset() itself doesn't change - only where it's
    * measured from); otherwise (board rotated to a non-orthogonal angle,
@@ -479,11 +483,12 @@ private:
    *
    * Callers must call this only after the boards in #mDragCmds have
    * already had their own live position/rotation update applied for this
-   * step, so ::librepcb::PI_VCut::resolveBoardEdge() sees the board's current placement.
-   * For an unlocked follower (or any follower while #getIgnoreLocks() is
-   * active): moves it if ::librepcb::PI_VCut::resolveBoardEdge() still finds an
-   * axis-aligned edge, unbinds it (leaving it at its last position)
-   * otherwise - same as #followBoardBoundVCuts().
+   * step, so ::librepcb::PI_VCut::resolveBoardEdge() sees the board's current
+   * placement. For an unlocked follower (or any follower while
+   * #getIgnoreLocks() is active): moves it if
+   * ::librepcb::PI_VCut::resolveBoardEdge() still finds an axis-aligned edge,
+   * unbinds it (leaving it at its last position) otherwise - same as
+   * #followBoardBoundVCuts().
    *
    * **Locked followers (Sean's design, 2026-09-25):** for a plain move step
    * (@p isReorientation `false`), a locked follower still follows like an
@@ -515,6 +520,60 @@ private:
    *                         for a plain translate step - see above.
    */
   void updateDragFollowerVCuts(bool isReorientation) noexcept;
+
+  /**
+   * @brief Calculate the overall bounds of the dragged boards
+   *
+   * @return Their union as they are right now (including any live preview
+   *         position), or `std::nullopt` if none has a valid outline.
+   */
+  std::optional<PanelSnap::Bounds> calculateDragBounds() noexcept;
+
+  /**
+   * @brief Prepare the smart snap of a selection drag
+   *
+   * Called once when a drag starts, see #startMovingSelection(). Collects
+   * what the dragged boards can snap to (other placed boards and the
+   * panel) into #mDragSnapTargets; those cannot change during the drag.
+   * Does nothing unless boards are dragged, since only boards define the
+   * snapping geometry (see ::librepcb::PanelSnap).
+   */
+  void beginDragSnap() noexcept;
+
+  /**
+   * @brief Apply the smart snap to one move step of a selection drag
+   *
+   * @param delta   The move step as calculated from the grid-snapped
+   *                cursor.
+   * @param active  Whether snapping applies (see #isSnapActive()). If not,
+   *                any correction applied so far is taken back.
+   *
+   * @return The move step to apply to every dragged item. @p delta
+   *         adjusted so the dragged boards' overall bounds line up with a
+   *         board or the panel, if one is within
+   *         #sSnapTolerancePx. Also shows or hides the guide lines.
+   *         Since it is derived from the grid-snapped position every time
+   *         (#mDragSnapCorrection only remembers what is already applied),
+   *         it engages and releases without any hysteresis.
+   */
+  Point applyDragSnap(const Point& delta, bool active) noexcept;
+
+  /**
+   * @brief Forget the smart snap correction applied so far
+   *
+   * Called after an in-drag rotate or flip.  The group's bounds changed, so
+   * the lines which were snapped are gone. The current position becomes
+   * the new baseline, and the next move step snaps again. Hides the guides.
+   */
+  void resetDragSnap() noexcept;
+
+  /**
+   * @brief Finish the smart snap of a drag
+   *
+   * Forgets the targets and the correction and hides the guides. Called
+   * wherever a drag ends, i.e. on commit and in #abortCommand().
+   */
+  void endDragSnap() noexcept;
 
   /**
    * @brief Ask the user to confirm unbinding before a rotate, if needed
@@ -565,8 +624,7 @@ private:
    * @return `true` if the rotate/flip should proceed, `false` if the user
    *         cancelled.
    */
-  bool confirmUnbindLockedBoardVCuts(
-      const QSet<Uuid>& boardInstances) noexcept;
+  bool confirmUnbindLockedBoardVCuts(const QSet<Uuid>& boardInstances) noexcept;
 
   /**
    * @brief Just the confirmation dialog itself, shared by
@@ -692,7 +750,8 @@ private:
   bool mIsPickingVCutBindEdge;
   /// The V-cut being bound while #mIsPickingVCutBindEdge is active.
   std::shared_ptr<PI_VCut> mPickingVCut;
-  /// The status bar text last set while picking, see #updateVCutBindEdgeHover().
+  /// The status bar text last set while picking, see
+  /// #updateVCutBindEdgeHover().
   QString mVCutPickHoverText;
   /// Cancel the pick when the undo stack is modified or the scene goes away;
   /// connected while picking only.
@@ -711,6 +770,12 @@ private:
   /// commit needs #confirmUnbindLockedVCuts().
   bool mDragHadLockedVCutBreak;
   Point mDragLastPos;
+  /// What the dragged boards can snap to during the current drag, see
+  /// #beginDragSnap(). Empty if nothing snaps (no board is dragged).
+  QVector<PanelSnap::Target> mDragSnapTargets;
+  /// The smart snap correction currently applied on top of the grid-snapped
+  /// drag position, see #applyDragSnap().
+  Point mDragSnapCorrection;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
   std::vector<std::unique_ptr<CmdPanelFiducialEdit>> mDragFiducialCmds;

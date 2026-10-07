@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_H
 #define LIBREPCB_EDITOR_PANELEDITORSTATE_H
 
@@ -29,9 +27,12 @@
 #include "paneleditorfsm.h"
 #include "paneleditorfsmadapter.h"
 
+#include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/types/length.h>
 
 #include <QtCore>
+
+#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -39,6 +40,7 @@
 namespace librepcb {
 
 class Board;
+class PI_BoardInstance;
 class Point;
 class Uuid;
 
@@ -195,6 +197,60 @@ protected:  // Methods
    * @return The clamped position.
    */
   Length clampVCutToPanel(bool vertical, const Length& position) const noexcept;
+
+  /**
+   * @brief Smart snap tolerance, in screen pixels
+   *
+   * In pixels so it feels the same at any zoom level.
+   */
+  static constexpr qreal sSnapTolerancePx = 10;
+
+  /**
+   * @brief Whether smart snapping applies right now
+   *
+   * @param modifiers   The keyboard modifiers of the current mouse event.
+   *
+   * @return The "Snap" toggle button's state, inverted while Alt is held.
+   */
+  bool isSnapActive(Qt::KeyboardModifiers modifiers) const noexcept;
+
+  /**
+   * @brief Calculate the smart snap bounds of a placed board
+   *
+   * @param instance  The board placement (its current, possibly
+   *                  live-previewed position is used).
+   *
+   * @return The bounds of its outline in panel coordinates, or
+   *         `std::nullopt` if it has no valid outline.
+   */
+  std::optional<PanelSnap::Bounds> calculateBoardBounds(
+      const PI_BoardInstance& instance) noexcept;
+
+  /**
+   * @brief Collect what a moving board (group) can snap to
+   *
+   * @param excluded  Placements which are being moved (not snap targets).
+   *
+   * @return Every other placed board, and the panel.
+   */
+  QVector<PanelSnap::Target> calculateSnapTargets(
+      const QSet<Uuid>& excluded) noexcept;
+
+  /**
+   * @brief Calculate the smart snap correction and show its guides
+   *
+   * @param moving    Bounds of the moving group, at the position to test.
+   * @param targets   See #calculateSnapTargets().
+   * @param cursorPos Cursor position, to convert #sSnapTolerancePx.
+   *
+   * @return What to add to the position of the moving group (zero on an
+   *         axis where nothing is in reach). Shows the guides of the
+   *         matches, or hides them if there are none.
+   */
+  Point calculateSnap(const PanelSnap::Bounds& moving,
+                      const QVector<PanelSnap::Target>& targets,
+                      const Point& cursorPos) noexcept;
+
   bool getIgnoreLocks() const noexcept;
   void abortBlockingToolsInOtherEditors() noexcept;
   void openBoardEditor(const Uuid& boardUuid) noexcept;

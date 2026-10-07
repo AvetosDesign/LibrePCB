@@ -49,11 +49,11 @@
 #include <librepcb/core/exceptions.h>
 #include <librepcb/core/job/gerberexcellonoutputjob.h>
 #include <librepcb/core/project/board/board.h>
-#include <librepcb/core/types/layer.h>
 #include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/paneloutlinebuilder.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/angle.h>
+#include <librepcb/core/types/layer.h>
 #include <librepcb/core/types/uuid.h>
 #include <librepcb/core/workspace/colorrole.h>
 #include <librepcb/core/workspace/workspace.h>
@@ -64,7 +64,6 @@
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
- 
 namespace librepcb {
 namespace editor {
 
@@ -117,14 +116,14 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mSelectVCut(false),
     mIgnorePlacementLocks(false),
     mShowTabs(true),
+    mSnapEnabled(true),
     mTabToolActive(false),
     mVCutToolActive(false),
     mShowOutlinePreview(false),
     mOutlinePreviewSuspended(false),
     mBoardOutlinesHiddenByPreview(false),
     mBoardOutlinesBeforePreview(true),
-    mOnBoardOutlinesLayerEditedSlot(*this,
-                                    &PanelTab::boardOutlinesLayerEdited),
+    mOnBoardOutlinesLayerEditedSlot(*this, &PanelTab::boardOutlinesLayerEdited),
     mPanelGeometryTimer() {
   Q_ASSERT(&mPanel.getProject() == &mProject);
 
@@ -134,10 +133,11 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   // is set (same mechanism as ::librepcb::editor::Board2dTab).
   mView->setEventHandler(this);
   mView->setUseOpenGl(mApp.getWorkspace().getSettings().useOpenGl.get());
-  connect(&mApp.getWorkspace().getSettings().useOpenGl,
-          &WorkspaceSettingsItem::edited, this, [this]() {
-            mView->setUseOpenGl(mApp.getWorkspace().getSettings().useOpenGl.get());
-          });
+  connect(
+      &mApp.getWorkspace().getSettings().useOpenGl,
+      &WorkspaceSettingsItem::edited, this, [this]() {
+        mView->setUseOpenGl(mApp.getWorkspace().getSettings().useOpenGl.get());
+      });
   connect(mView.get(), &SlintGraphicsView::transformChanged, this,
           &PanelTab::requestRepaint);
   connect(mView.get(), &SlintGraphicsView::stateChanged, this,
@@ -192,6 +192,7 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
   mShowOutlinePreview =
       cs.value("panel_editor/show_outline_preview", true).toBool();
+  mSnapEnabled = cs.value("panel_editor/snap_enabled", true).toBool();
 
   // Mouse bite planes and outline preview: recalculated shortly after
   // changes.
@@ -309,6 +310,7 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mIgnorePlacementLocks,  // Ignore placement locks
       mShowTabs,  // Show tabs
       mShowOutlinePreview,  // Show outline preview
+      mSnapEnabled,  // Snap enabled
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
@@ -349,8 +351,7 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // Grid interval/unit are stored per-panel (Panel::getGridInterval()/
   // getGridUnit()), mirroring Board2dTab's handling of Board's own grid
   // interval/unit exactly.
-  const std::optional<PositiveLength> interval =
-      s2plength(data.grid_interval);
+  const std::optional<PositiveLength> interval = s2plength(data.grid_interval);
   if (interval && (*interval != mPanel.getGridInterval())) {
     mPanel.setGridInterval(*interval);
     if (mScene) {
@@ -385,6 +386,13 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
     updateOutlinePreview();
   }
 
+  // Smart snap - also a per-client UI setting.
+  if (data.snap_enabled != mSnapEnabled) {
+    mSnapEnabled = data.snap_enabled;
+    QSettings cs;
+    cs.setValue("panel_editor/snap_enabled", mSnapEnabled);
+  }
+
   if (data.place_board_index >= 0) {
     if (Board* board = mProject.getBoardByIndex(data.place_board_index)) {
       mFsm->processAddBoard(*board);
@@ -406,8 +414,8 @@ void PanelTab::activate() noexcept {
             requestRepaint();
           });
 
-  mScene = std::make_unique<PanelGraphicsScene>(
-      mPanel, mProject, *mLayers, mBoardProxyContext, this);
+  mScene = std::make_unique<PanelGraphicsScene>(mPanel, mProject, *mLayers,
+                                                mBoardProxyContext, this);
   connect(mScene.get(), &GraphicsScene::changed, this,
           &PanelTab::requestRepaint);
 
@@ -434,10 +442,8 @@ void PanelTab::activate() noexcept {
         updateEnabledCopperLayers();
         rebuildPlanesOfBoard(instance->getBoard());
       }));
-  mActiveConnections.append(connect(&mPanel, &Panel::boardInstanceRemoved,
-                                    this, [this]() {
-                                      updateEnabledCopperLayers();
-                                    }));
+  mActiveConnections.append(connect(&mPanel, &Panel::boardInstanceRemoved, this,
+                                    [this]() { updateEnabledCopperLayers(); }));
 
   applyWorkspaceSettings();
   updateTabsVisibility();
@@ -599,25 +605,29 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
       // selection by one grid interval, or scroll the view if nothing was
       // moved (e.g. nothing selected) - see
       // claude/librepcb_panel_vcut_tool.md's "arrow-key nudging" entry.
-      if ((!mFsm) || (!mFsm->processMove(Point(-mPanel.getGridInterval(), 0)))) {
+      if ((!mFsm) ||
+          (!mFsm->processMove(Point(-mPanel.getGridInterval(), 0)))) {
         if (mView) mView->scrollLeft();
       }
       break;
     }
     case ui::TabAction::MoveRight: {
-      if ((!mFsm) || (!mFsm->processMove(Point(*mPanel.getGridInterval(), 0)))) {
+      if ((!mFsm) ||
+          (!mFsm->processMove(Point(*mPanel.getGridInterval(), 0)))) {
         if (mView) mView->scrollRight();
       }
       break;
     }
     case ui::TabAction::MoveUp: {
-      if ((!mFsm) || (!mFsm->processMove(Point(0, *mPanel.getGridInterval())))) {
+      if ((!mFsm) ||
+          (!mFsm->processMove(Point(0, *mPanel.getGridInterval())))) {
         if (mView) mView->scrollUp();
       }
       break;
     }
     case ui::TabAction::MoveDown: {
-      if ((!mFsm) || (!mFsm->processMove(Point(0, -mPanel.getGridInterval())))) {
+      if ((!mFsm) ||
+          (!mFsm->processMove(Point(0, -mPanel.getGridInterval())))) {
         if (mView) mView->scrollDown();
       }
       break;
@@ -824,6 +834,10 @@ bool PanelTab::fsmGetIgnoreLocks() const noexcept {
   return mIgnorePlacementLocks;
 }
 
+bool PanelTab::fsmGetSnapEnabled() const noexcept {
+  return mSnapEnabled;
+}
+
 void PanelTab::fsmToolLeave() noexcept {
   while (!mFsmStateConnections.isEmpty()) {
     disconnect(mFsmStateConnections.takeLast());
@@ -866,46 +880,43 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
   // Takes the changed values directly as arguments, matching
   // Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
   // setComponentSide lambda convention.
-  auto syncSelectionProperties = [this](bool isHole, bool isFiducial,
-                                        bool isVCut,
-                                        const PositiveLength& diameter,
-                                        const UnsignedLength& clearance,
-                                        bool flipped, bool vCutVertical) {
-    mSelectHole = isHole;
-    mSelectFiducial = isFiducial;
-    mSelectVCut = isVCut;
-    if (isVCut) {
-      mToolVCutVertical = vCutVertical;
-    }
-    if (isHole || isFiducial) {
-      mToolDiameter.setValuePositive(diameter);
-    }
-    if (isFiducial) {
-      mToolClearance.setValueUnsigned(clearance);
-      mToolFlipped = flipped;
-    }
-    onDerivedUiDataChanged.notify();
-  };
+  auto syncSelectionProperties =
+      [this](bool isHole, bool isFiducial, bool isVCut,
+             const PositiveLength& diameter, const UnsignedLength& clearance,
+             bool flipped, bool vCutVertical) {
+        mSelectHole = isHole;
+        mSelectFiducial = isFiducial;
+        mSelectVCut = isVCut;
+        if (isVCut) {
+          mToolVCutVertical = vCutVertical;
+        }
+        if (isHole || isFiducial) {
+          mToolDiameter.setValuePositive(diameter);
+        }
+        if (isFiducial) {
+          mToolClearance.setValueUnsigned(clearance);
+          mToolFlipped = flipped;
+        }
+        onDerivedUiDataChanged.notify();
+      };
   syncSelectionProperties(
-      state.getSelectionKind() ==
-          PanelEditorState_Select::SelectionKind::Hole,
+      state.getSelectionKind() == PanelEditorState_Select::SelectionKind::Hole,
       state.getSelectionKind() ==
           PanelEditorState_Select::SelectionKind::Fiducial,
       state.getSelectionKind() == PanelEditorState_Select::SelectionKind::VCut,
       state.getDiameter(), state.getCopperClearance(), state.getFlipped(),
       state.getVCutVertical());
 
-  mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_Select::selectionPropertiesChanged, this,
-      syncSelectionProperties));
   mFsmStateConnections.append(
-      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
-              &state, &PanelEditorState_Select::setDiameter));
+      connect(&state, &PanelEditorState_Select::selectionPropertiesChanged,
+              this, syncSelectionProperties));
   mFsmStateConnections.append(
-      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned,
-              &state, &PanelEditorState_Select::setCopperClearance));
-  mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested,
-                                      &state,
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive, &state,
+              &PanelEditorState_Select::setDiameter));
+  mFsmStateConnections.append(
+      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned, &state,
+              &PanelEditorState_Select::setCopperClearance));
+  mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested, &state,
                                       &PanelEditorState_Select::setFlipped));
   mFsmStateConnections.append(
       connect(this, &PanelTab::vCutVerticalRequested, &state,
@@ -942,8 +953,8 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddHole& state) noexcept {
       connect(&state, &PanelEditorState_AddHole::diameterChanged,
               &mToolDiameter, &LengthEditContext::setValuePositive));
   mFsmStateConnections.append(
-      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
-              &state, &PanelEditorState_AddHole::setDiameter));
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive, &state,
+              &PanelEditorState_AddHole::setDiameter));
 
   onDerivedUiDataChanged.notify();
 }
@@ -967,9 +978,9 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddTab& state) noexcept {
   mToolTabBiteDiameter.configure(state.getMouseBiteDiameter(),
                                  LengthEditContext::Steps::generic(),
                                  "panel_editor/add_tab/bite_diameter");
-  mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_AddTab::mouseBiteDiameterChanged,
-      &mToolTabBiteDiameter, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddTab::mouseBiteDiameterChanged,
+              &mToolTabBiteDiameter, &LengthEditContext::setValuePositive));
   mFsmStateConnections.append(
       connect(&mToolTabBiteDiameter, &LengthEditContext::valueChangedPositive,
               &state, &PanelEditorState_AddTab::setMouseBiteDiameter));
@@ -977,23 +988,23 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddTab& state) noexcept {
   mToolTabBiteSpacing.configure(state.getMouseBiteSpacing(),
                                 LengthEditContext::Steps::generic(),
                                 "panel_editor/add_tab/bite_spacing");
-  mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_AddTab::mouseBiteSpacingChanged,
-      &mToolTabBiteSpacing, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddTab::mouseBiteSpacingChanged,
+              &mToolTabBiteSpacing, &LengthEditContext::setValuePositive));
   mFsmStateConnections.append(
       connect(&mToolTabBiteSpacing, &LengthEditContext::valueChangedPositive,
               &state, &PanelEditorState_AddTab::setMouseBiteSpacing));
 
   mToolTabMouseBites = state.getMouseBites();
-  mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_AddTab::mouseBitesChanged, this,
-      [this](bool enabled) {
-        mToolTabMouseBites = enabled;
-        onDerivedUiDataChanged.notify();
-      }));
   mFsmStateConnections.append(
-      connect(this, &PanelTab::tabMouseBitesRequested, &state,
-              &PanelEditorState_AddTab::setMouseBites));
+      connect(&state, &PanelEditorState_AddTab::mouseBitesChanged, this,
+              [this](bool enabled) {
+                mToolTabMouseBites = enabled;
+                onDerivedUiDataChanged.notify();
+              }));
+  mFsmStateConnections.append(connect(this, &PanelTab::tabMouseBitesRequested,
+                                      &state,
+                                      &PanelEditorState_AddTab::setMouseBites));
 
   onDerivedUiDataChanged.notify();
 }
@@ -1015,9 +1026,9 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddVCut& state) noexcept {
                 mToolVCutVertical = vertical;
                 onDerivedUiDataChanged.notify();
               }));
-  mFsmStateConnections.append(
-      connect(this, &PanelTab::vCutVerticalRequested, &state,
-              &PanelEditorState_AddVCut::setVertical));
+  mFsmStateConnections.append(connect(this, &PanelTab::vCutVerticalRequested,
+                                      &state,
+                                      &PanelEditorState_AddVCut::setVertical));
   onDerivedUiDataChanged.notify();
 }
 
@@ -1029,12 +1040,12 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept {
   mToolDiameter.configure(state.getDiameter(),
                           LengthEditContext::Steps::generic(),
                           "panel_editor/add_fiducial/diameter");
-  mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_AddFiducial::diameterChanged, &mToolDiameter,
-      &LengthEditContext::setValuePositive));
   mFsmStateConnections.append(
-      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive,
-              &state, &PanelEditorState_AddFiducial::setDiameter));
+      connect(&state, &PanelEditorState_AddFiducial::diameterChanged,
+              &mToolDiameter, &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolDiameter, &LengthEditContext::valueChangedPositive, &state,
+              &PanelEditorState_AddFiducial::setDiameter));
 
   // Copper clearance (drives the solder-mask gap around the fiducial too -
   // see CmdPanelFiducialEdit::setCopperClearance()'s class-level comment).
@@ -1045,12 +1056,12 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept {
       connect(&state, &PanelEditorState_AddFiducial::copperClearanceChanged,
               &mToolClearance, &LengthEditContext::setValueUnsigned));
   mFsmStateConnections.append(
-      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned,
-              &state, &PanelEditorState_AddFiducial::setCopperClearance));
+      connect(&mToolClearance, &LengthEditContext::valueChangedUnsigned, &state,
+              &PanelEditorState_AddFiducial::setCopperClearance));
 
   // Board side - mirrors Board2dTab::fsmToolEnter(BoardEditorState_AddPad&)'s
   // setComponentSide lambda, using a plain bool since PI_Fiducial::mFlipped
-  // is a bool (see its class-level Doxygen comment for why), rather than 
+  // is a bool (see its class-level Doxygen comment for why), rather than
   // Pad::ComponentSide.
   auto setFlipped = [this](bool flipped) {
     mToolFlipped = flipped;
@@ -1058,11 +1069,10 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept {
   };
   setFlipped(state.getFlipped());
   mFsmStateConnections.append(connect(
-      &state, &PanelEditorState_AddFiducial::flippedChanged, this,
-      setFlipped));
-  mFsmStateConnections.append(connect(this, &PanelTab::flippedRequested,
-                                      &state,
-                                      &PanelEditorState_AddFiducial::setFlipped));
+      &state, &PanelEditorState_AddFiducial::flippedChanged, this, setFlipped));
+  mFsmStateConnections.append(
+      connect(this, &PanelTab::flippedRequested, &state,
+              &PanelEditorState_AddFiducial::setFlipped));
 
   onDerivedUiDataChanged.notify();
 }
@@ -1091,30 +1101,30 @@ void PanelTab::applyWorkspaceSettings() noexcept {
       outlineItem->setColors(outline.primary, outline.secondary);
     }
     mScene->setOutlinePreviewColor(outline.primary);
-	
-    // Individual board instances are placement references only in the
+
+    // Individual board instances are references only in the
     // Panel tool's context.  Also see PGI_BoardInstance's class doc comment.
-	// Their normal-state outline is a dimmed copy of the same boardOutlines()
-	// color rather than full strength, and their selected state reuses
-	// boardSelection() to fill the whole board area rather than just
-	// outlining its perimeter. PanelGraphicsScene caches these so a board
-	// instance added later (e.g. via Add Board or Paste) is colored
-	// immediately instead of waiting for the next schema change - see
-	// PanelGraphicsScene::setBoardInstanceColors().
+    // Their normal-state outline is a dimmed copy of the same boardOutlines()
+    // color rather than full strength, and their selected state reuses
+    // boardSelection() to fill the whole board area rather than just
+    // outlining its perimeter. PanelGraphicsScene caches these so a board
+    // instance added later (e.g. via Add Board or Paste) is colored
+    // immediately instead of waiting for the next schema change - see
+    // PanelGraphicsScene::setBoardInstanceColors().
     QColor dimmedOutline = outline.primary;
     dimmedOutline.setAlpha(dimmedOutline.alpha() / 2);
     mScene->setBoardInstanceColors(dimmedOutline, selection.primary,
                                    selection.secondary);
-								   
+
     // Hole/fiducial colors match Board's own rendering. See
     // PGI_Hole/PGI_Fiducial's class doc comments on why these particular
     // color roles were chosen. A fiducial is a single-layer copper feature
     // (like an SMT pad), so it takes its color from whichever side it's
     // currently on, the same as BGI_Pad::updateLayer() does for a real pad.
-	// Selected state uses each role's own *secondary* (highlighted) color,
-	// not boardSelection() (which is reserved for the rubber-band rectangle
-	// and for PGI_BoardInstance's whole-board selection fill, which has no
-	// per-layer highlight to borrow.
+    // Selected state uses each role's own *secondary* (highlighted) color,
+    // not boardSelection() (which is reserved for the rubber-band rectangle
+    // and for PGI_BoardInstance's whole-board selection fill, which has no
+    // per-layer highlight to borrow.
     const auto holes = scheme.getColors(ColorRole::boardHoles());
     mScene->setHoleColors(holes.primary, holes.secondary);
     const auto copperTop = scheme.getColors(ColorRole::boardCopperTop());
@@ -1127,15 +1137,20 @@ void PanelTab::applyWorkspaceSettings() noexcept {
     // same as holes/fiducials above.
     mScene->setTabColors(outline.primary, outline.secondary);
 
-    // Edge glow (highlight) color 
+    // Edge glow (highlight) color
     mScene->setEdgeGlowColor(outline.secondary);
+
+    // The smart snap guide lines are alignment aids, so they take the board
+    // alignment role (which is translucent in the built-in schemes).
+    const auto alignment = scheme.getColors(ColorRole::boardAlignment());
+    mScene->setSnapGuideColor(alignment.primary);
 
     // The tabs' triangles (shown instead of the markers) have the
     // alpha of a placed part's origin cross, i.e. of the top references
     // role.
     const auto references = scheme.getColors(ColorRole::boardReferencesTop());
     mScene->setTabTriangleAlpha(references.primary.alpha(),
-                             references.secondary.alpha());
+                                references.secondary.alpha());
 
     // V-cuts are a manufacturing annotation drawn across the panel, so they
     // use the board documentation role (distinct from outlines and copper).

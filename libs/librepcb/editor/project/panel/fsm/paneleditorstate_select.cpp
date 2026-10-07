@@ -26,9 +26,9 @@
 #include "../../../undostack.h"
 #include "../../../utils/menubuilder.h"
 #include "../../cmd/cmdlockselectedpanelitems.h"
-#include "../../cmd/cmdpaneledit.h"
 #include "../../cmd/cmdpanelboardinstanceadd.h"
 #include "../../cmd/cmdpanelboardinstanceedit.h"
+#include "../../cmd/cmdpaneledit.h"
 #include "../../cmd/cmdpanelfiducialadd.h"
 #include "../../cmd/cmdpanelfiducialedit.h"
 #include "../../cmd/cmdpanelholeadd.h"
@@ -48,12 +48,12 @@
 #include "../panelselectionquery.h"
 #include "../tabpropertiesdialog.h"
 
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/project/panel/items/pi_vcut.h>
+#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/types/lengthunit.h>
 #include <librepcb/core/utils/toolbox.h>
@@ -173,7 +173,8 @@ bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be rotated.
   if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()))) {
     // A drag is in progress - rotate the live preview, same as
-    // right-click-during-drag (see processGraphicsSceneRightMouseButtonReleased()).
+    // right-click-during-drag (see
+    // processGraphicsSceneRightMouseButtonReleased()).
     return rotateSelection(rotation);
   }
   if (isBusy()) return false;  // e.g. a resize drag or an edge pick.
@@ -329,8 +330,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
     for (const PI_Fiducial& src : data->getFiducials()) {
       CmdPanelFiducialAdd* addCmd = new CmdPanelFiducialAdd(
           mContext.panel, src.getPosition() + offset, src.getRotation(),
-          src.getDiameter(), src.getCopperClearance(),
-          src.getStopMaskConfig(), src.getFlipped(), src.isLocked());
+          src.getDiameter(), src.getCopperClearance(), src.getStopMaskConfig(),
+          src.getFlipped(), src.isLocked());
       mContext.undoStack.appendToCmdGroup(addCmd);  // can throw
 
       if (auto fiducial = addCmd->getFiducial()) {
@@ -401,6 +402,7 @@ bool PanelEditorState_Select::processPaste() noexcept {
   // Let the user interactively place the pasted item(s), reusing the same
   // drag machinery as an ordinary move.
   mDragLastPos = startPos.mappedToGrid(getGridInterval());
+  beginDragSnap();
   updateSelectionProperties();
 
   return true;
@@ -459,8 +461,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
   if (!mIsUndoCmdActive) {
     // We're not dragging (yet).  Just update the hover cursor depending on
     // whether the mouse is over one of PGI_Outline's resize handles.
-	// Reset to the default arrow cursor as soon as the mouse leaves a handle.
-	// See also exit(), which resets it when leaving this tool entirely.
+    // Reset to the default arrow cursor as soon as the mouse leaves a handle.
+    // See also exit(), which resets it when leaving this tool entirely.
     std::optional<Qt::CursorShape> cursor;
     if (PanelGraphicsScene* scene = getActivePanelScene()) {
       if (auto outline = scene->getOutlineItem()) {
@@ -524,8 +526,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
 
   if (mResizeCmd) {
     // The panel outline is always anchored at the scene origin, so resizing
-	// just recomputes width/height directly from the absolute cursor
-	// position (clamped to a 1mm minimum).
+    // just recomputes width/height directly from the absolute cursor
+    // position (clamped to a 1mm minimum).
     const PositiveLength minSize(Length::fromMm(1));
     PositiveLength width = mContext.panel.getWidth();
     PositiveLength height = mContext.panel.getHeight();
@@ -562,17 +564,32 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     // combine all three, a non-homogeneous group), each index-aligned
     // with its own mDragCmds/mDragHoleCmds/mDragFiducialCmds.
     Q_ASSERT(mDragPasteOffsets.size() == mDragCmds.size());
+
+    // Smart snap: the position is absolute here, so the correction is
+    // simply added to it (no bookkeeping needed). The pasted boards'
+    // bounds are tested where they would be without the correction.
+    Point snap(0, 0);
+    const std::optional<PanelSnap::Bounds> group = calculateDragBounds();
+    if (group && (!mDragSnapTargets.isEmpty()) && isSnapActive(e.modifiers)) {
+      const Point shift =
+          (pos + mDragPasteOffsets[0]) - mDragCmds[0]->getPosition();
+      snap = calculateSnap(group->translated(shift), mDragSnapTargets, pos);
+    } else if (PanelGraphicsScene* scene = getActivePanelScene()) {
+      scene->clearSnapGuides();
+    }
+
     for (std::size_t i = 0; i < mDragCmds.size(); ++i) {
-      mDragCmds[i]->setPosition(pos + mDragPasteOffsets[i], true);
+      mDragCmds[i]->setPosition(pos + mDragPasteOffsets[i] + snap, true);
     }
     Q_ASSERT(mDragHolePasteOffsets.size() == mDragHoleCmds.size());
     for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
-      mDragHoleCmds[i]->setPosition(pos + mDragHolePasteOffsets[i], true);
+      mDragHoleCmds[i]->setPosition(pos + mDragHolePasteOffsets[i] + snap,
+                                    true);
     }
     Q_ASSERT(mDragFiducialPasteOffsets.size() == mDragFiducialCmds.size());
     for (std::size_t i = 0; i < mDragFiducialCmds.size(); ++i) {
-      mDragFiducialCmds[i]->setPosition(pos + mDragFiducialPasteOffsets[i],
-                                        true);
+      mDragFiducialCmds[i]->setPosition(
+          pos + mDragFiducialPasteOffsets[i] + snap, true);
     }
     mDragLastPos = pos;
     return true;
@@ -600,20 +617,24 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     mDragSnapPending = false;
   }
   if (delta != Point(0, 0)) {
+    // Smart snap: line the dragged boards' bounds up with other boards or
+    // the panel. Adjusts the step for every item type, so the group stays
+    // rigid; must run after the one-time grid alignment above, which is
+    // part of the step it adjusts.
+    delta = applyDragSnap(delta, isSnapActive(e.modifiers));
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
       cmd->translate(delta, true);
     }
     // Live drag-preview following (claude/librepcb_panel_vcut_tool.md) -
     // must run right after the boards' own translate() above, so
-    // ::librepcb::PI_VCut::resolveBoardEdge() sees their already-updated position. A plain
-    // translate - locked followers still update too, see
+    // ::librepcb::PI_VCut::resolveBoardEdge() sees their already-updated
+    // position. A plain translate - locked followers still update too, see
     // #updateDragFollowerVCuts()'s doc comment.
     updateDragFollowerVCuts(false);
     for (const std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
       cmd->translate(delta, true);
     }
-    for (const std::unique_ptr<CmdPanelFiducialEdit>& cmd :
-        mDragFiducialCmds) {
+    for (const std::unique_ptr<CmdPanelFiducialEdit>& cmd : mDragFiducialCmds) {
       cmd->translate(delta, true);
     }
     for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
@@ -687,7 +708,7 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   } else if (!clickedItem) {
     scene->clearSelection();
   }
-  
+
   // Clicking an already-selected item without a modifier keeps the current
   // (possibly multi-item) selection intact, so the whole group can be
   // dragged together.
@@ -779,6 +800,7 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
     }
     mContext.undoStack.commitCmdGroup();  // can throw
     mIsUndoCmdActive = false;
+    endDragSnap();
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     abortCommand(false);
@@ -891,9 +913,9 @@ bool PanelEditorState_Select::commitVCutBindEdgePick(
   if (boardInstanceUuid) {
     boardInstance = mContext.panel.getBoardInstances().find(*boardInstanceUuid);
     if (boardInstance) {
-      boardAxis = PI_VCut::resolveBoardEdge(boardInstance->getTransform(),
-                                            segment.start, segment.end,
-                                            segment.normal);
+      boardAxis =
+          PI_VCut::resolveBoardEdge(boardInstance->getTransform(),
+                                    segment.start, segment.end, segment.normal);
     }
   }
 
@@ -911,8 +933,8 @@ bool PanelEditorState_Select::commitVCutBindEdgePick(
       cmd->setBoardBinding(*boardInstanceUuid, segment.start, segment.end,
                            segment.normal, offset, false);
     } else {
-      const Length offset = mContext.panel.getVCutBoundEdgeOffset(
-          panelEdge, vcut->getPosition());
+      const Length offset =
+          mContext.panel.getVCutBoundEdgeOffset(panelEdge, vcut->getPosition());
       cmd->setBinding(panelEdge, offset, false);
     }
     mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
@@ -987,7 +1009,8 @@ PGI_Edge* PanelEditorState_Select::candidateBindEdge(
     }
     if (vertical != vcut.isVertical()) continue;
 
-    const Point a = Point::fromPx(edge->mapToScene(segment.start.toPxQPointF()));
+    const Point a =
+        Point::fromPx(edge->mapToScene(segment.start.toPxQPointF()));
     const Point b = Point::fromPx(edge->mapToScene(segment.end.toPxQPointF()));
 
     // The shape of the item is only roughly the edge, so check precisely.
@@ -1069,7 +1092,8 @@ void PanelEditorState_Select::translateAndRebindVCut(
   // doc comment for the bug that using the wrong one caused.
   if (cmd.getVCut().isBound() &&
       (cmd.getVCut().getBoundEdge() == PI_VCut::BoundEdge::Board)) {
-    const std::optional<Uuid>& boundBoard = cmd.getVCut().getBoundBoardInstance();
+    const std::optional<Uuid>& boundBoard =
+        cmd.getVCut().getBoundBoardInstance();
     const std::optional<PI_VCut::BoardEdgeAxis> axis =
         mContext.panel.resolveVCutBoardEdge(cmd.getVCut());
     if (axis) {
@@ -1276,8 +1300,7 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
   // Find the topmost placed board under the cursor, if any.
   PGI_BoardInstance* clickedItem = nullptr;
   foreach (QGraphicsItem* item, itemsAtPos) {
-    if (PGI_BoardInstance* i =
-            dynamic_cast<PGI_BoardInstance*>(item)) {
+    if (PGI_BoardInstance* i = dynamic_cast<PGI_BoardInstance*>(item)) {
       clickedItem = i;
       break;
     }
@@ -1326,6 +1349,81 @@ bool PanelEditorState_Select::clearSelection() noexcept {
   scheduleUpdateAvailableFeatures();
   updateSelectionProperties();
   return true;
+}
+
+void PanelEditorState_Select::beginDragSnap() noexcept {
+  mDragSnapTargets.clear();
+  mDragSnapCorrection = Point(0, 0);
+  if (mDragCmds.empty()) {
+    return;  // Only boards define the snapping geometry.
+  }
+
+  QSet<Uuid> dragged;
+  for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
+    dragged.insert(cmd->getInstance().getUuid());
+  }
+  mDragSnapTargets = calculateSnapTargets(dragged);
+}
+
+std::optional<PanelSnap::Bounds>
+    PanelEditorState_Select::calculateDragBounds() noexcept {
+  std::optional<PanelSnap::Bounds> group;
+  for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
+    const std::optional<PanelSnap::Bounds> bounds =
+        calculateBoardBounds(cmd->getInstance());
+    if (!bounds) continue;
+    if (!group) {
+      group = bounds;
+    } else {
+      group->left = qMin(group->left, bounds->left);
+      group->right = qMax(group->right, bounds->right);
+      group->top = qMax(group->top, bounds->top);
+      group->bottom = qMin(group->bottom, bounds->bottom);
+    }
+  }
+  return group;
+}
+
+Point PanelEditorState_Select::applyDragSnap(const Point& delta,
+                                             bool active) noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if ((!scene) || mDragSnapTargets.isEmpty() || mDragCmds.empty()) {
+    return delta;
+  }
+
+  // Overall bounds of the dragged boards, as they are right now (including
+  // the correction applied so far).
+  const std::optional<PanelSnap::Bounds> group = calculateDragBounds();
+  if (!group) {
+    scene->clearSnapGuides();
+    return delta;
+  }
+
+  // Where the group would be without any correction, after this step.
+  const Point unsnapped = delta - mDragSnapCorrection;
+  if (!active) {
+    // Snapping is off (or bypassed with the modifier): take back any
+    // correction and follow the grid-snapped cursor again.
+    mDragSnapCorrection = Point(0, 0);
+    scene->clearSnapGuides();
+    return unsnapped;
+  }
+  const PanelSnap::Bounds moving = group->translated(unsnapped);
+
+  mDragSnapCorrection = calculateSnap(moving, mDragSnapTargets, mDragLastPos);
+  return unsnapped + mDragSnapCorrection;
+}
+
+void PanelEditorState_Select::resetDragSnap() noexcept {
+  mDragSnapCorrection = Point(0, 0);
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    scene->clearSnapGuides();
+  }
+}
+
+void PanelEditorState_Select::endDragSnap() noexcept {
+  mDragSnapTargets.clear();
+  resetDragSnap();
 }
 
 bool PanelEditorState_Select::startMovingSelection(
@@ -1388,8 +1486,7 @@ bool PanelEditorState_Select::startMovingSelection(
       if (alreadyDragged.contains(vcut.getUuid())) continue;
       const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
       if ((!boundBoard) || (!draggedBoards.contains(*boundBoard))) continue;
-      mDragFollowerVCutCmds.push_back(
-          std::make_unique<CmdPanelVCutEdit>(vcut));
+      mDragFollowerVCutCmds.push_back(std::make_unique<CmdPanelVCutEdit>(vcut));
     }
   }
 
@@ -1413,6 +1510,7 @@ bool PanelEditorState_Select::startMovingSelection(
 
   mDragLastPos = startPos.mappedToGrid(getGridInterval());
   mDragSnapPending = true;
+  beginDragSnap();
   return true;
 }
 
@@ -1523,8 +1621,8 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
     mDragCmds[i]->rotate(angle, center, true);
     if (i < mDragPasteOffsets.size()) {
       // Paste-placement drag: keep the cursor-relative offset in sync with
-      // the rotated layout, so the absolute snap in 
-	  // processGraphicsSceneMouseMoved() reproduces this rotation on the
+      // the rotated layout, so the absolute snap in
+      // processGraphicsSceneMouseMoved() reproduces this rotation on the
       // next move instead of discarding it.
       mDragPasteOffsets[i] = mDragCmds[i]->getPosition() - mDragLastPos;
     }
@@ -1537,6 +1635,8 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   // case to mirror - #updateDragFollowerVCuts() only unbinds a follower
   // if its board's new rotation is non-orthogonal.
   updateDragFollowerVCuts(true);
+  // The group's bounds changed: whatever was snapped is gone (smart snap).
+  resetDragSnap();
   for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
     mDragHoleCmds[i]->rotate(angle, center, true);
     if (i < mDragHolePasteOffsets.size()) {
@@ -1586,6 +1686,8 @@ bool PanelEditorState_Select::flipSelection() noexcept {
   // Live drag-preview following, same as the ordinary-move and in-drag-
   // rotate steps - must run after the boards' own flip() above.
   updateDragFollowerVCuts(true);
+  // The group's bounds changed: whatever was snapped is gone (smart snap).
+  resetDragSnap();
   for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
     mDragHoleCmds[i]->flip(center, true);
     if (i < mDragHolePasteOffsets.size()) {
@@ -1645,7 +1747,7 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   Point center(0, 0);
   int centerCount = 0;
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-          query.getBoardInstances()) {
+           query.getBoardInstances()) {
     auto item = scene->getBoardInstanceItem(instance->getUuid());
     center += item ? item->getCenter() : instance->getPosition();
     centerCount++;
@@ -1667,7 +1769,7 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   if (!query.getBoardInstances().isEmpty()) {
     QSet<Uuid> boardsToFlip;
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
+             query.getBoardInstances()) {
       boardsToFlip.insert(instance->getUuid());
     }
     if (!confirmUnbindLockedBoardVCuts(boardsToFlip)) {
@@ -1678,7 +1780,7 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   try {
     mContext.undoStack.beginCmdGroup(tr("Flip item(s)"));  // can throw
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
+             query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->flip(center, false);
@@ -1689,7 +1791,8 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
       cmd->flip(center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
+             query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->flip(center, false);
@@ -1698,7 +1801,7 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
     if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> flippedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              query.getBoardInstances()) {
+               query.getBoardInstances()) {
         flippedBoards.insert(instance->getUuid());
       }
       followBoardBoundVCuts(flippedBoards, true);  // can throw
@@ -1738,7 +1841,7 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
   try {
     mContext.undoStack.beginCmdGroup(tr("Move item(s)"));  // can throw
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
+             query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->translate(delta, false);
@@ -1749,7 +1852,8 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
       cmd->translate(delta, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
+             query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->translate(delta, false);
@@ -1770,10 +1874,11 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
     if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> movedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              query.getBoardInstances()) {
+               query.getBoardInstances()) {
         movedBoards.insert(instance->getUuid());
       }
-      followBoardBoundVCuts(movedBoards, false, selectedVCutUuids);  // can throw
+      followBoardBoundVCuts(movedBoards, false,
+                            selectedVCutUuids);  // can throw
     }
     mContext.undoStack.commitCmdGroup();  // can throw
   } catch (const Exception& e) {
@@ -1838,7 +1943,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   Point center(0, 0);
   int centerCount = 0;
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-          query.getBoardInstances()) {
+           query.getBoardInstances()) {
     auto item = scene->getBoardInstanceItem(instance->getUuid());
     center += item ? item->getCenter() : instance->getPosition();
     centerCount++;
@@ -1871,7 +1976,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   {
     QSet<Uuid> boardsToRotate;
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
+             query.getBoardInstances()) {
       boardsToRotate.insert(instance->getUuid());
     }
     if (!confirmUnbindLockedBoardVCuts(boardsToRotate)) {
@@ -1884,15 +1989,15 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
     foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
       std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(*vcut));
       cmd->rotate(angle, center, false);  // Ignores non-90° angles.
-      cmd->setPosition(
-          clampVCutToPanel(cmd->isVertical(), cmd->getPosition()), false);
+      cmd->setPosition(clampVCutToPanel(cmd->isVertical(), cmd->getPosition()),
+                       false);
       if (vcut->isBound()) {
         cmd->setBinding(PI_VCut::BoundEdge::None, Length(0), false);
       }
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
+             query.getBoardInstances()) {
       std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
           new CmdPanelBoardInstanceEdit(*instance));
       cmd->rotate(angle, center, false);
@@ -1903,7 +2008,8 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       cmd->rotate(angle, center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
+             query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
       cmd->rotate(angle, center, false);
@@ -1916,7 +2022,7 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       // skipped here rather than double-processed.
       QSet<Uuid> rotatedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-              query.getBoardInstances()) {
+               query.getBoardInstances()) {
         rotatedBoards.insert(instance->getUuid());
       }
       followBoardBoundVCuts(rotatedBoards, true);  // can throw
@@ -1952,9 +2058,8 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
     PanelClipboardData data;
     QSet<Uuid> copiedBoards;
     foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-            query.getBoardInstances()) {
-      data.getInstances().append(
-          std::make_shared<PI_BoardInstance>(*instance));
+             query.getBoardInstances()) {
+      data.getInstances().append(std::make_shared<PI_BoardInstance>(*instance));
       // The board design's tabs are copied along (once per design), so
       // pasting into another panel carries them over.
       if (!copiedBoards.contains(instance->getBoard())) {
@@ -1968,7 +2073,8 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
     foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
       data.getHoles().append(std::make_shared<PI_Hole>(*hole));
     }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
+             query.getFiducials()) {
       data.getFiducials().append(std::make_shared<PI_Fiducial>(*fiducial));
     }
     qApp->clipboard()->setMimeData(data.toMimeData().release());
@@ -2012,7 +2118,7 @@ std::shared_ptr<PI_Tab>
 
 void PanelEditorState_Select::updateAvailableFeatures() noexcept {
   // Dynamic: Recomputed from scratch every time this is called (via the
-  // debounced mUpdateAvailableFeaturesTimer), matching 
+  // debounced mUpdateAvailableFeaturesTimer), matching
   // ::librepcb::editor::BoardEditorState_Select.
   if (mUpdateAvailableFeaturesTimer) mUpdateAvailableFeaturesTimer->stop();
 
@@ -2244,11 +2350,11 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
           edgeText = tr("to bottom panel edge");
           break;
       }
-      keyValues.append(std::make_pair(
-          tr("Distance"),
-          QString("%1 %2 %3")
-              .arg(formatPosition(nearest.distance), unit.toShortStringTr(),
-                   edgeText)));
+      keyValues.append(
+          std::make_pair(tr("Distance"),
+                         QString("%1 %2 %3")
+                             .arg(formatPosition(nearest.distance),
+                                  unit.toShortStringTr(), edgeText)));
     }
   }
 
@@ -2294,7 +2400,7 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
       mSelectionKind = SelectionKind::Hole;
       mCurrentDiameter = selectedHoles.first()->getDiameter();
     } else if ((!anyBoardSelected) && (!selectedFiducials.isEmpty()) &&
-              selectedHoles.isEmpty() && selectedVCuts.isEmpty()) {
+               selectedHoles.isEmpty() && selectedVCuts.isEmpty()) {
       mSelectionKind = SelectionKind::Fiducial;
       mCurrentDiameter = selectedFiducials.first()->getDiameter();
       mCurrentCopperClearance = selectedFiducials.first()->getCopperClearance();
@@ -2470,7 +2576,8 @@ void PanelEditorState_Select::setCopperClearance(
   if (selected.isEmpty()) return;
 
   try {
-    mContext.undoStack.beginCmdGroup(tr("Change fiducial solder mask clearance"));
+    mContext.undoStack.beginCmdGroup(
+        tr("Change fiducial solder mask clearance"));
     foreach (const std::shared_ptr<PI_Fiducial>& fiducial, selected) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
@@ -2535,6 +2642,7 @@ void PanelEditorState_Select::setFlipped(bool flipped) noexcept {
 }
 
 bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
+  endDragSnap();
   try {
     // Destroying the not-yet-executed edit commands reverts any live
     // preview changes back to their original position & size (same

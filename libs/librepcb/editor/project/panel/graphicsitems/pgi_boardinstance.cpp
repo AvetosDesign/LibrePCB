@@ -35,9 +35,9 @@
 namespace librepcb {
 namespace editor {
 
-PGI_BoardInstance::PGI_BoardInstance(
-    std::shared_ptr<PI_BoardInstance> instance, Project& project,
-    PanelGraphicsScene& scene) noexcept
+PGI_BoardInstance::PGI_BoardInstance(std::shared_ptr<PI_BoardInstance> instance,
+                                     Project& project,
+                                     PanelGraphicsScene& scene) noexcept
   : QGraphicsItem(),
     onEdited(*this),
     mInstance(instance),
@@ -75,15 +75,15 @@ QPainterPath PGI_BoardInstance::shape() const noexcept {
 }
 
 void PGI_BoardInstance::paint(QPainter* painter,
-                                  const QStyleOptionGraphicsItem* option,
-                                  QWidget* widget) {
+                              const QStyleOptionGraphicsItem* option,
+                              QWidget* widget) {
   Q_UNUSED(widget);
   const bool selected = option && (option->state & QStyle::State_Selected);
   const QRectF boundsPx = mOutlinePath.boundingRect();
 
   if (mBoardProxy) {
     // Render the board's real, live content via the hidden BoardGraphicsScene
-    // BoardProxy owns for this design. 
+    // BoardProxy owns for this design.
     mBoardProxy->getScene().render(painter, boundsPx, boundsPx);
   } else {
     // No live content available (the referenced board no longer exists).
@@ -96,7 +96,8 @@ void PGI_BoardInstance::paint(QPainter* painter,
     painter->drawText(boundsPx, Qt::AlignCenter, mBoardName);
   }
 
-  // Outline and selection highlight are drawn last, so the selection is always clearly visible.
+  // Outline and selection highlight are drawn last, so the selection is always
+  // clearly visible.
   if (selected) {
     // Highlight the whole board area (not just its perimeter). Filling
     // mOutlinePath itself (rather than its bounding rect) keeps the
@@ -119,8 +120,8 @@ void PGI_BoardInstance::setOutlineShown(bool shown) noexcept {
 }
 
 void PGI_BoardInstance::setColors(const QColor& color,
-                                       const QColor& selectedLineColor,
-                                       const QColor& selectedFillColor) noexcept {
+                                  const QColor& selectedLineColor,
+                                  const QColor& selectedFillColor) noexcept {
   if ((color != mColor) || (selectedLineColor != mSelectedLineColor) ||
       (selectedFillColor != mSelectedFillColor)) {
     mColor = color;
@@ -140,12 +141,18 @@ Point PGI_BoardInstance::getCenter() const noexcept {
   return Point::fromPx(mapToScene(mOutlinePath.boundingRect().center()));
 }
 
+const std::optional<QVector<Path>>& PGI_BoardInstance::getOutline()
+    const noexcept {
+  static const std::optional<QVector<Path>> none;
+  return mBoardProxy ? mBoardProxy->getOutline() : none;
+}
+
 /*******************************************************************************
  *  Private Methods
  ******************************************************************************/
 
-void PGI_BoardInstance::instanceEdited(
-    const PI_BoardInstance& obj, PI_BoardInstance::Event event) noexcept {
+void PGI_BoardInstance::instanceEdited(const PI_BoardInstance& obj,
+                                       PI_BoardInstance::Event event) noexcept {
   Q_UNUSED(obj);
   switch (event) {
     case PI_BoardInstance::Event::BoardChanged:
@@ -170,7 +177,7 @@ void PGI_BoardInstance::instanceEdited(
 }
 
 QVariant PGI_BoardInstance::itemChange(GraphicsItemChange change,
-                                            const QVariant& value) noexcept {
+                                       const QVariant& value) noexcept {
   if (change == ItemSelectedHasChanged) {
     onEdited.notify(Event::SelectionChanged);
   }
@@ -216,7 +223,7 @@ void PGI_BoardInstance::updateOutlineShape() noexcept {
     QPainterPath p;
     p.addRect(
         QRectF(QPointF(0, 0),
-              Point(Length::fromMm(80), Length::fromMm(60)).toPxQPointF()));
+               Point(Length::fromMm(80), Length::fromMm(60)).toPxQPointF()));
     return p;
   };
 
@@ -235,8 +242,8 @@ void PGI_BoardInstance::updateOutlineShape() noexcept {
   } else {
     // Referenced board no longer exists - shouldn't normally happen, but
     // don't crash the panel canvas if it does.
-    mBoardName = QCoreApplication::translate("PGI_BoardInstance",
-                                              "<missing board>");
+    mBoardName =
+        QCoreApplication::translate("PGI_BoardInstance", "<missing board>");
     mOutlinePath = placeholderRect();
   }
 
@@ -253,9 +260,10 @@ void PGI_BoardInstance::updateBoardProxy(Board* board) noexcept {
   if (board) {
     // A flipped board is rendered by another BoardProxy (see
     // BoardProxy::Side).
-    mBoardProxy = mScene.acquireBoardProxy(
-        *board, mInstance->getFlipped() ? BoardProxy::Side::Bottom
-                                        : BoardProxy::Side::Top);
+    mBoardProxy = mScene.acquireBoardProxy(*board,
+                                           mInstance->getFlipped()
+                                               ? BoardProxy::Side::Bottom
+                                               : BoardProxy::Side::Top);
     mBoardProxy->onEdited.attach(mOnProxyEditedSlot);
   }
 }
