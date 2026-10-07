@@ -59,18 +59,18 @@ class PanelGraphicsScene;
  * Renders one ::librepcb::PI_BoardInstance on the panel canvas. This panel
  * data model never contains real board *content* itself. Instead, a
  * ::librepcb::editor::BoardProxy (acquired from
- * ::librepcb::editor::PanelGraphicsScene::acquireBoardProxy()) owns a hidden, live
- * ::librepcb::editor::BoardGraphicsScene built over the project's real
+ * ::librepcb::editor::PanelGraphicsScene::acquireBoardProxy()) owns a hidden,
+ * live ::librepcb::editor::BoardGraphicsScene built over the project's real
  * ::librepcb::Board. #paint() renders that scene's real content via
  * `QGraphicsScene::render()`, always reflecting the board's current state
  * live, even while it's being edited in its own Board tab. The referenced
  * ::librepcb::Board's own outline shape (via `calculateOutlinePath()`) is
- * drawn on top as the placement/move reference border (see #setOutlineShown()), as
- * is the selection highlight. A centered board-name label is drawn only as a
+ * drawn on top as the placement/move reference border (see #setOutlineShown()),
+ * as is the selection highlight. A centered board-name label is drawn only as a
  * fallback when there's no real content to show (a missing board).
  *
- * Unlike PGI_Outline (which draws the panel's own perimeter), an individual board's
- * outline here is a visual placement/move reference only. Its
+ * Unlike PGI_Outline (which draws the panel's own perimeter), an individual
+ * board's outline here is a visual placement/move reference only. Its
  * normal-state color is a dimmed (lower-alpha) copy of
  * `ColorRole::boardOutlines()`'s color rather than the full-strength color,
  * to visually demote it below the panel outline. When selected, the whole
@@ -94,8 +94,7 @@ public:
   PGI_BoardInstance() = delete;
   PGI_BoardInstance(const PGI_BoardInstance& other) = delete;
   PGI_BoardInstance(std::shared_ptr<PI_BoardInstance> instance,
-                         Project& project,
-                         PanelGraphicsScene& scene) noexcept;
+                    Project& project, PanelGraphicsScene& scene) noexcept;
   ~PGI_BoardInstance() noexcept override;
 
   // General Methods
@@ -139,6 +138,19 @@ public:
   Point getCenter() const noexcept;
 
   /**
+   * @brief Get the outline of the board, in the board's own coordinates
+   *
+   * The outline which the ::librepcb::editor::BoardProxy keeps up to date
+   * (see ::librepcb::editor::BoardProxy::getOutline()), so it is not
+   * calculated again. Used for the smart snap bounds, see
+   * ::librepcb::PanelSnap::calculateBounds().
+   *
+   * @return The outline paths, or `std::nullopt` if the board is missing or
+   *         has no valid outline.
+   */
+  const std::optional<QVector<Path>>& getOutline() const noexcept;
+
+  /**
    * @brief Remove the highlight from all edge items of this board
    */
   void clearEdgeHighlights() noexcept;
@@ -147,7 +159,7 @@ public:
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
   void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-            QWidget* widget) override;
+             QWidget* widget) override;
 
   // Operator Overloadings
   PGI_BoardInstance& operator=(const PGI_BoardInstance& rhs) = delete;
@@ -169,7 +181,8 @@ private:  // Data
   std::shared_ptr<PI_BoardInstance> mInstance;
   Project& mProject;
   PanelGraphicsScene& mScene;
-  BoardProxy* mBoardProxy;  ///< Non-owning; see PanelGraphicsScene::acquireBoardProxy().
+  BoardProxy* mBoardProxy;  ///< Non-owning; see
+                            ///< PanelGraphicsScene::acquireBoardProxy().
   QPainterPath mOutlinePath;
   QString mBoardName;
   QColor mColor;

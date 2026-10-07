@@ -1,12 +1,14 @@
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was reviewed by a human on 2026-09-17.
-
 import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
 import { AddHoleToolBar } from "addholetoolbar.slint";
 import { AddTabToolBar } from "addtabtoolbar.slint";
 import { AddVCutToolBar } from "addvcuttoolbar.slint";
 import { Tab } from "../../tab.slint";
-import { SceneButton, TextInput, ToolBar, ToolButton } from "../../widgets.slint";
+import {
+    SceneButton,
+    TextInput,
+    ToolBar,
+    ToolButton,
+} from "../../widgets.slint";
 import {
     Backend,
     Data,
@@ -248,6 +250,22 @@ export component PanelTab inherits Tab {
 
                 clicked => {
                     tabs[index].show-outline-preview = !self.checked;
+                }
+            }
+
+            snap-btn := SceneButton {
+                icon: @image-url("../../../../bootstrap-icons/icons/border.svg");
+                // The icon is a square filling its box, so shrink it to keep
+                // its corners inside the circle.
+                icon-scale: 0.8;
+                tooltip: @tr("Snap to Edge/Center (Alt to temporarily toggle)");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                style: checkbox;
+                checked: tabs[index].snap-enabled;
+
+                clicked => {
+                    tabs[index].snap-enabled = !self.checked;
                 }
             }
         }

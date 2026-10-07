@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -27,6 +25,7 @@
 #include "../../../undostack.h"
 #include "../../cmd/cmdpanelboardinstanceadd.h"
 #include "../../cmd/cmdpanelboardinstanceedit.h"
+#include "../panelgraphicsscene.h"
 
 #include <librepcb/core/project/board/board.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
@@ -48,9 +47,7 @@ namespace editor {
 
 PanelEditorState_AddBoard::PanelEditorState_AddBoard(
     const Context& context) noexcept
-  : PanelEditorState(context),
-    mIsUndoCmdActive(false),
-    mCurrentBoard(nullptr) {
+  : PanelEditorState(context), mIsUndoCmdActive(false), mCurrentBoard(nullptr) {
 }
 
 PanelEditorState_AddBoard::~PanelEditorState_AddBoard() noexcept {
@@ -64,9 +61,9 @@ bool PanelEditorState_AddBoard::entry() noexcept {
   Q_ASSERT(mIsUndoCmdActive == false);
 
   mAdapter.fsmToolEnter(*this);
-  mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features(
-      PanelEditorFsmAdapter::Feature::Rotate |
-      PanelEditorFsmAdapter::Feature::Flip));
+  mAdapter.fsmSetFeatures(
+      PanelEditorFsmAdapter::Features(PanelEditorFsmAdapter::Feature::Rotate |
+                                      PanelEditorFsmAdapter::Feature::Flip));
   return true;
 }
 
@@ -103,7 +100,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneMouseMoved(
   if (!mIsUndoCmdActive) return false;
   if (!mCurrentInstanceEditCmd) return false;
 
-  Point pos = e.scenePos.mappedToGrid(getGridInterval());
+  const Point pos = snapPosition(e.scenePos.mappedToGrid(getGridInterval()),
+                                 isSnapActive(e.modifiers));
   // set temporary position of the current board placement
   mCurrentInstanceEditCmd->setPosition(pos, true);
   return true;
@@ -121,7 +119,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
   const bool flipped =
       mCurrentInstance ? mCurrentInstance->getFlipped() : false;
 
-  Point pos = e.scenePos.mappedToGrid(getGridInterval());
+  const Point pos = snapPosition(e.scenePos.mappedToGrid(getGridInterval()),
+                                 isSnapActive(e.modifiers));
   try {
     // place the current board placement finally
     if (mCurrentInstanceEditCmd) {
@@ -133,6 +132,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
     mIsUndoCmdActive = false;
     mCurrentInstance.reset();
     mCurrentBoard = nullptr;
+    mSnapTargets.clear();
+    clearSnapGuides();
   } catch (const Exception& ex) {
     QMessageBox::critical(parentWidget(), tr("Error"), ex.getMsg());
     abortCommand(false);
@@ -190,6 +191,9 @@ bool PanelEditorState_AddBoard::addBoard(Board& board, const Angle& rotation,
     mCurrentInstance = cmd->getInstance();
     Q_ASSERT(mCurrentInstance);
 
+    // Everything else on the panel is something to snap to.
+    mSnapTargets = calculateSnapTargets({mCurrentInstance->getUuid()});
+
     // add command to move the current board placement
     mCurrentInstanceEditCmd =
         std::make_unique<CmdPanelBoardInstanceEdit>(*mCurrentInstance);
@@ -204,8 +208,8 @@ bool PanelEditorState_AddBoard::addBoard(Board& board, const Angle& rotation,
 bool PanelEditorState_AddBoard::rotateBoard(const Angle& angle) noexcept {
   if ((!mCurrentInstanceEditCmd) || (!mCurrentInstance)) return false;
 
-  mCurrentInstanceEditCmd->rotate(angle, mCurrentInstance->getPosition(),
-                                  true);
+  mCurrentInstanceEditCmd->rotate(angle, mCurrentInstance->getPosition(), true);
+  clearSnapGuides();  // The bounds changed, the next move snaps again.
   return true;  // Event handled
 }
 
@@ -213,6 +217,7 @@ bool PanelEditorState_AddBoard::flipBoard() noexcept {
   if ((!mCurrentInstanceEditCmd) || (!mCurrentInstance)) return false;
 
   mCurrentInstanceEditCmd->flip(mCurrentInstance->getPosition(), true);
+  clearSnapGuides();  // The bounds changed, the next move snaps again.
   return true;  // Event handled
 }
 
@@ -230,12 +235,42 @@ bool PanelEditorState_AddBoard::abortCommand(bool showErrMsgBox) noexcept {
     // Reset attributes, go back to idle state
     mCurrentInstance.reset();
     mCurrentBoard = nullptr;
+    mSnapTargets.clear();
+    clearSnapGuides();
     return true;
   } catch (const Exception& e) {
     if (showErrMsgBox) {
       QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     }
     return false;
+  }
+}
+
+Point PanelEditorState_AddBoard::snapPosition(const Point& pos,
+                                              bool active) noexcept {
+  if (!active) {
+    clearSnapGuides();
+    return pos;
+  }
+  if ((!mCurrentInstance) || mSnapTargets.isEmpty()) {
+    return pos;
+  }
+  const std::optional<PanelSnap::Bounds> bounds =
+      calculateBoardBounds(*mCurrentInstance);
+  if (!bounds) {
+    clearSnapGuides();
+    return pos;
+  }
+  // The bounds as they are now, moved to where the placement would be
+  // without any correction.
+  const PanelSnap::Bounds moving =
+      bounds->translated(pos - mCurrentInstance->getPosition());
+  return pos + calculateSnap(moving, mSnapTargets, pos);
+}
+
+void PanelEditorState_AddBoard::clearSnapGuides() noexcept {
+  if (PanelGraphicsScene* scene = getActivePanelScene()) {
+    scene->clearSnapGuides();
   }
 }
 

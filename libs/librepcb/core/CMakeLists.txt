@@ -429,6 +429,7 @@ add_library(
   project/outputjobrunner.h
   project/panel/boardedgesnap.cpp
   project/panel/boardedgesnap.h
+  project/panel/items/panelplacement.h
   project/panel/items/pi_boardinstance.cpp
   project/panel/items/pi_boardinstance.h
   project/panel/items/pi_fiducial.cpp
@@ -439,11 +440,12 @@ add_library(
   project/panel/items/pi_tab.h
   project/panel/items/pi_vcut.cpp
   project/panel/items/pi_vcut.h
-  project/panel/items/panelplacement.h
   project/panel/panel.cpp
   project/panel/panel.h
   project/panel/paneloutlinebuilder.cpp
   project/panel/paneloutlinebuilder.h
+  project/panel/panelsnap.cpp
+  project/panel/panelsnap.h
   project/project.cpp
   project/project.h
   project/projectattributelookup.cpp

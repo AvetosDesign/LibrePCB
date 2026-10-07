@@ -21,11 +21,11 @@
 
 #include "../../graphics/graphicslayerlist.h"
 #include "boardproxy.h"
-#include "graphicsitems/pgi_outline.h"
 #include "graphicsitems/pgi_boardinstance.h"
 #include "graphicsitems/pgi_edge.h"
 #include "graphicsitems/pgi_fiducial.h"
 #include "graphicsitems/pgi_hole.h"
+#include "graphicsitems/pgi_outline.h"
 #include "graphicsitems/pgi_tab.h"
 #include "graphicsitems/pgi_vcut.h"
 
@@ -123,10 +123,8 @@ PanelGraphicsScene::PanelGraphicsScene(
           &PanelGraphicsScene::boardInstanceAdded);
   connect(&mPanel, &Panel::boardInstanceRemoved, this,
           &PanelGraphicsScene::boardInstanceRemoved);
-  connect(&mPanel, &Panel::holeAdded, this,
-          &PanelGraphicsScene::holeAdded);
-  connect(&mPanel, &Panel::holeRemoved, this,
-          &PanelGraphicsScene::holeRemoved);
+  connect(&mPanel, &Panel::holeAdded, this, &PanelGraphicsScene::holeAdded);
+  connect(&mPanel, &Panel::holeRemoved, this, &PanelGraphicsScene::holeRemoved);
   connect(&mPanel, &Panel::fiducialAdded, this,
           &PanelGraphicsScene::fiducialAdded);
   connect(&mPanel, &Panel::fiducialRemoved, this,
@@ -134,8 +132,7 @@ PanelGraphicsScene::PanelGraphicsScene(
   connect(&mPanel, &Panel::tabAdded, this, &PanelGraphicsScene::tabAdded);
   connect(&mPanel, &Panel::tabRemoved, this, &PanelGraphicsScene::tabRemoved);
   connect(&mPanel, &Panel::vCutAdded, this, &PanelGraphicsScene::vCutAdded);
-  connect(&mPanel, &Panel::vCutRemoved, this,
-          &PanelGraphicsScene::vCutRemoved);
+  connect(&mPanel, &Panel::vCutRemoved, this, &PanelGraphicsScene::vCutRemoved);
 }
 
 PanelGraphicsScene::~PanelGraphicsScene() noexcept {
@@ -173,6 +170,10 @@ PanelGraphicsScene::~PanelGraphicsScene() noexcept {
     removeItem(*item);
   }
   mOutlineHighlightItems.clear();
+  for (const auto& item : mSnapGuideItems) {
+    removeItem(*item);
+  }
+  mSnapGuideItems.clear();
   if (mOutlineItem) {
     removeItem(*mOutlineItem);
     mOutlineItem.reset();
@@ -246,8 +247,8 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
 
     // Inverse of the placement transform (translate, rotate, then mirror -
     // see ::librepcb::Transform::map()), giving board-local coordinates.
-    Point boardPos = (scenePos - instance.getPosition())
-                         .rotated(-instance.getRotation());
+    Point boardPos =
+        (scenePos - instance.getPosition()).rotated(-instance.getRotation());
     if (instance.getFlipped()) {
       boardPos.mirror(Qt::Horizontal);
     }
@@ -256,7 +257,8 @@ std::optional<PanelGraphicsScene::BoardEdgeHit>
         BoardEdgeSnap::snap(*outlines, boardPos);
     if (snap && ((!best) || (snap->distance < best->distance))) {
       const Transform transform = instance.getTransform();
-      best = BoardEdgeHit{instance.getUuid(), instance.getBoard(),
+      best = BoardEdgeHit{instance.getUuid(),
+                          instance.getBoard(),
                           snap->position,
                           transform.map(snap->position),
                           transform.mapNonMirrorable(snap->direction),
@@ -286,6 +288,74 @@ void PanelGraphicsScene::clearEdgeHighlights() noexcept {
   }
   foreach (const auto& item, mBoardInstanceItems) {
     if (item) item->clearEdgeHighlights();
+  }
+}
+
+void PanelGraphicsScene::setSnapGuides(
+    const QVector<PanelSnap::Match>& matches) noexcept {
+  // One line per coordinate and axis: several pairs of lines (e.g. with
+  // several boards) can coincide on the same line, and drawing them on top
+  // of each other would make the translucent guide look brighter. Their
+  // spans are merged into one line (also bridging any gap between them).
+  struct Guide {
+    PanelSnap::Axis axis;
+    Length coordinate;
+    Length spanStart;
+    Length spanEnd;
+  };
+  QVector<Guide> guides;
+  for (const PanelSnap::Match& match : matches) {
+    bool merged = false;
+    for (Guide& guide : guides) {
+      if ((guide.axis == match.axis) &&
+          (guide.coordinate == match.coordinate)) {
+        guide.spanStart = qMin(guide.spanStart, match.spanStart);
+        guide.spanEnd = qMax(guide.spanEnd, match.spanEnd);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      guides.append(
+          Guide{match.axis, match.coordinate, match.spanStart, match.spanEnd});
+    }
+  }
+  QVector<BoardEdgeSnap::Segment> segments;
+  for (const Guide& guide : guides) {
+    BoardEdgeSnap::Segment segment{Point(0, 0), Point(0, 0), Angle::deg0()};
+    if (guide.axis == PanelSnap::Axis::X) {
+      segment.start = Point(guide.coordinate, guide.spanStart);
+      segment.end = Point(guide.coordinate, guide.spanEnd);
+    } else {
+      segment.start = Point(guide.spanStart, guide.coordinate);
+      segment.end = Point(guide.spanEnd, guide.coordinate);
+    }
+    segments.append(segment);
+  }
+
+  // Dashed and thin - clearly different from the solid glow of the edge
+  // picker, and not hiding what lies underneath.
+  const QColor& color = mSnapGuideColor;
+  const qreal widthPx = 1;
+  for (int i = 0; i < segments.count(); ++i) {
+    if (static_cast<std::size_t>(i) >= mSnapGuideItems.size()) {
+      std::unique_ptr<PGI_Edge> item(new PGI_Edge(
+          nullptr, std::nullopt, PI_VCut::BoundEdge::None, segments.at(i)));
+      addItem(*item);
+      mSnapGuideItems.push_back(std::move(item));
+    }
+    mSnapGuideItems[i]->setSegment(segments.at(i));
+    mSnapGuideItems[i]->setHighlighted(true, color, Qt::DashLine, widthPx);
+  }
+  for (std::size_t i = static_cast<std::size_t>(segments.count());
+       i < mSnapGuideItems.size(); ++i) {
+    mSnapGuideItems[i]->setHighlighted(false);
+  }
+}
+
+void PanelGraphicsScene::clearSnapGuides() noexcept {
+  for (const auto& item : mSnapGuideItems) {
+    item->setHighlighted(false);
   }
 }
 
@@ -352,8 +422,7 @@ void PanelGraphicsScene::setVCutColors(const QColor& color,
     QColor phantomColor = mVCutColor;
     phantomColor.setAlphaF(phantomColor.alphaF() * 0.6);
     mVCutPhantomItem->setPen(QPen(phantomColor, PGI_VCut::lineWidth().toPx(),
-                                  Qt::SolidLine, Qt::RoundCap,
-                                  Qt::RoundJoin));
+                                  Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
   }
 }
 
@@ -586,8 +655,7 @@ void PanelGraphicsScene::addFiducialItem(
     std::shared_ptr<PI_Fiducial> fiducial) noexcept {
   Q_ASSERT(fiducial);
   Q_ASSERT(!mFiducialItems.contains(fiducial->getUuid()));
-  std::shared_ptr<PGI_Fiducial> item =
-      std::make_shared<PGI_Fiducial>(fiducial);
+  std::shared_ptr<PGI_Fiducial> item = std::make_shared<PGI_Fiducial>(fiducial);
   item->setColors(mFiducialTopColor, mFiducialTopSelectedColor,
                   mFiducialBotColor, mFiducialBotSelectedColor);
   addItem(*item);
@@ -606,20 +674,19 @@ BoardProxy* PanelGraphicsScene::acquireBoardProxy(
   const auto key = std::make_pair(uuid, side);
   auto it = mBoardProxies.find(key);
   if (it == mBoardProxies.end()) {
-    std::unique_ptr<BoardProxy> proxy = std::make_unique<BoardProxy>(
-        board, mLayers, mBoardProxyContext, side);
+    std::unique_ptr<BoardProxy> proxy =
+        std::make_unique<BoardProxy>(board, mLayers, mBoardProxyContext, side);
     // Repaint every placement of this board whenever its live content
     // changes (e.g. edited in its own Board tab) - the hidden scene's own
     // items are what actually changed, not anything in *this* scene, so
     // nothing would otherwise tell Qt these panel items are now dirty.
-    connect(&proxy->getScene(), &QGraphicsScene::changed, this,
-            [this, uuid]() {
-              foreach (const auto& item, mBoardInstanceItems) {
-                if (item && (item->getInstance().getBoard() == uuid)) {
-                  item->update();
-                }
-              }
-            });
+    connect(&proxy->getScene(), &QGraphicsScene::changed, this, [this, uuid]() {
+      foreach (const auto& item, mBoardInstanceItems) {
+        if (item && (item->getInstance().getBoard() == uuid)) {
+          item->update();
+        }
+      }
+    });
     proxy->setMouseBites(mMouseBites.value(uuid));
     it = mBoardProxies.emplace(key, std::move(proxy)).first;
   }
@@ -631,8 +698,8 @@ void PanelGraphicsScene::releaseBoardProxy(BoardProxy* proxy) noexcept {
   if (!proxy) {
     return;
   }
-  const auto key = std::make_pair(proxy->getBoard().getUuid(),
-                                  proxy->getSide());
+  const auto key =
+      std::make_pair(proxy->getBoard().getUuid(), proxy->getSide());
   const int count = mBoardProxyRefCounts[key] - 1;
   if (count <= 0) {
     mBoardProxyRefCounts.erase(key);
@@ -795,8 +862,8 @@ void PanelGraphicsScene::removeVCutItem(const Uuid& uuid) noexcept {
 void PanelGraphicsScene::updateVCutPhantom() noexcept {
   if (!mVCutPhantomItem) return;
   if (mVCutPhantom) {
-    mVCutPhantomItem->setPath(PGI_VCut::buildPathPx(
-        mPanel, mVCutPhantom->first, mVCutPhantom->second));
+    mVCutPhantomItem->setPath(PGI_VCut::buildPathPx(mPanel, mVCutPhantom->first,
+                                                    mVCutPhantom->second));
     mVCutPhantomItem->setVisible(true);
   } else {
     mVCutPhantomItem->setVisible(false);

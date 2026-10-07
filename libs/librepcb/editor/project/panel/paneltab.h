@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was reviewed by Avetos Design on 2026-09-17.
-
 #ifndef LIBREPCB_EDITOR_PANELTAB_H
 #define LIBREPCB_EDITOR_PANELTAB_H
 
@@ -30,8 +27,8 @@
 #include "../../utils/lengtheditcontext.h"
 #include "../../widgets/if_graphicsvieweventhandler.h"
 #include "../board/boardgraphicsscene.h"
-#include "windowtab.h"
 #include "fsm/paneleditorfsmadapter.h"
+#include "windowtab.h"
 
 #include <librepcb/core/project/panel/paneloutlinebuilder.h>
 #include <librepcb/core/types/angle.h>
@@ -159,12 +156,12 @@ public:
   void fsmSetFeatures(Features features) noexcept override;
   void fsmSetViewInfoBoxText(const QString& text) noexcept override;
   bool fsmGetIgnoreLocks() const noexcept override;
+  bool fsmGetSnapEnabled() const noexcept override;
   void fsmToolLeave() noexcept override;
   void fsmToolEnter(PanelEditorState_Select& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddHole& state) noexcept override;
-  void fsmToolEnter(
-      PanelEditorState_AddFiducial& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddTab& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept override;
 
@@ -254,8 +251,8 @@ private:
    *                ::librepcb::PanelOutlineBuilder::buildMouseBites() (or
    *                the equally-named field of
    *                ::librepcb::PanelOutlineBuilder::Result, returned by
-   *                #updateOutlinePreview()'s ::librepcb::PanelOutlineBuilder::build()
-   *                call).
+   *                #updateOutlinePreview()'s
+   *                ::librepcb::PanelOutlineBuilder::build() call).
    */
   void updateMouseBitePlanes(
       const QHash<Uuid, QVector<PanelOutlineBuilder::MouseBite>>&
@@ -366,6 +363,7 @@ private:
   bool mSelectVCut;  ///< Select tool: selection is all V-cuts
   bool mIgnorePlacementLocks;
   bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
+  bool mSnapEnabled;  ///< "Snap" display toggle, see fsmGetSnapEnabled()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
   bool mVCutToolActive;  ///< Whether the Add V-Cut tool is active
   bool mShowOutlinePreview;  ///< "Panel Outline Preview" display toggle

@@ -17,16 +17,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "paneleditorstate.h"
 
 #include "../../../undostack.h"
+#include "../graphicsitems/pgi_boardinstance.h"
 #include "../panelgraphicsscene.h"
 
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
@@ -62,6 +62,60 @@ PositiveLength PanelEditorState::getGridInterval() const noexcept {
     return scene->getGridInterval();
   }
   return PositiveLength(1000000);  // Fallback, should never happen.
+}
+
+bool PanelEditorState::isSnapActive(
+    Qt::KeyboardModifiers modifiers) const noexcept {
+  return mAdapter.fsmGetSnapEnabled() != modifiers.testFlag(Qt::AltModifier);
+}
+
+std::optional<PanelSnap::Bounds> PanelEditorState::calculateBoardBounds(
+    const PI_BoardInstance& instance) noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return std::nullopt;
+  const std::shared_ptr<PGI_BoardInstance> item =
+      scene->getBoardInstanceItem(instance.getUuid());
+  if (!item) return std::nullopt;
+  const std::optional<QVector<Path>>& outlines = item->getOutline();
+  if (!outlines) return std::nullopt;
+  return PanelSnap::calculateBounds(*outlines, instance.getTransform());
+}
+
+QVector<PanelSnap::Target> PanelEditorState::calculateSnapTargets(
+    const QSet<Uuid>& excluded) noexcept {
+  QVector<PanelSnap::Target> targets;
+  for (const PI_BoardInstance& instance : mContext.panel.getBoardInstances()) {
+    if (excluded.contains(instance.getUuid())) continue;
+    if (const auto bounds = calculateBoardBounds(instance)) {
+      targets.append(PanelSnap::Target{*bounds, false});
+    }
+  }
+  targets.append(
+      PanelSnap::Target{PanelSnap::panelBounds(mContext.panel.getWidth(),
+                                               mContext.panel.getHeight()),
+                        true});
+  return targets;
+}
+
+Point PanelEditorState::calculateSnap(const PanelSnap::Bounds& moving,
+                                      const QVector<PanelSnap::Target>& targets,
+                                      const Point& cursorPos) noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if ((!scene) || targets.isEmpty()) {
+    return Point(0, 0);
+  }
+
+  // The default tolerance of fsmCalcPosWithTolerance() is 5 screen pixels
+  // (SlintGraphicsView::calcPosWithTolerance()).
+  const qreal tolerancePx =
+      mAdapter.fsmCalcPosWithTolerance(cursorPos, sSnapTolerancePx / 5)
+          .boundingRect()
+          .width() /
+      2;
+  const PanelSnap::Result result = PanelSnap::snap(
+      moving, targets, UnsignedLength(Length::fromPx(tolerancePx)));
+  scene->setSnapGuides(result.matches);
+  return Point(result.dx, result.dy);
 }
 
 bool PanelEditorState::isVCutOnPanel(bool vertical,

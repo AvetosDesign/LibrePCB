@@ -72,7 +72,7 @@ public:
     Lock = (1 << 7),
     Unlock = (1 << 8),
     EditProperties = (1 << 9),
-    BlockUndoRedo = (1 << 10), /// Undo and redo are not available
+    BlockUndoRedo = (1 << 10),  /// Undo and redo are not available
   };
   Q_DECLARE_FLAGS(Features, Feature)
 
@@ -126,12 +126,20 @@ public:
    */
   virtual bool fsmGetIgnoreLocks() const noexcept = 0;
 
+  /**
+   * @brief Whether smart snapping is enabled
+   *
+   * Backed by the per-client "Snap" toggle button of the panel tab. The
+   * states combine it with the Alt modifier, see
+   * ::librepcb::editor::PanelEditorState::isSnapActive().
+   */
+  virtual bool fsmGetSnapEnabled() const noexcept = 0;
+
   virtual void fsmToolLeave() noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_Select& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddHole& state) noexcept = 0;
-  virtual void fsmToolEnter(
-      PanelEditorState_AddFiducial& state) noexcept = 0;
+  virtual void fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddTab& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept = 0;
 };

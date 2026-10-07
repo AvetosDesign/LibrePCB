@@ -31,6 +31,7 @@
 #include <librepcb/core/geometry/path.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
+#include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
@@ -50,12 +51,12 @@
 namespace librepcb {
 
 class Board;
-class Panel;
 class PI_BoardInstance;
 class PI_Fiducial;
 class PI_Hole;
 class PI_Tab;
 class PI_VCut;
+class Panel;
 class Project;
 
 namespace editor {
@@ -117,15 +118,14 @@ public:
       const Uuid& uuid) const noexcept {
     return mBoardInstanceItems.value(uuid);
   }
-  const QHash<Uuid, std::shared_ptr<PGI_BoardInstance>>&
-      getBoardInstanceItems() const noexcept {
+  const QHash<Uuid, std::shared_ptr<PGI_BoardInstance>>& getBoardInstanceItems()
+      const noexcept {
     return mBoardInstanceItems;
   }
   std::shared_ptr<PGI_Hole> getHoleItem(const Uuid& uuid) const noexcept {
     return mHoleItems.value(uuid);
   }
-  const QHash<Uuid, std::shared_ptr<PGI_Hole>>& getHoleItems()
-      const noexcept {
+  const QHash<Uuid, std::shared_ptr<PGI_Hole>>& getHoleItems() const noexcept {
     return mHoleItems;
   }
   std::shared_ptr<PGI_Fiducial> getFiducialItem(
@@ -149,8 +149,7 @@ public:
   std::shared_ptr<PGI_VCut> getVCutItem(const Uuid& uuid) const noexcept {
     return mVCutItems.value(uuid);
   }
-  const QHash<Uuid, std::shared_ptr<PGI_VCut>>& getVCutItems()
-      const noexcept {
+  const QHash<Uuid, std::shared_ptr<PGI_VCut>>& getVCutItems() const noexcept {
     return mVCutItems;
   }
 
@@ -240,9 +239,41 @@ public:
   const QColor& getEdgeGlowColor() const noexcept { return mEdgeGlowColor; }
 
   /**
+   * @brief Set the color of the smart snap guide lines
+   *
+   * Applied the next time #setSnapGuides() is called (the guides only exist
+   * while dragging, so there is nothing to update).
+   *
+   * @param color   The line color, including its alpha.
+   */
+  void setSnapGuideColor(const QColor& color) noexcept {
+    mSnapGuideColor = color;
+  }
+
+  /**
    * @brief Remove the highlight (glow) from all edge items
    */
   void clearEdgeHighlights() noexcept;
+
+  /**
+   * @brief Show the guide lines of a smart snap
+   *
+   * One line per coordinate and axis of @p matches (see
+   * ::librepcb::PanelSnap::Match; matches on the same line are merged into
+   * one, so translucent guides never stack), drawn thin and dashed in
+   * #setSnapGuideColor()'s color (so they can't be mistaken for the solid
+   * glow of the edge picker, see #getEdgeGlowColor()). Replaces the guides
+   * shown so far. Meant to be called on every step of a drag, so the items
+   * are re-used.
+   *
+   * @param matches   Lines which coincide after the snap correction.
+   */
+  void setSnapGuides(const QVector<PanelSnap::Match>& matches) noexcept;
+
+  /**
+   * @brief Hide all smart snap guide lines, see #setSnapGuides()
+   */
+  void clearSnapGuides() noexcept;
 
   /**
    * @brief Set the colors applied to every hole item
@@ -250,8 +281,7 @@ public:
    * @param color          Forwarded to `PGI_Hole::setColors()`.
    * @param selectedColor  Forwarded to `PGI_Hole::setColors()`.
    */
-  void setHoleColors(const QColor& color,
-                     const QColor& selectedColor) noexcept;
+  void setHoleColors(const QColor& color, const QColor& selectedColor) noexcept;
 
   /**
    * @brief Set the colors applied to every fiducial item
@@ -264,8 +294,7 @@ public:
    * @param botColor            Forwarded to `PGI_Fiducial::setColors()`.
    * @param botSelectedColor    Forwarded to `PGI_Fiducial::setColors()`.
    */
-  void setFiducialColors(const QColor& topColor,
-                         const QColor& topSelectedColor,
+  void setFiducialColors(const QColor& topColor, const QColor& topSelectedColor,
                          const QColor& botColor,
                          const QColor& botSelectedColor) noexcept;
 
@@ -316,8 +345,7 @@ public:
    *                       phantom uses it at reduced alpha.
    * @param selectedColor  Forwarded to `PGI_VCut::setColors()`.
    */
-  void setVCutColors(const QColor& color,
-                     const QColor& selectedColor) noexcept;
+  void setVCutColors(const QColor& color, const QColor& selectedColor) noexcept;
 
   /**
    * @brief Show the "phantom" V-cut line
@@ -360,8 +388,7 @@ public:
    * @param outlines  The calculated outline rings (even-odd), or
    *                  `std::nullopt` to hide the preview.
    */
-  void setOutlinePreview(
-      const std::optional<QVector<Path>>& outlines) noexcept;
+  void setOutlinePreview(const std::optional<QVector<Path>>& outlines) noexcept;
 
   /**
    * @brief Set the color of the panel outline preview
@@ -420,8 +447,7 @@ public:
    * looseness about public API scope for its own tightly-coupled
    * PGI_* item collaborators (e.g. #setBoardInstanceColors()).
    */
-  BoardProxy* acquireBoardProxy(Board& board,
-                                BoardProxy::Side side) noexcept;
+  BoardProxy* acquireBoardProxy(Board& board, BoardProxy::Side side) noexcept;
 
   /**
    * @brief Release a previously-#acquireBoardProxy()'d BoardProxy
@@ -516,6 +542,9 @@ private:  // Data
   /// Highlight items for the four edges of the panel. See
   /// #updateOutlineHighlightItems().
   std::vector<std::unique_ptr<PGI_Edge>> mOutlineHighlightItems;
+  /// Pool of items for the smart snap guides, see #setSnapGuides(). Items
+  /// beyond the number of current guides are just not highlighted.
+  std::vector<std::unique_ptr<PGI_Edge>> mSnapGuideItems;
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
@@ -523,6 +552,7 @@ private:  // Data
   QHash<Uuid, std::shared_ptr<PGI_VCut>> mVCutItems;
 
   QColor mEdgeGlowColor{Qt::white};  ///< See #setEdgeGlowColor()
+  QColor mSnapGuideColor{255, 255, 0, 160};  ///< See #setSnapGuideColor()
 
   // Cached for #addBoardInstanceItem() - see #setBoardInstanceColors().
   QColor mBoardInstanceColor;

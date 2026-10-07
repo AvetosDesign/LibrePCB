@@ -1,6 +1,3 @@
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// Modifications were last reviewed by a human on 2026-09-17.
-
 ////////////////////////////////////////////////////////////////////////////////
 // General
 ////////////////////////////////////////////////////////////////////////////////
@@ -1470,6 +1467,10 @@ export struct PanelTabData {
     // Whether the calculated panel outline (tool paths/cutouts) is shown,
     // replacing the panel rectangle and the boards' own outlines.
     show-outline-preview: bool,
+
+    // Whether smart snapping (to other boards and the panel) is enabled.
+    // Holding Alt while dragging/placing temporarily inverts it.
+    snap-enabled: bool,
 
     // Write-only: setting this to a valid index into the project's boards
     // triggers placing that board onto the panel, then C++ resets it back
