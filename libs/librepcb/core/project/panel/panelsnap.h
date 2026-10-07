@@ -23,14 +23,10 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../geometry/path.h"
 #include "../../types/length.h"
 #include "../../types/point.h"
-#include "../../utils/transform.h"
 
 #include <QtCore>
-
-#include <optional>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -42,37 +38,32 @@ namespace librepcb {
  ******************************************************************************/
 
 /**
- * @brief Smart snap calculation for dragging boards on a panel
+ * @brief Smart-snap calculation for placing boards on a panel
  *
- * Pure geometry, no UI: given the bounding box of the group being dragged
- * (the "moving" bounds) and the bounding boxes of everything it may snap to
- * (the "targets"), #snap() finds the
- * correction that lines up one of the moving group's lines with one of the
- * targets' lines, if one is within the tolerance.
+ * Pure geometry, no UI: given the bounding box of the group being moved (the
+ * "moving" bounds) and the bounding boxes of everything it may snap to (the
+ * "targets"), #snap() finds the correction which lines up one of the moving
+ * group's lines with one of the target lines, if one is within the tolerance.
  *
- * Each box has three lines per axis: Left, Center and Right (the X
- * coordinates) and Top, Middle and Bottom (the Y coordinates, Y pointing
- * up, so Top is the larger value). Only the lines of the moving group as a
- * whole are used as sources.
+ * Each box has three lines per axis: Left, Center and Right (X coordinates,
+ * vertical lines) and Top, Middle and Bottom (Y coordinates, horizontal
+ * lines; Y points up, so Top is the larger value). Only the lines of the
+ * moving group as a whole are used, not those of its individual boards.
  *
- * Which source line may snap to which target line:
- *   - The same kind always (Left-Left, Center-Center, Right-Right,
- *     Top-Top, Middle-Middle, Bottom-Bottom).
- *   - To a *board* target also the opposite edge, to butt two boards flush
- *     (Left-Right, Right-Left, Top-Bottom, Bottom-Top).
+ * Which line may snap to which:
+ *   - The same kind always (Left-Left, Center-Center, ...).
+ *   - To a *board* also the opposite edge, to butt two boards flush (Left-
+ *     Right, Right-Left, Top-Bottom, Bottom-Top).
  *   - Never a center to an edge, and never an opposite edge to the panel
  *     (the board would end up outside the panel).
  *
- * Both axes are resolved independently. On each axis the candidate with the
- * smallest distance within the tolerance wins. At equal distance a panel
- * target wins over a board target. Otherwise the first one in the order
- * of the targets wins.
+ * Both axes are resolved independently: on each axis the pair with the
+ * smallest distance within the tolerance wins (the first target on a tie).
  *
  * All arithmetic is done on integer nanometers, so after applying the
- * correction the snapped lines coincide exactly. The only inexact values
- * are the centers/middles of boxes with an odd nanometer extent (rounded
- * toward zero), and the extreme points of curved outlines (see
- * #calculateBounds()).
+ * correction the snapped lines coincide exactly (except for the center
+ * lines of boxes with an odd nanometer extent, which are rounded toward
+ * zero).
  */
 class PanelSnap final {
 public:
@@ -80,16 +71,6 @@ public:
   enum class Axis {
     X,  ///< The Left, Center and Right lines (vertical lines)
     Y,  ///< The Top, Middle and Bottom lines (horizontal lines)
-  };
-
-  /// One of the six lines of a #Bounds
-  enum class Line {
-    Left,
-    Center,
-    Right,
-    Top,
-    Middle,
-    Bottom,
   };
 
   /**
@@ -106,9 +87,6 @@ public:
 
     /// Y coordinate of the Middle line
     Length getMiddle() const noexcept;
-
-    /// Coordinate of the given line (X for Left/Center/Right, Y otherwise)
-    Length getCoordinate(Line line) const noexcept;
 
     /// A copy moved by @p delta
     Bounds translated(const Point& delta) const noexcept;
@@ -128,19 +106,14 @@ public:
   };
 
   /**
-   * @brief One pair of lines which coincide after the correction
+   * @brief A guide line to show for a snap
    *
-   * Everything needed to draw a guide: a line along #axis' lines at
-   * #coordinate, spanning #spanStart to #spanEnd measured along the other
-   * axis (Y for Axis::X, X for Axis::Y), covering both the corrected moving
-   * bounds and the target.
+   * A line along the #axis' lines at #coordinate, spanning #spanStart to
+   * #spanEnd measured along the other axis (Y for Axis::X, X for Axis::Y).
    */
-  struct Match {
+  struct Guide {
     Axis axis;
-    Length coordinate;  ///< Of the coinciding lines, after the correction
-    Line source;  ///< Line of the moving bounds
-    Line target;  ///< Line of the target
-    int targetIndex;  ///< Index into the targets passed to #snap()
+    Length coordinate;
     Length spanStart;
     Length spanEnd;
   };
@@ -148,38 +121,21 @@ public:
   /**
    * @brief The result of #snap()
    *
-   * #dx and #dy are the corrections to add to the moving group's position.
-   * #matches lists, for each snapped axis, *every* pair of lines which coincide
-   * after that axis' correction (so the guides show all boards the group lines
-   * up with), including when the correction is zero because the group was
-   * already aligned. An axis without a match has no entry.
+   * #dx and #dy are the corrections to add to the moving group's position
+   * (zero on an axis where nothing was in reach). #guides has one entry per
+   * line the group coincides with after the correction (also if the
+   * correction is zero because it was already aligned), with the span
+   * covering the group and every target which has a line there.
    */
   struct Result {
     Length dx;
     Length dy;
-    QVector<Match> matches;
+    QVector<Guide> guides;
   };
 
   PanelSnap() = delete;
   PanelSnap(const PanelSnap& other) = delete;
   ~PanelSnap() = delete;
-
-  /**
-   * @brief Calculate the bounds of a placed board outline
-   *
-   * @param outlines    Outline paths in the board's own coordinates (as
-   *                    returned by ::librepcb::Board::calculateOutlinePath()
-   *                    or ::librepcb::editor::BoardProxy::getOutline()).
-   * @param transform   The placement, see
-   *                    ::librepcb::PI_BoardInstance::getTransform().
-   *
-   * @return Bounds in panel coordinates, or `std::nullopt` if there is no
-   *         path with at least two vertices. Arcs are flattened to 1 um, so
-   *         the extreme points of curved outlines can be up to 1 um too
-   *         small (the bounds never overshoot); straight outlines are exact.
-   */
-  static std::optional<Bounds> calculateBounds(
-      const QVector<Path>& outlines, const Transform& transform) noexcept;
 
   /**
    * @brief Get the bounds of a panel (anchored at the origin)
@@ -195,7 +151,7 @@ public:
    * @param tolerance   Maximum distance between two lines to snap
    *                    (inclusive).
    *
-   * @return Corrections and matches, see ::librepcb::PanelSnap::Result.
+   * @return Corrections and guides, see ::librepcb::PanelSnap::Result.
    */
   static Result snap(const Bounds& moving, const QVector<Target>& targets,
                      const UnsignedLength& tolerance) noexcept;

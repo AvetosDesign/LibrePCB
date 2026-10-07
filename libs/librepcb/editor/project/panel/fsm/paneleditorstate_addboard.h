@@ -108,17 +108,15 @@ private:
   /**
    * @brief Apply the smart snap to a placement position
    *
-   * @param pos     The grid-snapped cursor position.
-   * @param active  Whether snapping applies (see #isSnapActive()).
+   * @param pos        The grid-snapped cursor position.
+   * @param modifiers  The current keyboard modifiers (Alt bypasses).
    *
    * @return @p pos, adjusted so the current placement's bounds line up with
    *         another board or the panel, if one is within the tolerance.
    *         Also shows or hides the guide lines.
    */
-  Point snapPosition(const Point& pos, bool active) noexcept;
-
-  /// Hide the smart snap guide lines
-  void clearSnapGuides() noexcept;
+  Point snapPosition(const Point& pos,
+                     Qt::KeyboardModifiers modifiers) noexcept;
 
   // State
   bool mIsUndoCmdActive;
@@ -131,10 +129,6 @@ private:
   // mIsUndoCmdActive == true.
   std::shared_ptr<PI_BoardInstance> mCurrentInstance;
   std::unique_ptr<CmdPanelBoardInstanceEdit> mCurrentInstanceEditCmd;
-
-  /// What the current placement can snap to (every other placed board and
-  /// the panel). Only valid if mIsUndoCmdActive == true.
-  QVector<PanelSnap::Target> mSnapTargets;
 };
 
 /*******************************************************************************

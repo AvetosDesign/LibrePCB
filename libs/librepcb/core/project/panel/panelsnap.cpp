@@ -25,6 +25,7 @@
 #include <QtCore>
 
 #include <array>
+#include <optional>
 
 /*******************************************************************************
  *  Namespace
@@ -37,95 +38,92 @@ namespace {
  *  Helpers
  ******************************************************************************/
 
-// The lines of one axis, in the order Left, Center, Right / Top, Middle,
-// Bottom - also the order used for the tie-break of equal candidates.
-constexpr std::array<PanelSnap::Line, 3> sLinesX = {
-    PanelSnap::Line::Left, PanelSnap::Line::Center, PanelSnap::Line::Right};
-constexpr std::array<PanelSnap::Line, 3> sLinesY = {
-    PanelSnap::Line::Top, PanelSnap::Line::Middle, PanelSnap::Line::Bottom};
+// The three lines of one axis, in the order Left, Center, Right (X) or Top,
+// Middle, Bottom (Y). Index 1 is the center, 0 and 2 are the opposite edges.
+using Lines = std::array<Length, 3>;
+using LinesGetter = Lines (*)(const PanelSnap::Bounds&);
 
-// The line on the other side of the box, e.g. Left <-> Right. Centers have
-// no opposite and map to themselves.
-PanelSnap::Line opposite(PanelSnap::Line line) noexcept {
-  switch (line) {
-    case PanelSnap::Line::Left:
-      return PanelSnap::Line::Right;
-    case PanelSnap::Line::Right:
-      return PanelSnap::Line::Left;
-    case PanelSnap::Line::Top:
-      return PanelSnap::Line::Bottom;
-    case PanelSnap::Line::Bottom:
-      return PanelSnap::Line::Top;
-    default:
-      return line;
-  }
+Lines linesX(const PanelSnap::Bounds& b) noexcept {
+  return {{b.left, b.getCenter(), b.right}};
 }
 
-bool isCenter(PanelSnap::Line line) noexcept {
-  return (line == PanelSnap::Line::Center) || (line == PanelSnap::Line::Middle);
+Lines linesY(const PanelSnap::Bounds& b) noexcept {
+  return {{b.top, b.getMiddle(), b.bottom}};
 }
 
-// Whether a source line of the moving bounds may snap to a target line.
-// See the class description of PanelSnap for the rules.
-bool isPairAllowed(PanelSnap::Line source, PanelSnap::Line target,
-                   bool targetIsPanel) noexcept {
+// Whether line #source of the moving bounds may snap to line #target of a
+// target: the same kind always, to a board also the opposite edge (but never
+// a center to an edge).
+bool isPairAllowed(int source, int target, bool targetIsPanel) noexcept {
   if (source == target) {
-    return true;  // Same kind.
+    return true;
   }
-  if (targetIsPanel || isCenter(source) || isCenter(target)) {
-    return false;
-  }
-  return target == opposite(source);  // Butt two boards flush.
+  return (!targetIsPanel) && (source != 1) && (target != 1);
 }
 
-struct Candidate {
-  Length shift;  // What has to be added to the moving bounds.
-  PanelSnap::Line source;
-  PanelSnap::Line target;
-  int targetIndex;
-  bool isPanel;
-};
+// The correction of one axis: the smallest distance within the tolerance
+// (the first one found on a tie), or zero if nothing is in reach.
+Length findShift(LinesGetter lines, const PanelSnap::Bounds& moving,
+                 const QVector<PanelSnap::Target>& targets,
+                 int64_t toleranceNm) noexcept {
+  const Lines m = lines(moving);
+  std::optional<int64_t> best;
+  for (const PanelSnap::Target& target : targets) {
+    const Lines t = lines(target.bounds);
+    for (int s = 0; s < 3; ++s) {
+      for (int i = 0; i < 3; ++i) {
+        if (!isPairAllowed(s, i, target.isPanel)) {
+          continue;
+        }
+        const int64_t shift = t[i].toNm() - m[s].toNm();
+        if ((qAbs(shift) <= toleranceNm) &&
+            ((!best) || (qAbs(shift) < qAbs(*best)))) {
+          best = shift;
+        }
+      }
+    }
+  }
+  return Length(best.value_or(0));
+}
 
-// Finds the best candidate of one axis, or std::nullopt if none is within
-// the tolerance. Also returns all candidates having the same shift.
-std::optional<Candidate> findBest(const std::array<PanelSnap::Line, 3>& lines,
-                                  const PanelSnap::Bounds& moving,
-                                  const QVector<PanelSnap::Target>& targets,
-                                  int64_t toleranceNm,
-                                  QVector<Candidate>& equivalents) noexcept {
-  QVector<Candidate> all;
-  std::optional<Candidate> best;
-  for (int i = 0; i < targets.count(); ++i) {
-    const PanelSnap::Target& target = targets.at(i);
-    for (PanelSnap::Line t : lines) {
-      for (PanelSnap::Line s : lines) {
-        if (!isPairAllowed(s, t, target.isPanel)) {
+// Adds a guide for every pair of lines of one axis which coincide, merging
+// the guides on the same line (so a line shared by several boards is a
+// single guide).
+void addGuides(PanelSnap::Axis axis, LinesGetter lines,
+               const PanelSnap::Bounds& moving,
+               const QVector<PanelSnap::Target>& targets,
+               QVector<PanelSnap::Guide>& guides) noexcept {
+  const Lines m = lines(moving);
+  for (const PanelSnap::Target& target : targets) {
+    const PanelSnap::Bounds& tb = target.bounds;
+    const Lines t = lines(tb);
+    // The extent along the other axis, covering both boxes.
+    const Length start = (axis == PanelSnap::Axis::X)
+        ? qMin(moving.bottom, tb.bottom)
+        : qMin(moving.left, tb.left);
+    const Length end = (axis == PanelSnap::Axis::X)
+        ? qMax(moving.top, tb.top)
+        : qMax(moving.right, tb.right);
+    for (int s = 0; s < 3; ++s) {
+      for (int i = 0; i < 3; ++i) {
+        if ((!isPairAllowed(s, i, target.isPanel)) || (m[s] != t[i])) {
           continue;
         }
-        const Length shift =
-            target.bounds.getCoordinate(t) - moving.getCoordinate(s);
-        if (qAbs(shift.toNm()) > toleranceNm) {
-          continue;
+        bool merged = false;
+        for (PanelSnap::Guide& guide : guides) {
+          if ((guide.axis == axis) && (guide.coordinate == t[i])) {
+            guide.spanStart = qMin(guide.spanStart, start);
+            guide.spanEnd = qMax(guide.spanEnd, end);
+            merged = true;
+            break;
+          }
         }
-        const Candidate candidate{shift, s, t, i, target.isPanel};
-        all.append(candidate);
-        if ((!best) || (qAbs(shift.toNm()) < qAbs(best->shift.toNm())) ||
-            ((qAbs(shift.toNm()) == qAbs(best->shift.toNm())) &&
-             candidate.isPanel && (!best->isPanel))) {
-          best = candidate;
+        if (!merged) {
+          guides.append(PanelSnap::Guide{axis, t[i], start, end});
         }
       }
     }
   }
-  equivalents.clear();
-  if (best) {
-    for (const Candidate& candidate : all) {
-      if (candidate.shift == best->shift) {
-        equivalents.append(candidate);
-      }
-    }
-  }
-  return best;
 }
 
 }  // namespace
@@ -142,28 +140,10 @@ Length PanelSnap::Bounds::getMiddle() const noexcept {
   return Length((top.toNm() + bottom.toNm()) / 2);
 }
 
-Length PanelSnap::Bounds::getCoordinate(Line line) const noexcept {
-  switch (line) {
-    case Line::Left:
-      return left;
-    case Line::Center:
-      return getCenter();
-    case Line::Right:
-      return right;
-    case Line::Top:
-      return top;
-    case Line::Middle:
-      return getMiddle();
-    case Line::Bottom:
-      return bottom;
-  }
-  return Length(0);  // Can't happen.
-}
-
 PanelSnap::Bounds PanelSnap::Bounds::translated(
     const Point& delta) const noexcept {
-  return Bounds{left + delta.getX(), right + delta.getX(), top + delta.getY(),
-                bottom + delta.getY()};
+  return Bounds{left + delta.getX(), right + delta.getX(),
+                top + delta.getY(), bottom + delta.getY()};
 }
 
 bool PanelSnap::Bounds::operator==(const Bounds& rhs) const noexcept {
@@ -175,30 +155,6 @@ bool PanelSnap::Bounds::operator==(const Bounds& rhs) const noexcept {
  *  Static Methods
  ******************************************************************************/
 
-std::optional<PanelSnap::Bounds> PanelSnap::calculateBounds(
-    const QVector<Path>& outlines, const Transform& transform) noexcept {
-  std::optional<Bounds> result;
-  for (const Path& outline : outlines) {
-    if (outline.getVertices().count() < 2) {
-      continue;
-    }
-    const Path path =
-        transform.map(outline).flattenedArcs(PositiveLength(1000));  // 1um
-    for (const Vertex& vertex : path.getVertices()) {
-      const Point& p = vertex.getPos();
-      if (!result) {
-        result = Bounds{p.getX(), p.getX(), p.getY(), p.getY()};
-      } else {
-        result->left = qMin(result->left, p.getX());
-        result->right = qMax(result->right, p.getX());
-        result->top = qMax(result->top, p.getY());
-        result->bottom = qMin(result->bottom, p.getY());
-      }
-    }
-  }
-  return result;
-}
-
 PanelSnap::Bounds PanelSnap::panelBounds(
     const PositiveLength& width, const PositiveLength& height) noexcept {
   return Bounds{Length(0), *width, *height, Length(0)};
@@ -207,42 +163,15 @@ PanelSnap::Bounds PanelSnap::panelBounds(
 PanelSnap::Result PanelSnap::snap(const Bounds& moving,
                                   const QVector<Target>& targets,
                                   const UnsignedLength& tolerance) noexcept {
-  const int64_t toleranceNm = tolerance->toNm();
-  QVector<Candidate> equivalentsX;
-  QVector<Candidate> equivalentsY;
-  const std::optional<Candidate> bestX =
-      findBest(sLinesX, moving, targets, toleranceNm, equivalentsX);
-  const std::optional<Candidate> bestY =
-      findBest(sLinesY, moving, targets, toleranceNm, equivalentsY);
-
   Result result;
-  result.dx = bestX ? bestX->shift : Length(0);
-  result.dy = bestY ? bestY->shift : Length(0);
+  result.dx = findShift(linesX, moving, targets, tolerance->toNm());
+  result.dy = findShift(linesY, moving, targets, tolerance->toNm());
 
-  // The matches (and their guide extents) are measured on the moving bounds
-  // with both corrections applied.
+  // After the correction, the snapped lines coincide - and only those, so
+  // every coinciding pair gets a guide (also if nothing had to be moved).
   const Bounds corrected = moving.translated(Point(result.dx, result.dy));
-  auto addMatches = [&](Axis axis, const QVector<Candidate>& candidates) {
-    for (const Candidate& c : candidates) {
-      const Bounds& t = targets.at(c.targetIndex).bounds;
-      Match match;
-      match.axis = axis;
-      match.coordinate = t.getCoordinate(c.target);
-      match.source = c.source;
-      match.target = c.target;
-      match.targetIndex = c.targetIndex;
-      if (axis == Axis::X) {
-        match.spanStart = qMin(corrected.bottom, t.bottom);
-        match.spanEnd = qMax(corrected.top, t.top);
-      } else {
-        match.spanStart = qMin(corrected.left, t.left);
-        match.spanEnd = qMax(corrected.right, t.right);
-      }
-      result.matches.append(match);
-    }
-  };
-  addMatches(Axis::X, equivalentsX);
-  addMatches(Axis::Y, equivalentsY);
+  addGuides(Axis::X, linesX, corrected, targets, result.guides);
+  addGuides(Axis::Y, linesY, corrected, targets, result.guides);
   return result;
 }
 

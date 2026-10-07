@@ -141,10 +141,13 @@ Point PGI_BoardInstance::getCenter() const noexcept {
   return Point::fromPx(mapToScene(mOutlinePath.boundingRect().center()));
 }
 
-const std::optional<QVector<Path>>& PGI_BoardInstance::getOutline()
-    const noexcept {
-  static const std::optional<QVector<Path>> none;
-  return mBoardProxy ? mBoardProxy->getOutline() : none;
+PanelSnap::Bounds PGI_BoardInstance::getBounds() const noexcept {
+  // The scene's Y axis points down, the panel's up (like Point::fromPx()),
+  // so the rectangle's smaller Y is the top.
+  const QRectF rect = mapToScene(mOutlinePath).boundingRect();
+  return PanelSnap::Bounds{
+      Length::fromPx(rect.left()), Length::fromPx(rect.right()),
+      Length::fromPx(-rect.top()), Length::fromPx(-rect.bottom())};
 }
 
 /*******************************************************************************

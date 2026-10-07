@@ -258,17 +258,13 @@ public:
   /**
    * @brief Show the guide lines of a smart snap
    *
-   * One line per coordinate and axis of @p matches (see
-   * ::librepcb::PanelSnap::Match; matches on the same line are merged into
-   * one, so translucent guides never stack), drawn thin and dashed in
-   * #setSnapGuideColor()'s color (so they can't be mistaken for the solid
-   * glow of the edge picker, see #getEdgeGlowColor()). Replaces the guides
-   * shown so far. Meant to be called on every step of a drag, so the items
-   * are re-used.
+   * One thin, dashed line per guide, in #setSnapGuideColor()'s color.
+   * Replaces the guides shown so far. This is meant to be called on every
+   * step of a drag, so the items are re-used.
    *
-   * @param matches   Lines which coincide after the snap correction.
+   * @param guides  See ::librepcb::PanelSnap::Result.
    */
-  void setSnapGuides(const QVector<PanelSnap::Match>& matches) noexcept;
+  void setSnapGuides(const QVector<PanelSnap::Guide>& guides) noexcept;
 
   /**
    * @brief Hide all smart snap guide lines, see #setSnapGuides()
@@ -543,8 +539,8 @@ private:  // Data
   /// #updateOutlineHighlightItems().
   std::vector<std::unique_ptr<PGI_Edge>> mOutlineHighlightItems;
   /// Pool of items for the smart snap guides, see #setSnapGuides(). Items
-  /// beyond the number of current guides are just not highlighted.
-  std::vector<std::unique_ptr<PGI_Edge>> mSnapGuideItems;
+  /// beyond the number of current guides are just hidden.
+  std::vector<std::unique_ptr<QGraphicsLineItem>> mSnapGuideItems;
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
