@@ -52,9 +52,8 @@ class ProjectEditor;
  *
  * Non-UI editor-side counterpart of ::librepcb::Panel, analogous to
  * ::librepcb::editor::SchematicEditor and ::librepcb::editor::BoardEditor.
- * This first version intentionally has none of BoardEditor's DRC/planes/
- * order-PCB machinery yet.  Those only make sense once the panel has real
- * manufacturing content. It exists mainly to give ::librepcb::editor::PanelTab
+ * It intentionally has none of BoardEditor's DRC/planes/order-PCB
+ * machinery. It exists mainly to give ::librepcb::editor::PanelTab
  * something to be constructed from, the same way every other tab type is.
  */
 class PanelEditor final : public QObject {
@@ -85,11 +84,8 @@ public:
    *
    * Mirrors ::librepcb::editor::BoardEditor::execBoardSetupDialog(): a
    * blocking, modal `QDialog` (::librepcb::editor::PanelSetupDialog) the
-   * user can Apply/OK/Cancel out of. For now it only exposes the panel's
-   * name (applied via a new ::librepcb::editor::CmdPanelEdit undo command)
-   * plus placeholder width/height fields that display the panel's current
-   * outline size but aren't wired up to actually change it yet - see
-   * claude/librepcb_panelization_tool_addboard_slice.md.
+   * user can Apply/OK/Cancel out of. The settings are applied through a
+   * single ::librepcb::editor::CmdPanelEdit undo command.
    */
   void execPanelSetupDialog() noexcept;
 

@@ -99,24 +99,102 @@ Point PanelEditorState::calculateSnap(
     const PanelSnap::Bounds& moving, const Point& cursorPos,
     Qt::KeyboardModifiers modifiers) noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
-  const bool active =
-      mAdapter.fsmGetSnapEnabled() != modifiers.testFlag(Qt::AltModifier);
-  if ((!scene) || (!active)) {
+  if ((!scene) || (!isSnapActive(modifiers))) {
     clearSnapGuides();
     return Point(0, 0);
   }
 
-  // The default tolerance of fsmCalcPosWithTolerance() is 5 screen pixels
-  // (SlintGraphicsView::calcPosWithTolerance()).
-  const qreal tolerancePx =
-      mAdapter.fsmCalcPosWithTolerance(cursorPos, sSnapTolerancePx / 5)
-          .boundingRect()
-          .width() /
-      2;
-  const PanelSnap::Result result = PanelSnap::snap(
-      moving, mSnapTargets, UnsignedLength(Length::fromPx(tolerancePx)));
+  // Only the kinds of targets which are enabled.
+  const bool snapBoards = mAdapter.fsmGetSnapBoardsEnabled();
+  const bool snapPanel = mAdapter.fsmGetSnapPanelEnabled();
+  QVector<PanelSnap::Target> targets;
+  for (const PanelSnap::Target& target : mSnapTargets) {
+    if (target.isPanel ? snapPanel : snapBoards) {
+      targets.append(target);
+    }
+  }
+
+  const PanelSnap::Result result =
+      PanelSnap::snap(moving, targets, calculateSnapTolerance(cursorPos));
   scene->setSnapGuides(result.guides);
   return Point(result.dx, result.dy);
+}
+
+PanelEditorState::VCutSnap PanelEditorState::calculateVCutSnap(
+    bool vertical, const Length& position, const Point& cursorPos,
+    Qt::KeyboardModifiers modifiers) noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if ((!scene) || (!isSnapActive(modifiers))) {
+    clearSnapGuides();
+    return VCutSnap{Length(0), PI_VCut::BoundEdge::None};
+  }
+
+  // The tags of the targets are the bound edge they stand for, so the one
+  // of the winning target can be reported back (None for a board).
+  const auto tagOf = [](PI_VCut::BoundEdge edge) {
+    return static_cast<int>(edge);
+  };
+  const Length offset = mAdapter.fsmGetVCutSnapOffset();
+  const Length panelWidth = *mContext.panel.getWidth();
+  const Length panelHeight = *mContext.panel.getHeight();
+  QVector<PanelSnap::EdgeTarget> targets;
+  const auto addTarget = [&targets](const Length& coordinate,
+                                    const Length& spanStart,
+                                    const Length& spanEnd, int tag) {
+    targets.append(PanelSnap::EdgeTarget{coordinate, spanStart, spanEnd, tag});
+  };
+  const int boardTag = tagOf(PI_VCut::BoundEdge::None);
+
+  // The sides of every board, away from the board for a positive offset.
+  const bool snapBoards = mAdapter.fsmGetSnapBoardsEnabled();
+  const bool snapPanel = mAdapter.fsmGetSnapPanelEnabled();
+  for (const PI_BoardInstance& instance : mContext.panel.getBoardInstances()) {
+    if (!snapBoards) break;
+    if (const auto b = calculateBoardBounds(instance)) {
+      if (vertical) {
+        addTarget(b->left - offset, b->bottom, b->top, boardTag);
+        addTarget(b->right + offset, b->bottom, b->top, boardTag);
+      } else {
+        addTarget(b->bottom - offset, b->left, b->right, boardTag);
+        addTarget(b->top + offset, b->left, b->right, boardTag);
+      }
+    }
+  }
+
+  // The panel edges, always inward.
+  const auto addPanelTarget = [&](const Length& coordinate,
+                                  const Length& spanEnd,
+                                  PI_VCut::BoundEdge edge) {
+    if (snapPanel && isVCutOnPanel(vertical, coordinate)) {
+      addTarget(coordinate, Length(0), spanEnd, tagOf(edge));
+    }
+  };
+  if (vertical) {
+    addPanelTarget(offset, panelHeight, PI_VCut::BoundEdge::PanelLeft);
+    addPanelTarget(panelWidth - offset, panelHeight,
+                   PI_VCut::BoundEdge::PanelRight);
+  } else {
+    addPanelTarget(offset, panelWidth, PI_VCut::BoundEdge::PanelBottom);
+    addPanelTarget(panelHeight - offset, panelWidth,
+                   PI_VCut::BoundEdge::PanelTop);
+  }
+
+  const PanelSnap::LineResult result = PanelSnap::snapLine(
+      vertical ? PanelSnap::Axis::X : PanelSnap::Axis::Y, position, targets,
+      calculateSnapTolerance(cursorPos));
+  scene->setSnapGuides(result.guides);
+
+  // A panel edge wins over a board edge on the same line.
+  PI_VCut::BoundEdge panelEdge = PI_VCut::BoundEdge::None;
+  for (const PI_VCut::BoundEdge edge :
+       {PI_VCut::BoundEdge::PanelLeft, PI_VCut::BoundEdge::PanelRight,
+        PI_VCut::BoundEdge::PanelTop, PI_VCut::BoundEdge::PanelBottom}) {
+    if (result.tags.contains(tagOf(edge))) {
+      panelEdge = edge;
+      break;
+    }
+  }
+  return VCutSnap{result.shift, panelEdge};
 }
 
 void PanelEditorState::clearSnapGuides() noexcept {
@@ -128,6 +206,23 @@ void PanelEditorState::clearSnapGuides() noexcept {
 void PanelEditorState::endSnap() noexcept {
   mSnapTargets.clear();
   clearSnapGuides();
+}
+
+bool PanelEditorState::isSnapActive(
+    Qt::KeyboardModifiers modifiers) const noexcept {
+  return !modifiers.testFlag(Qt::AltModifier);
+}
+
+UnsignedLength PanelEditorState::calculateSnapTolerance(
+    const Point& cursorPos) noexcept {
+  // The default tolerance of fsmCalcPosWithTolerance() is 5 screen pixels
+  // (SlintGraphicsView::calcPosWithTolerance()).
+  const qreal tolerancePx =
+      mAdapter.fsmCalcPosWithTolerance(cursorPos, sSnapTolerancePx / 5)
+          .boundingRect()
+          .width() /
+      2;
+  return UnsignedLength(Length::fromPx(tolerancePx));
 }
 
 bool PanelEditorState::isVCutOnPanel(bool vertical,

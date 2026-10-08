@@ -53,13 +53,9 @@ class CmdPanelHoleEdit;
  *
  * Mirrors ::librepcb::editor::BoardEditorState_AddHole's continuous
  * placement loop exactly (place one hole, immediately start placing the
- * next, until aborted/tool switch) rather than PanelEditorState_AddBoard's
- * single-shot-then-leave pattern, since tooling holes are typically placed
+ * next, until aborted/tool switch), since tooling holes are typically placed
  * several at a time. Operates on ::librepcb::PI_Hole/CmdPanelHoleAdd/
- * CmdPanelHoleEdit instead of BI_Hole/CmdBoardHoleAdd/CmdBoardHoleEdit -
- * see claude/librepcb_panelization_tool_addboard_slice.md for why panel
- * holes are a separate, simpler item type. This slice is placement-only:
- * diameter/stop-mask editing and Select-tool integration are deferred.
+ * CmdPanelHoleEdit instead of BI_Hole/CmdBoardHoleAdd/CmdBoardHoleEdit.
  *
  * A double click is ignored (rather than handled as a second click), since
  * its preceding press already placed a hole - handling it too would stack

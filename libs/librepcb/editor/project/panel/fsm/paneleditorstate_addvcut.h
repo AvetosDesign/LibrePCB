@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDVCUT_H
 #define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDVCUT_H
 
@@ -107,11 +105,22 @@ signals:
   void verticalChanged(bool vertical);
 
 private:  // Methods
+  /**
+   * @brief Where a V-cut would be placed, given cursor position
+   *
+   * The grid-snapped cursor position, moved by the smart snap (which also
+   * shows or hides its guide line), see #calculateVCutSnap().
+   *
+   * @return The snap result, with the position in VCutSnap::shift added.
+   */
+  VCutSnap calculatePlacement(Length& position) noexcept;
+
   void updatePhantom() noexcept;
 
 private:  // Data
   bool mVertical;
   Point mCurrentPos;  ///< Grid-snapped cursor position
+  Qt::KeyboardModifiers mModifiers;  ///< Of the last mouse event
 };
 
 /*******************************************************************************

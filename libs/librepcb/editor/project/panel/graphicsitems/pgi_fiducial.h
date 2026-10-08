@@ -76,7 +76,7 @@ public:
    *
    * Both the top- and bottom-side pair are supplied up front (rather than
    * re-queried on every flip) so a flip just swaps which cached pair
-   * paint() reads - see #updateFlipped().
+   * paint() reads.
    *
    * @param topColor       ::librepcb::ColorRole::boardCopperTop()'s primary
    *                       color, used when on top and not selected.

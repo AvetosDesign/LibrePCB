@@ -108,6 +108,7 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mToolTabWidth(app.getWorkspace().getSettings()),
     mToolTabBiteDiameter(app.getWorkspace().getSettings()),
     mToolTabBiteSpacing(app.getWorkspace().getSettings()),
+    mToolVCutSnapOffset(app.getWorkspace().getSettings()),
     mToolTabMouseBites(true),
     mToolFlipped(false),
     mToolVCutVertical(false),
@@ -116,7 +117,8 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mSelectVCut(false),
     mIgnorePlacementLocks(false),
     mShowTabs(true),
-    mSnapEnabled(true),
+    mSnapBoards(true),
+    mSnapPanel(true),
     mTabToolActive(false),
     mVCutToolActive(false),
     mShowOutlinePreview(false),
@@ -192,7 +194,25 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
   mShowOutlinePreview =
       cs.value("panel_editor/show_outline_preview", true).toBool();
-  mSnapEnabled = cs.value("panel_editor/snap_enabled", true).toBool();
+  mSnapBoards =
+      cs.value("panel_editor/snap_boards_enabled", true).toBool();
+  mSnapPanel =
+      cs.value("panel_editor/snap_panel_enabled", true).toBool();
+
+  // The V-cut snap offset is an editing aid, so it is remembered per client
+  // (like the other toggles) and not stored in the panel.
+  mToolVCutSnapOffset.configure(
+      Length(cs.value("panel_editor/vcut_snap_offset_nm", 0).toLongLong()),
+      LengthEditContext::Steps::generic(), "panel_editor/vcut_snap_offset");
+  // Without this, the UI is never told about the new value (the model does
+  // not notify on its own) and the box snaps back to its old text.
+  connect(&mToolVCutSnapOffset, &LengthEditContext::uiDataChanged, this,
+          [this]() { onDerivedUiDataChanged.notify(); });
+  connect(&mToolVCutSnapOffset, &LengthEditContext::valueChanged, this,
+          [](const Length& value) {
+            QSettings().setValue("panel_editor/vcut_snap_offset_nm",
+                                 static_cast<qlonglong>(value.toNm()));
+          });
 
   // Mouse bite planes and outline preview: recalculated shortly after
   // changes.
@@ -297,6 +317,7 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mToolClearance.getUiData(),  // Tool clearance
       mToolFlipped,  // Tool bottom
       mToolVCutVertical,  // Tool V-cut vertical
+      mToolVCutSnapOffset.getUiData(),  // Tool V-cut snap offset
       mToolTabWidth.getUiData(),  // Tool tab width
       mToolTabMouseBites,  // Tool tab mouse bites
       mToolTabBiteDiameter.getUiData(),  // Tool tab mouse bite diameter
@@ -310,7 +331,8 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mIgnorePlacementLocks,  // Ignore placement locks
       mShowTabs,  // Show tabs
       mShowOutlinePreview,  // Show outline preview
-      mSnapEnabled,  // Snap enabled
+      mSnapBoards,  // Snap to boards
+      mSnapPanel,  // Snap to panel
       -1,  // Place board index (write-only, always reset back to -1)
   };
 }
@@ -320,6 +342,7 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   mToolDiameter.setUiData(data.tool_diameter);
   mToolClearance.setUiData(data.tool_clearance);
   mToolTabWidth.setUiData(data.tool_tab_width);
+  mToolVCutSnapOffset.setUiData(data.tool_vcut_snap_offset);
   mToolTabBiteDiameter.setUiData(data.tool_tab_bite_diameter);
   mToolTabBiteSpacing.setUiData(data.tool_tab_bite_spacing);
   if (data.tool_tab_mouse_bites != mToolTabMouseBites) {
@@ -387,10 +410,15 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   }
 
   // Smart snap - also a per-client UI setting.
-  if (data.snap_enabled != mSnapEnabled) {
-    mSnapEnabled = data.snap_enabled;
+  if (data.snap_boards_enabled != mSnapBoards) {
+    mSnapBoards = data.snap_boards_enabled;
     QSettings cs;
-    cs.setValue("panel_editor/snap_enabled", mSnapEnabled);
+    cs.setValue("panel_editor/snap_boards_enabled", mSnapBoards);
+  }
+  if (data.snap_panel_enabled != mSnapPanel) {
+    mSnapPanel = data.snap_panel_enabled;
+    QSettings cs;
+    cs.setValue("panel_editor/snap_panel_enabled", mSnapPanel);
   }
 
   if (data.place_board_index >= 0) {
@@ -603,8 +631,7 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
     case ui::TabAction::MoveLeft: {
       // Mirrors Board2dTab::trigger()'s identical case: nudge the
       // selection by one grid interval, or scroll the view if nothing was
-      // moved (e.g. nothing selected) - see
-      // claude/librepcb_panel_vcut_tool.md's "arrow-key nudging" entry.
+      // moved (e.g. nothing selected).
       if ((!mFsm) ||
           (!mFsm->processMove(Point(-mPanel.getGridInterval(), 0)))) {
         if (mView) mView->scrollLeft();
@@ -794,8 +821,7 @@ void PanelTab::fsmAbortBlockingToolsInOtherEditors() noexcept {
 void PanelTab::fsmOpenBoardEditor(const Uuid& boardUuid) noexcept {
   // Find the BoardEditor whose Board matches the referenced UUID. Panel
   // board placements only ever store a weak UUID reference to their board
-  // (never a live Board&, see claude/librepcb_panel_design_decisions.md
-  // decisions 1/2), so the referenced board may in principle have been
+  // (never a live Board&), so the referenced board may in principle have been
   // deleted since the placement was created - if so, silently do nothing
   // rather than showing an error, consistent with how a stale reference is
   // already tolerated elsewhere in the panel code.
@@ -834,8 +860,16 @@ bool PanelTab::fsmGetIgnoreLocks() const noexcept {
   return mIgnorePlacementLocks;
 }
 
-bool PanelTab::fsmGetSnapEnabled() const noexcept {
-  return mSnapEnabled;
+bool PanelTab::fsmGetSnapBoardsEnabled() const noexcept {
+  return mSnapBoards;
+}
+
+bool PanelTab::fsmGetSnapPanelEnabled() const noexcept {
+  return mSnapPanel;
+}
+
+Length PanelTab::fsmGetVCutSnapOffset() const noexcept {
+  return mToolVCutSnapOffset.getValue();
 }
 
 void PanelTab::fsmToolLeave() noexcept {
@@ -868,8 +902,9 @@ void PanelTab::fsmToolEnter(PanelEditorState_Select& state) noexcept {
   // Selection property editing - Reuses the same fields and toolbar Slint
   // components the "Add Hole"/"Add Fiducial" tools already use, just fed
   // from the current selection instead of the next-placed-item defaults.
-  // This is only shown when the selection is homogeneously all-holes or
-  // all-fiducials - see PanelEditorState_Select::getSelectionKind().
+  // This is only shown when the selection is homogeneously all-holes,
+  // all-fiducials or all-V-cuts - see
+  // PanelEditorState_Select::getSelectionKind().
   mToolDiameter.configure(state.getDiameter(),
                           LengthEditContext::Steps::generic(),
                           "panel_editor/select/diameter");

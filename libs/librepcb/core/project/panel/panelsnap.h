@@ -133,6 +133,30 @@ public:
     QVector<Guide> guides;
   };
 
+  /**
+   * @brief A line that can be snapped to, see #snapLine()
+   */
+  struct EdgeTarget {
+    Length coordinate;  ///< The line's coordinate on the snapped axis
+    Length spanStart;  ///< Extent along the other axis, for the guide
+    Length spanEnd;
+    int tag;  ///< Opaque to PanelSnap, reported back in LineResult::tags
+  };
+
+  /**
+   * @brief The result of #snapLine()
+   *
+   * #shift is the correction to add to the line's position (zero if nothing
+   * was in range). #guides has one entry per coordinate the line coincides
+   * with after the correction. #tags are the tags of all targets coinciding
+   * with the corrected line, without duplicates.
+   */
+  struct LineResult {
+    Length shift;
+    QVector<Guide> guides;
+    QVector<int> tags;
+  };
+
   PanelSnap() = delete;
   PanelSnap(const PanelSnap& other) = delete;
   ~PanelSnap() = delete;
@@ -155,6 +179,25 @@ public:
    */
   static Result snap(const Bounds& moving, const QVector<Target>& targets,
                      const UnsignedLength& tolerance) noexcept;
+
+  /**
+   * @brief Find the snap correction for a single line
+   *
+   * Unlike #snap(), the moving thing is just one coordinate on @p axis (a
+   * V-cut), and it snaps to the nearest target coordinate within the
+   * tolerance.
+   *
+   * @param axis       Axis::X for vertical, Axis::Y for horizontal.
+   * @param position   The line's current coordinate.
+   * @param targets    The coordinates it may snap to.
+   * @param tolerance  Maximum distance to snap.
+   *
+   * @return Correction, guides and tags, see
+   *         ::librepcb::PanelSnap::LineResult.
+   */
+  static LineResult snapLine(Axis axis, const Length& position,
+                             const QVector<EdgeTarget>& targets,
+                             const UnsignedLength& tolerance) noexcept;
 
   // Operator Overloadings
   PanelSnap& operator=(const PanelSnap& rhs) = delete;

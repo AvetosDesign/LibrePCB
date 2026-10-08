@@ -29,6 +29,10 @@ export component PanelTab inherits Tab {
     property <int> index: section.current-tab-index;
     property <length> toolbar-space: view-buttons-l.x - toolbuttons-l.x - toolbuttons-l.width - 10px;
     property <length> toolbutton-offset-y: (toolbar-r.width > toolbar-space) ? toolbar-r.height : 0;
+    // Whether Alt is held, which disables snapping (the snap buttons show it).
+    // Tracked from the key events and re-synchronized by the pointer events,
+    // so it cannot get stuck if a release event is missed.
+    property <bool> alt-held: false;
 
     function update-tab-data() {
         tabs[index].scene-image-pos = self.absolute-position;
@@ -253,24 +257,43 @@ export component PanelTab inherits Tab {
                 }
             }
 
-            snap-btn := SceneButton {
-                icon: @image-url("../../../../bootstrap-icons/icons/border.svg");
+            snap-boards-btn := SceneButton {
+                icon: @image-url("../../../../bootstrap-icons/icons/grid.svg");
                 // The icon is a square filling its box, so shrink it to keep
                 // its corners inside the circle.
                 icon-scale: 0.8;
-                tooltip: @tr("Snap to Edges/Centers");
+                tooltip: @tr("Snap to Board Edges/Centers");
                 base-color: tabs[index].background-color;
                 base-text-color: tabs[index].foreground-color;
                 style: checkbox;
-                checked: tabs[index].snap-enabled;
+                enabled: !root.alt-held;
+                checked: tabs[index].snap-boards-enabled;
 
                 clicked => {
-                    tabs[index].snap-enabled = !self.checked;
+                    tabs[index].snap-boards-enabled = !self.checked;
+                }
+            }
+
+            snap-panel-btn := SceneButton {
+                icon: @image-url("../../../../bootstrap-icons/icons/border-outer.svg");
+                // The icon is a square filling its box, so shrink it to keep
+                // its corners inside the circle.
+                icon-scale: 0.8;
+                tooltip: @tr("Snap to Panel Edges/Centers");
+                base-color: tabs[index].background-color;
+                base-text-color: tabs[index].foreground-color;
+                style: checkbox;
+                enabled: !root.alt-held;
+                checked: tabs[index].snap-panel-enabled;
+
+                clicked => {
+                    tabs[index].snap-panel-enabled = !self.checked;
                 }
             }
         }
 
         pointer-event(event) => {
+            root.alt-held = event.modifiers.alt;
             if event.kind == PointerEventKind.down {
                 Data.set-current-tab(section-index, index);
                 if !root.has-focus {
@@ -289,7 +312,16 @@ export component PanelTab inherits Tab {
         Data.set-current-tab(section-index, index);
     }
 
+    changed has-focus => {
+        if !self.has-focus {
+            root.alt-held = false;
+        }
+    }
+
     key-pressed(event) => {
+        if (event.text == Key.Alt) || event.modifiers.alt {
+            root.alt-held = true;
+        }
         // If the focus is in some other widget, make the Escape key moving
         // the focus back to the graphics scene without triggering any action.
         if (event.text == Key.Escape) && (!root.has-focus) {
@@ -300,6 +332,7 @@ export component PanelTab inherits Tab {
     }
 
     key-released(event) => {
+        root.alt-held = (event.text != Key.Alt) && event.modifiers.alt;
         Backend.scene-key-released(section-index, event) ? accept : reject
     }
 }

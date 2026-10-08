@@ -27,6 +27,7 @@
 #include "paneleditorfsm.h"
 #include "paneleditorfsmadapter.h"
 
+#include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/project/panel/panelsnap.h>
 #include <librepcb/core/types/length.h>
 
@@ -57,13 +58,13 @@ class UndoCommand;
  * @brief The panel editor state base class
  *
  * This is a deliberately trimmed-down counterpart to ::librepcb::editor::
- * BoardEditorState. Panels only contain reference-only board placements
- * (no layers, nets, pads, etc.), so this base class omits everything that
+ * BoardEditorState. Panels only reference board designs (no layers, nets,
+ * pads, etc. of their own), so this base class omits everything that
  * doesn't apply: the FindFlags-based hit testing machinery and layer/length
  * unit helpers are not needed. "Ignore locks" support IS needed (see
  * #getIgnoreLocks()) - locked panel items (holes/fiducials/board
- * placements) are otherwise excluded from drag/rotate/flip/remove, per
- * Sean's explicit request to bring Board's locking feature to Panel.
+ * placements) are otherwise excluded from drag/rotate/flip/remove, as in
+ * Board.
  */
 class PanelEditorState : public QObject {
   Q_OBJECT
@@ -226,8 +227,8 @@ protected:  // Methods
    * @brief Calculate the smart snap of a moving board (group)
    *
    * Shows the guide lines of the snap, or hides them if nothing snaps.
-   * Snapping applies if the "Snap" toggle is on, or if it is off and Alt is
-   * held (and the other way around), so it can be toggled temporarily.
+   * It snaps to the boards and/or the panel, depending on the "Snap to
+   * ... Edges/Centers" toggles. Holding Alt temporarily disables snapping.
    *
    * @param moving      Bounds of the moving group, at the position to test.
    * @param cursorPos   Cursor position, to convert the snap tolerance (a
@@ -239,6 +240,39 @@ protected:  // Methods
    */
   Point calculateSnap(const PanelSnap::Bounds& moving, const Point& cursorPos,
                       Qt::KeyboardModifiers modifiers) noexcept;
+
+  /**
+   * @brief Result of #calculateVCutSnap()
+   */
+  struct VCutSnap {
+    /// What to add to the V-cut's position (zero if nothing is in reach)
+    Length shift;
+    /// The panel edge the V-cut snapped to, or ::librepcb::PI_VCut::
+    /// BoundEdge::None if it did not snap to a panel edge
+    PI_VCut::BoundEdge panelEdge;
+  };
+
+  /**
+   * @brief Calculate the smart snap of a single V-cut
+   *
+   * A V-cut snaps to the sides of the placed boards and to the panel
+   * edges (depending on the "Snap to ... Edges/Centers" toggles),
+   * each at the snap offset of the V-cut toolbar
+   * (PanelEditorFsmAdapter::fsmGetVCutSnapOffset()).  Outset (positive
+   * offset) or inset (negative), and always inward from a panel edge.
+   * Shows the guide line of the snap, or hides it if nothing snaps. The
+   * toggles and the Alt key apply the same way as for #calculateSnap().
+   *
+   * @param vertical    Orientation of the V-cut.
+   * @param position    X (vertical) or Y (horizontal) coordinate to test.
+   * @param cursorPos   Cursor position, see #calculateSnap().
+   * @param modifiers   The keyboard modifiers of the current mouse event.
+   *
+   * @return See ::librepcb::editor::PanelEditorState::VCutSnap.
+   */
+  VCutSnap calculateVCutSnap(bool vertical, const Length& position,
+                             const Point& cursorPos,
+                             Qt::KeyboardModifiers modifiers) noexcept;
 
   /// Hide the guide lines of the smart snap
   void clearSnapGuides() noexcept;
@@ -255,6 +289,13 @@ protected:  // Methods
 protected:  // Data
   Context mContext;
   PanelEditorFsmAdapter& mAdapter;
+
+private:  // Methods
+  /// Whether snapping is allowed at all, i.e. Alt is not held
+  bool isSnapActive(Qt::KeyboardModifiers modifiers) const noexcept;
+
+  /// The snap tolerance as a length, for the zoom at @p cursorPos
+  UnsignedLength calculateSnapTolerance(const Point& cursorPos) noexcept;
 
 private:  // Data
   QVector<PanelSnap::Target> mSnapTargets;  ///< See #beginSnap()

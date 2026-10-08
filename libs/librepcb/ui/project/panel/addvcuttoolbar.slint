@@ -1,6 +1,7 @@
 // AI DISCLAIMER: Claude AI assisted in the writing of this file.
 
 import {
+    LengthEdit,
     ToolBarButton,
 } from "../../widgets.slint";
 import {
@@ -11,7 +12,9 @@ import {
 // Toolbar of the Panel's Add V-Cut tool (also shown for a V-cuts-only
 // selection in the Select tool): V-cuts are either horizontal or
 // vertical (arbitrary angles aren't manufacturable), chosen with these two
-// mutually exclusive buttons.
+// mutually exclusive buttons. The snap offset field is the distance kept to
+// the board or panel edge a V-cut snaps to (positive = away from a board /
+// inward from a panel edge, negative = toward a board).
 export component AddVCutToolBar inherits HorizontalLayout {
     in property <int> section-index;
     in-out property <WindowSectionData> section;
@@ -38,6 +41,29 @@ export component AddVCutToolBar inherits HorizontalLayout {
 
         clicked => {
             tabs[section.current-tab-index].tool-vcut-vertical = true;
+        }
+    }
+
+    snap-offset-edt := LengthEdit {
+        data: tabs[section.current-tab-index].tool-vcut-snap-offset;
+        icon: @image-url("../../../../font-awesome/svgs/solid/ruler-horizontal.svg");
+        tooltip: @tr("Snap Offset");
+        min-width-text: "1.234";
+
+        value-changed(v) => {
+            tabs[section.current-tab-index].tool-vcut-snap-offset.value = v;
+        }
+
+        unit-changed(u) => {
+            tabs[section.current-tab-index].tool-vcut-snap-offset.unit = u;
+        }
+
+        increase-triggered => {
+            tabs[section.current-tab-index].tool-vcut-snap-offset.increase = true;
+        }
+
+        decrease-triggered => {
+            tabs[section.current-tab-index].tool-vcut-snap-offset.decrease = true;
         }
     }
 }

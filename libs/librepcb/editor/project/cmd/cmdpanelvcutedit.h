@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELVCUTEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELVCUTEDIT_H
 
@@ -68,6 +66,20 @@ public:
   const Length& getPosition() const noexcept { return mNewPos; }
   bool wasVertical() const noexcept { return mOldVertical; }
   const Length& getOldPosition() const noexcept { return mOldPos; }
+  PI_VCut::BoundEdge getOldBoundEdge() const noexcept { return mOldBoundEdge; }
+  const Length& getOldOffset() const noexcept { return mOldOffset; }
+  const std::optional<Uuid>& getOldBoundBoard() const noexcept {
+    return mOldBoundBoard;
+  }
+  const Point& getOldBoundSegmentStart() const noexcept {
+    return mOldBoundSegStart;
+  }
+  const Point& getOldBoundSegmentEnd() const noexcept {
+    return mOldBoundSegEnd;
+  }
+  const Angle& getOldBoundSegmentNormal() const noexcept {
+    return mOldBoundSegNormal;
+  }
 
   // General Methods
 

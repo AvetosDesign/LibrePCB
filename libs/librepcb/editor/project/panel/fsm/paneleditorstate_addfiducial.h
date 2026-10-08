@@ -59,9 +59,7 @@ class CmdPanelFiducialEdit;
  * getDiameter()/setDiameter()/diameterChanged() mirror
  * BoardEditorState_AddHole's diameter-editing hook exactly, so PanelTab can
  * drive a secondary toolbar the same way Board2dTab drives its Add
- * Hole/Add Pad toolbars. Rotation/clearance/stop-mask editing and
- * Select-tool integration are still deferred - see
- * claude/librepcb_panelization_tool_addboard_slice.md.
+ * Hole/Add Pad toolbars.
  *
  * A double click is ignored (rather than handled as a second click), since
  * its preceding press already placed a fiducial - handling it too would
