@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -58,8 +56,9 @@ TEST(PI_VCutTest, testPanelEdgePositionOffsetRoundTrip) {
   EXPECT_EQ(Length(68000000),
             PI_VCut::getPanelEdgePosition(PI_VCut::BoundEdge::PanelTop,
                                           Length(12000000), w, h));
-  EXPECT_EQ(Length(0), PI_VCut::getPanelEdgePosition(
-                           PI_VCut::BoundEdge::None, Length(5), w, h));
+  EXPECT_EQ(
+      Length(0),
+      PI_VCut::getPanelEdgePosition(PI_VCut::BoundEdge::None, Length(5), w, h));
 }
 
 TEST(PI_VCutTest, testResolveBoardEdgeUnrotated) {
@@ -99,11 +98,12 @@ TEST(PI_VCutTest, testResolveBoardEdgeRotated90SwapsOrientation) {
 }
 
 TEST(PI_VCutTest, testResolveBoardEdgeNonOrthogonalFails) {
-  EXPECT_FALSE(PI_VCut::resolveBoardEdge(
-      Transform(Point(Length(0), Length(0)), Angle::deg45(), false),
-                   Point(Length(10000000), Length(0)),
-                   Point(Length(10000000), Length(20000000)), Angle::deg0())
-                   .has_value());
+  EXPECT_FALSE(
+      PI_VCut::resolveBoardEdge(
+          Transform(Point(Length(0), Length(0)), Angle::deg45(), false),
+          Point(Length(10000000), Length(0)),
+          Point(Length(10000000), Length(20000000)), Angle::deg0())
+          .has_value());
 }
 
 /*******************************************************************************

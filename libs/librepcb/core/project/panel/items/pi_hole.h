@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PI_HOLE_H
 #define LIBREPCB_CORE_PI_HOLE_H
 
@@ -53,9 +51,8 @@ class SExpression;
  * multi-segment slot via a ::librepcb::NonEmptyPath), a panel hole is kept
  * deliberately simple: a single round hole at a point, matching what the
  * panel's own "Add Hole" tool actually places. There is no panel-specific
- * geometry primitive to invent here - see
- * claude/librepcb_panel_design_decisions.md, decision 4: a tooling hole is
- * just an ordinary hole with no copper/pad attached.
+ * geometry primitive to invent here: a tooling hole is just an ordinary
+ * hole with no copper/pad attached.
  */
 class PI_Hole final {
   Q_DECLARE_TR_FUNCTIONS(PI_Hole)
@@ -76,8 +73,8 @@ public:
   PI_Hole(const PI_Hole& other) noexcept;
   explicit PI_Hole(const SExpression& node);
   PI_Hole(const Uuid& uuid, const Point& position,
-          const PositiveLength& diameter,
-          const MaskConfig& stopMaskConfig, bool locked) noexcept;
+          const PositiveLength& diameter, const MaskConfig& stopMaskConfig,
+          bool locked) noexcept;
   ~PI_Hole() noexcept;
 
   // Getters
@@ -105,9 +102,7 @@ public:
   // Operator Overloadings
   PI_Hole& operator=(const PI_Hole& rhs) = delete;
   bool operator==(const PI_Hole& rhs) const noexcept;
-  bool operator!=(const PI_Hole& rhs) const noexcept {
-    return !(*this == rhs);
-  }
+  bool operator!=(const PI_Hole& rhs) const noexcept { return !(*this == rhs); }
 
 private:  // Data
   Uuid mUuid;

@@ -17,15 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "cmdpanelfiducialadd.h"
 
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 
@@ -39,10 +37,12 @@ namespace editor {
  *  Constructors / Destructor
  ******************************************************************************/
 
-CmdPanelFiducialAdd::CmdPanelFiducialAdd(
-    Panel& panel, const Point& position, const Angle& rotation,
-    const PositiveLength& diameter, const UnsignedLength& copperClearance,
-    const MaskConfig& stopMaskConfig, bool flipped, bool locked) noexcept
+CmdPanelFiducialAdd::CmdPanelFiducialAdd(Panel& panel, const Point& position,
+                                         const Angle& rotation,
+                                         const PositiveLength& diameter,
+                                         const UnsignedLength& copperClearance,
+                                         const MaskConfig& stopMaskConfig,
+                                         bool flipped, bool locked) noexcept
   : UndoCommand(tr("Add fiducial to panel")),
     mPanel(panel),
     mFiducial(new PI_Fiducial(Uuid::createRandom(), position, rotation,

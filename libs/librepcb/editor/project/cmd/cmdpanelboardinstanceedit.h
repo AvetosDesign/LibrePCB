@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEEDIT_H
 
@@ -48,8 +46,7 @@ namespace editor {
  *
  * Mirrors CmdDeviceInstanceEdit's position/rotation/mirror-editing shape,
  * trimmed to PI_BoardInstance's simpler field set (no model/footprint
- * selection) and using "flip" naming per the confirmed terminology decision
- * (see claude/librepcb_panel_core_model_implementation.md):
+ * selection) and using "flip" naming:
  * flip() hardcodes a horizontal mirror since a panel board placement has no
  * choice of mirror axis, unlike CmdDeviceInstanceEdit::mirror().
  *

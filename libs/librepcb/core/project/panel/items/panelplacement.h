@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PANELPLACEMENT_H
 #define LIBREPCB_CORE_PANELPLACEMENT_H
 
@@ -104,8 +102,8 @@ struct PanelPlacement {
    *                mirror axis).
    */
   PanelPlacement flippedAbout(const Point& center) const noexcept {
-    return PanelPlacement(position.mirrored(Qt::Horizontal, center),
-                          -rotation, !flipped);
+    return PanelPlacement(position.mirrored(Qt::Horizontal, center), -rotation,
+                          !flipped);
   }
 
   bool operator==(const PanelPlacement& rhs) const noexcept {

@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// All modifications were reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -56,12 +53,12 @@
 #include <librepcb/core/fileio/fileutils.h>
 #include <librepcb/core/fileio/transactionalfilesystem.h>
 #include <librepcb/core/project/board/board.h>
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/circuit/bus.h>
 #include <librepcb/core/project/circuit/circuit.h>
 #include <librepcb/core/project/circuit/componentinstance.h>
 #include <librepcb/core/project/erc/electricalrulecheck.h>
 #include <librepcb/core/project/erc/electricalrulecheckmessages.h>
+#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/project/schematic/items/si_symbol.h>
 #include <librepcb/core/project/schematic/schematic.h>
@@ -740,9 +737,9 @@ std::shared_ptr<PanelEditor> ProjectEditor::execNewPanelDialog() noexcept {
   }
 
   bool ok = false;
-  name = QInputDialog::getText(qApp->activeWindow(), tr("Add New Panel"),
-                               tr("Choose a name:"), QLineEdit::Normal, name,
-                               &ok);
+  name =
+      QInputDialog::getText(qApp->activeWindow(), tr("Add New Panel"),
+                            tr("Choose a name:"), QLineEdit::Normal, name, &ok);
   if (!ok) return nullptr;
 
   emit abortBlockingToolsInOtherEditors(nullptr);  // Release undo stack.

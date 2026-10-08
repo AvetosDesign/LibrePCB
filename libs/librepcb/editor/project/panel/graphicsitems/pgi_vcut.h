@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_VCUT_H
 #define LIBREPCB_EDITOR_PGI_VCUT_H
 
@@ -57,8 +55,8 @@ namespace editor {
  *
  * The line is horizontal or vertical (see ::librepcb::PI_VCut) and spans
  * the whole panel width (resp. height), extended by #lineMargin() on both
- * ends, so the arrows are clearly visible outside the panel boundary. Since the extent
- * depends on the panel size, #updateGeometry() must also be called when
+ * ends, so the arrows are clearly visible outside the panel boundary. Since the
+ * extent depends on the panel size, #updateGeometry() must also be called when
  * the panel outline changes (PanelGraphicsScene does that).
  *
  * A locked V-cut is shown with its "v"s closed and filled, i.e. as solid
@@ -127,8 +125,7 @@ public:
    *         stroked with #lineWidth() (and filled if @p locked).
    */
   static QPainterPath buildPathPx(const Panel& panel, bool vertical,
-                                  const Length& position,
-                                  bool locked = false,
+                                  const Length& position, bool locked = false,
                                   bool bound = false) noexcept;
 
   // Inherited from QGraphicsItem

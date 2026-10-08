@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_HOLE_H
 #define LIBREPCB_EDITOR_PGI_HOLE_H
 
@@ -85,7 +83,7 @@ public:
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
   void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-            QWidget* widget) override;
+             QWidget* widget) override;
 
   // Operator Overloadings
   PGI_Hole& operator=(const PGI_Hole& rhs) = delete;

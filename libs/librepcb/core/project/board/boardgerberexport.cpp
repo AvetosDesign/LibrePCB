@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -38,6 +36,7 @@
 #include "../circuit/componentinstance.h"
 #include "../circuit/componentsignalinstance.h"
 #include "../circuit/netsignal.h"
+#include "../panel/panel.h"
 #include "../project.h"
 #include "../projectattributelookup.h"
 #include "board.h"
@@ -52,7 +51,6 @@
 #include "items/bi_polygon.h"
 #include "items/bi_stroketext.h"
 #include "items/bi_via.h"
-#include "../panel/panel.h"
 
 #include <QtCore>
 
@@ -804,11 +802,11 @@ void BoardGerberExport::drawLayerExceptDevices(
     foreach (const BI_NetLine* netline, netsegment->getNetLines()) {
       Q_ASSERT(netline);
       if (netline->getLayer() == layer) {
-        gen.drawLine(
-            xf.map(netline->getP1().getPosition()),
-            xf.map(netline->getP2().getPosition()),
-            positiveToUnsigned(netline->getWidth()),
-            GerberAttribute::ApertureFunction::Conductor, net, QString());
+        gen.drawLine(xf.map(netline->getP1().getPosition()),
+                     xf.map(netline->getP2().getPosition()),
+                     positiveToUnsigned(netline->getWidth()),
+                     GerberAttribute::ApertureFunction::Conductor, net,
+                     QString());
       }
     }
   }
@@ -921,8 +919,7 @@ void BoardGerberExport::drawVia(GerberGenerator& gen, const BI_Via& via,
 }
 
 void BoardGerberExport::drawDevice(GerberGenerator& gen,
-                                   const BI_Device& device,
-                                   const Layer& layer,
+                                   const BI_Device& device, const Layer& layer,
                                    const Transform& xf) const {
   GerberGenerator::Function graphicsFunction = std::nullopt;
   std::optional<QString> graphicsNet = std::nullopt;
@@ -1012,8 +1009,7 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
 }
 
 void BoardGerberExport::drawPad(GerberGenerator& gen, const BI_Pad& pad,
-                                const Layer& layer,
-                                const Transform& xf) const {
+                                const Layer& layer, const Transform& xf) const {
   using PadFunction = Pad::Function;
   using ApertureFunction = GerberAttribute::ApertureFunction;
   const QMap<PadFunction, ApertureFunction> functionMap = {

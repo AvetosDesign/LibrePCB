@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in modifications to this file.
-// All modifications have been reviewed by a human.
-
 #ifndef LIBREPCB_CORE_PROJECTLOADER_H
 #define LIBREPCB_CORE_PROJECTLOADER_H
 

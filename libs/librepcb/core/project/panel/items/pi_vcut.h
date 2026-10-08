@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PI_VCUT_H
 #define LIBREPCB_CORE_PI_VCUT_H
 
@@ -62,7 +60,7 @@ class SExpression;
  * rendering), so resizing the panel never requires touching the V-cuts.
  *
  * Groove parameters (depth, blade angle, ...) and DRC checks are not part
- * of this class yet - see claude/librepcb_panel_vcut_tool.md.
+ * of this class yet.
  */
 class PI_VCut final {
   Q_DECLARE_TR_FUNCTIONS(PI_VCut)
@@ -179,12 +177,9 @@ public:
    * re-derives this V-cut's position by transforming these two points
    * through the board instance's current placement. No attempt is made
    * here to re-validate the segment still exists in the board's current
-   * outline (e.g. after the board design itself was edited) - see
-   * claude/librepcb_panel_vcut_tool.md's open questions.
+   * outline (e.g. after the board design itself was edited).
    */
-  const Point& getBoundSegmentStart() const noexcept {
-    return mBoundSegStart;
-  }
+  const Point& getBoundSegmentStart() const noexcept { return mBoundSegStart; }
 
   /// @see #getBoundSegmentStart()
   const Point& getBoundSegmentEnd() const noexcept { return mBoundSegEnd; }
@@ -212,8 +207,7 @@ public:
    * @brief Get a human-readable label for a #BoundEdge, for the info box
    *
    * For #BoundEdge::Board, returns just "Board edge" - naming the specific
-   * board isn't implemented yet (open question in
-   * claude/librepcb_panel_vcut_tool.md).
+   * board isn't implemented yet.
    */
   static QString getBoundEdgeLabel(BoundEdge edge) noexcept;
 
@@ -358,9 +352,7 @@ public:
   // Operator Overloadings
   PI_VCut& operator=(const PI_VCut& rhs) = delete;
   bool operator==(const PI_VCut& rhs) const noexcept;
-  bool operator!=(const PI_VCut& rhs) const noexcept {
-    return !(*this == rhs);
-  }
+  bool operator!=(const PI_VCut& rhs) const noexcept { return !(*this == rhs); }
 
 private:  // Data
   Uuid mUuid;

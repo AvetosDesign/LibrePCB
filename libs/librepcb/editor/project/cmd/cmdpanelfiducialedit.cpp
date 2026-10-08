@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -109,8 +107,7 @@ void CmdPanelFiducialEdit::setCopperClearance(const UnsignedLength& clearance,
   }
 }
 
-void CmdPanelFiducialEdit::setFlipped(bool flipped,
-                                      bool immediate) noexcept {
+void CmdPanelFiducialEdit::setFlipped(bool flipped, bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewFlipped = flipped;
   if (immediate) mFiducial.setFlipped(mNewFlipped);

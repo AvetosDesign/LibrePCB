@@ -31,16 +31,16 @@
 namespace librepcb {
 namespace editor {
 
-BoardProxy::BoardProxy(
-    Board& board, const GraphicsLayerList& layers,
-    std::shared_ptr<BoardGraphicsScene::Context> context, Side side) noexcept
+BoardProxy::BoardProxy(Board& board, const GraphicsLayerList& layers,
+                       std::shared_ptr<BoardGraphicsScene::Context> context,
+                       Side side) noexcept
   : onEdited(*this),
     mBoard(board),
     mSide(side),
-    mFlippedLayers((side == Side::Bottom)
-                       ? GraphicsLayerList::flippedView(
-                             layers, board.getInnerLayerCount())
-                       : std::unique_ptr<GraphicsLayerList>()),
+    mFlippedLayers(
+        (side == Side::Bottom)
+            ? GraphicsLayerList::flippedView(layers, board.getInnerLayerCount())
+            : std::unique_ptr<GraphicsLayerList>()),
     mScene(),
     mMouseBites(),
     mPlanesRebuildTimer(),
@@ -73,8 +73,8 @@ BoardProxy::BoardProxy(
   // context object of the connections, so they end with this object.
   mPlanesRebuildTimer.setSingleShot(true);
   mPlanesRebuildTimer.setInterval(300);
-  QObject::connect(&mPlanesRebuildTimer, &QTimer::timeout,
-                   &mPlanesRebuildTimer, [this]() { startPlanesRebuild(); });
+  QObject::connect(&mPlanesRebuildTimer, &QTimer::timeout, &mPlanesRebuildTimer,
+                   [this]() { startPlanesRebuild(); });
   foreach (BI_Plane* plane, mBoard.getPlanes()) {
     plane->onEdited.attach(mOnPlaneEditedSlot);
   }
@@ -95,8 +95,8 @@ BoardProxy::BoardProxy(
   // a single update.
   mOutlineUpdateTimer.setSingleShot(true);
   mOutlineUpdateTimer.setInterval(0);
-  QObject::connect(&mOutlineUpdateTimer, &QTimer::timeout,
-                   &mOutlineUpdateTimer, [this]() { updateOutline(); });
+  QObject::connect(&mOutlineUpdateTimer, &QTimer::timeout, &mOutlineUpdateTimer,
+                   [this]() { updateOutline(); });
   foreach (BI_Polygon* polygon, mBoard.getPolygons()) {
     polygon->onEdited.attach(mOnPolygonEditedSlot);
   }

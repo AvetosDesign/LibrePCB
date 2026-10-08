@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PANELOUTLINEBUILDER_H
 #define LIBREPCB_CORE_PANELOUTLINEBUILDER_H
 
@@ -65,8 +63,7 @@ class Project;
  * and by rounding every inside corner to the bit's radius.
  *
  * The process mimics KiKit's panelization (used purely as a math and
- * process reference, not as a code reference - see
- * claude/librepcb_panel_toolpath_investigation.md):
+ * process reference, not as a code reference):
  *
  *  1. Each placed board's material, in panel coordinates: its board
  *     outline polygons (nested rings are holes, even-odd) minus its
@@ -190,8 +187,8 @@ public:
    * the mouse bite holes, independent of the outline preview.
    *
    * @return Mouse bite holes per board UUID, with centers in the board's
-   *         own coordinates. Empty if the routing style is None. Boards without tabs have no entry or an empty
-   *         one.
+   *         own coordinates. Empty if the routing style is None. Boards without
+   * tabs have no entry or an empty one.
    *
    * @throw Exception if a polygon operation fails.
    */

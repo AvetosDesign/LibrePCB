@@ -50,7 +50,7 @@ namespace librepcb {
  * extend). #axisAlignedSegments() lists the
  * straight, axis-aligned outline segments, which the panel editor makes
  * hoverable for the "Bind to Edge..." picker of V-cuts
- * (::librepcb::editor::PGI_Edge, see claude/librepcb_panel_vcut_tool.md).
+ * (::librepcb::editor::PGI_Edge).
  *
  * All coordinates are in the board's own coordinate system. Since a
  * board placement only rotates/flips/translates, the returned distance is
@@ -105,7 +105,7 @@ public:
    * @brief Get all straight, axis-aligned segments of a board outline
    *
    * Used to build the hoverable edge items (::librepcb::editor::PGI_Edge),
-   * which are created once per board placement. Only straight outline 
+   * which are created once per board placement. Only straight outline
    * segments are returned, and only those with a constant X or
    * a constant Y, because a V-cut can only ever be bound to such an edge.
    * Zero-length segments are skipped.

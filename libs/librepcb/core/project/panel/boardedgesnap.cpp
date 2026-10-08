@@ -69,8 +69,7 @@ Angle outwardNormal(const Point& a, const Point& b, const Point& origin,
   qreal ny = -dx / length;
 
   const qreal probeNm = 10000;  // 10um
-  const Point probe =
-      origin +
+  const Point probe = origin +
       Point(Length(qRound64(nx * probeNm)), Length(qRound64(ny * probeNm)));
   if (area.contains(probe.toPxQPointF())) {
     nx = -nx;

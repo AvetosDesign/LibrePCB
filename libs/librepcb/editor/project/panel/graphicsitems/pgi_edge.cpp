@@ -90,8 +90,7 @@ void PGI_Edge::setSegment(const BoardEdgeSnap::Segment& segment) noexcept {
 }
 
 void PGI_Edge::setHighlighted(bool highlighted, const QColor& color) noexcept {
-  if ((highlighted != mHighlighted) ||
-      (highlighted && (color != mGlowColor))) {
+  if ((highlighted != mHighlighted) || (highlighted && (color != mGlowColor))) {
     mHighlighted = highlighted;
     mGlowColor = color;
     update();

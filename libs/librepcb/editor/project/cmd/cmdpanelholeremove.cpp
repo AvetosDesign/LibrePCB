@@ -17,15 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "cmdpanelholeremove.h"
 
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 

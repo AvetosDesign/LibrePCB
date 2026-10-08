@@ -29,9 +29,9 @@
 #include <librepcb/core/project/board/items/bi_device.h>
 #include <librepcb/core/project/board/items/bi_plane.h>
 #include <librepcb/core/project/board/items/bi_polygon.h>
-#include <librepcb/core/utils/signalslot.h>
 #include <librepcb/core/types/length.h>
 #include <librepcb/core/types/point.h>
+#include <librepcb/core/utils/signalslot.h>
 
 #include <QtCore>
 
@@ -64,8 +64,8 @@ class GraphicsLayerList;
  * planes, silkscreen, holes, etc.), each
  * distinct referenced board design gets a `BoardProxy`, which resolves
  * that UUID to the project's real, live `Board&` and builds a
- * `BoardGraphicsScene` over it, kept in sync automatically via the model's own change
- * signals.
+ * `BoardGraphicsScene` over it, kept in sync automatically via the model's own
+ * change signals.
  *
  * This scene is never attached to a `QGraphicsView`. It exists purely as
  * a paint source. ::librepcb::editor::PGI_BoardInstance::paint() renders
@@ -74,12 +74,13 @@ class GraphicsLayerList;
  * stays scoped to the placed instance's outline shape, unaffected by
  * whatever is drawn inside it.
  *
- * The Board Proxies are owned and reference-counted by ::librepcb::editor::PanelGraphicsScene
+ * The Board Proxies are owned and reference-counted by
+ * ::librepcb::editor::PanelGraphicsScene
  * (#acquireBoardProxy()/#releaseBoardProxy()).  Only one instance per unique
  * board design is needed (not one per
  * placement). Flipped placements (::librepcb::PI_BoardInstance::getFlipped())
- * get their own `BoardProxy` with its bottom side facing up (see #Side). Every item's layer is looked up
- * on the opposite side of the board
+ * get their own `BoardProxy` with its bottom side facing up (see #Side). Every
+ * item's layer is looked up on the opposite side of the board
  * (::librepcb::editor::GraphicsLayerList::flippedView()), so what's on the
  * board's top side is drawn as (and shown/hidden with) the bottom side and
  * vice versa.
@@ -88,7 +89,7 @@ class GraphicsLayerList;
  * recalculated to account for them in the background. The board
  * itself is never modified.
  * See ::librepcb::BoardPlaneFragmentsBuilder::startWithEdgeHoles() and
- * ::librepcb::editor::BGI_Plane::setFragmentsOverride() for more information. 
+ * ::librepcb::editor::BGI_Plane::setFragmentsOverride() for more information.
  *
  * The proxy also keeps the board's outline (#getOutline()) up to date and
  * tells its users when it has changed (#onEdited). This facilitates edge

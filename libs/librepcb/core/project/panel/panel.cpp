@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -77,9 +74,10 @@ Panel::RoutingStyle deserialize(const SExpression& node) {
  *  Constructors / Destructor
  ******************************************************************************/
 
-Panel::Panel(Project& project, std::unique_ptr<TransactionalDirectory> directory,
-            const QString& directoryName, const Uuid& uuid,
-            const ElementName& name)
+Panel::Panel(Project& project,
+             std::unique_ptr<TransactionalDirectory> directory,
+             const QString& directoryName, const Uuid& uuid,
+             const ElementName& name)
   : QObject(&project),
     mProject(project),
     mDirectoryName(directoryName),
@@ -275,10 +273,9 @@ void Panel::addHole(std::shared_ptr<PI_Hole> hole) {
     throw LogicError(__FILE__, __LINE__);
   }
   if (mHoles.contains(hole->getUuid())) {
-    throw RuntimeError(
-        __FILE__, __LINE__,
-        QString("There is already a hole with the UUID \"%1\"!")
-            .arg(hole->getUuid().toStr()));
+    throw RuntimeError(__FILE__, __LINE__,
+                       QString("There is already a hole with the UUID \"%1\"!")
+                           .arg(hole->getUuid().toStr()));
   }
   mHoles.append(hole);
 }
@@ -370,10 +367,9 @@ void Panel::addTab(std::shared_ptr<PI_Tab> tab) {
     throw LogicError(__FILE__, __LINE__);
   }
   if (mTabs.contains(tab->getUuid())) {
-    throw RuntimeError(
-        __FILE__, __LINE__,
-        QString("There is already a tab with the UUID \"%1\"!")
-            .arg(tab->getUuid().toStr()));
+    throw RuntimeError(__FILE__, __LINE__,
+                       QString("There is already a tab with the UUID \"%1\"!")
+                           .arg(tab->getUuid().toStr()));
   }
   mTabs.append(tab);
 }
@@ -394,10 +390,9 @@ void Panel::addVCut(std::shared_ptr<PI_VCut> vcut) {
     throw LogicError(__FILE__, __LINE__);
   }
   if (mVCuts.contains(vcut->getUuid())) {
-    throw RuntimeError(
-        __FILE__, __LINE__,
-        QString("There is already a V-cut with the UUID \"%1\"!")
-            .arg(vcut->getUuid().toStr()));
+    throw RuntimeError(__FILE__, __LINE__,
+                       QString("There is already a V-cut with the UUID \"%1\"!")
+                           .arg(vcut->getUuid().toStr()));
   }
   mVCuts.append(vcut);
 }
@@ -460,7 +455,8 @@ Length Panel::clampVCutToPanel(bool vertical, const Length& position,
 std::optional<PI_VCut::BoardEdgeAxis> Panel::resolveVCutBoardEdge(
     const PI_VCut& vcut) const noexcept {
   const std::optional<Uuid>& boundBoard = vcut.getBoundBoardInstance();
-  const auto instance = boundBoard ? mBoardInstances.find(*boundBoard) : nullptr;
+  const auto instance =
+      boundBoard ? mBoardInstances.find(*boundBoard) : nullptr;
   return instance ? PI_VCut::resolveBoardEdge(
                         instance->getTransform(), vcut.getBoundSegmentStart(),
                         vcut.getBoundSegmentEnd(), vcut.getBoundSegmentNormal())
@@ -615,8 +611,8 @@ void Panel::boardInstancesEdited(
 }
 
 void Panel::holesEdited(const PI_HoleList& list, int index,
-                       const std::shared_ptr<const PI_Hole>& obj,
-                       PI_HoleList::Event event) noexcept {
+                        const std::shared_ptr<const PI_Hole>& obj,
+                        PI_HoleList::Event event) noexcept {
   Q_UNUSED(obj);
   Q_UNUSED(list);
   switch (event) {
@@ -634,10 +630,9 @@ void Panel::holesEdited(const PI_HoleList& list, int index,
   }
 }
 
-void Panel::fiducialsEdited(
-    const PI_FiducialList& list, int index,
-    const std::shared_ptr<const PI_Fiducial>& obj,
-    PI_FiducialList::Event event) noexcept {
+void Panel::fiducialsEdited(const PI_FiducialList& list, int index,
+                            const std::shared_ptr<const PI_Fiducial>& obj,
+                            PI_FiducialList::Event event) noexcept {
   Q_UNUSED(obj);
   Q_UNUSED(list);
   switch (event) {

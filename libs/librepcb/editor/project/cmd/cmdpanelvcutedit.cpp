@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -68,8 +66,8 @@ CmdPanelVCutEdit::~CmdPanelVCutEdit() noexcept {
     mVCut.setLocked(mOldLocked);
     if (mOldBoundEdge == PI_VCut::BoundEdge::Board) {
       Q_ASSERT(mOldBoundBoard);
-      mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart,
-                            mOldBoundSegEnd, mOldBoundSegNormal, mOldOffset);
+      mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart, mOldBoundSegEnd,
+                            mOldBoundSegNormal, mOldOffset);
     } else {
       mVCut.setBinding(mOldBoundEdge, mOldOffset);
     }
@@ -80,8 +78,7 @@ CmdPanelVCutEdit::~CmdPanelVCutEdit() noexcept {
  *  General Methods
  ******************************************************************************/
 
-void CmdPanelVCutEdit::setPosition(const Length& pos,
-                                   bool immediate) noexcept {
+void CmdPanelVCutEdit::setPosition(const Length& pos, bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewPos = pos;
   if (immediate) mVCut.setPosition(mNewPos);
@@ -128,8 +125,7 @@ void CmdPanelVCutEdit::setLocked(bool locked, bool immediate) noexcept {
   if (immediate) mVCut.setLocked(mNewLocked);
 }
 
-void CmdPanelVCutEdit::setBinding(PI_VCut::BoundEdge edge,
-                                  const Length& offset,
+void CmdPanelVCutEdit::setBinding(PI_VCut::BoundEdge edge, const Length& offset,
                                   bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   Q_ASSERT(edge != PI_VCut::BoundEdge::Board);  // Use setBoardBinding().
@@ -142,12 +138,9 @@ void CmdPanelVCutEdit::setBinding(PI_VCut::BoundEdge edge,
   if (immediate) mVCut.setBinding(mNewBoundEdge, mNewOffset);
 }
 
-void CmdPanelVCutEdit::setBoardBinding(const Uuid& boardInstance,
-                                       const Point& segStart,
-                                       const Point& segEnd,
-                                       const Angle& segNormal,
-                                       const Length& offset,
-                                       bool immediate) noexcept {
+void CmdPanelVCutEdit::setBoardBinding(
+    const Uuid& boardInstance, const Point& segStart, const Point& segEnd,
+    const Angle& segNormal, const Length& offset, bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewBoundEdge = PI_VCut::BoundEdge::Board;
   mNewBoundBoard = boardInstance;
@@ -181,8 +174,8 @@ void CmdPanelVCutEdit::performUndo() {
   mVCut.setLocked(mOldLocked);
   if (mOldBoundEdge == PI_VCut::BoundEdge::Board) {
     Q_ASSERT(mOldBoundBoard);
-    mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart,
-                          mOldBoundSegEnd, mOldBoundSegNormal, mOldOffset);
+    mVCut.setBoardBinding(*mOldBoundBoard, mOldBoundSegStart, mOldBoundSegEnd,
+                          mOldBoundSegNormal, mOldOffset);
   } else {
     mVCut.setBinding(mOldBoundEdge, mOldOffset);
   }
@@ -194,8 +187,8 @@ void CmdPanelVCutEdit::performRedo() {
   mVCut.setLocked(mNewLocked);
   if (mNewBoundEdge == PI_VCut::BoundEdge::Board) {
     Q_ASSERT(mNewBoundBoard);
-    mVCut.setBoardBinding(*mNewBoundBoard, mNewBoundSegStart,
-                          mNewBoundSegEnd, mNewBoundSegNormal, mNewOffset);
+    mVCut.setBoardBinding(*mNewBoundBoard, mNewBoundSegStart, mNewBoundSegEnd,
+                          mNewBoundSegNormal, mNewOffset);
   } else {
     mVCut.setBinding(mNewBoundEdge, mNewOffset);
   }

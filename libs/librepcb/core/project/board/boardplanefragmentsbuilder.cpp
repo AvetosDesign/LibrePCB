@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -164,9 +162,9 @@ void BoardPlaneFragmentsBuilder::cancel() noexcept {
  ******************************************************************************/
 
 std::shared_ptr<BoardPlaneFragmentsBuilder::JobData>
-    BoardPlaneFragmentsBuilder::createJob(
-        Board& board, const QSet<const Layer*>* filter,
-        bool takeScheduledLayers) noexcept {
+    BoardPlaneFragmentsBuilder::createJob(Board& board,
+                                          const QSet<const Layer*>* filter,
+                                          bool takeScheduledLayers) noexcept {
   QSet<const Layer*> layersWithPlanes;
   foreach (const BI_Plane* plane, board.getPlanes()) {
     if ((!filter) ||

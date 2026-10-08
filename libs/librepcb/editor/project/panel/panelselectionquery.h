@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELSELECTIONQUERY_H
 #define LIBREPCB_EDITOR_PANELSELECTIONQUERY_H
 
@@ -97,8 +95,8 @@ public:
   ~PanelSelectionQuery() noexcept override;
 
   // Getters
-  const QVector<std::shared_ptr<PI_BoardInstance>>& getBoardInstances() const
-      noexcept {
+  const QVector<std::shared_ptr<PI_BoardInstance>>& getBoardInstances()
+      const noexcept {
     return mResultBoardInstances;
   }
   const QVector<std::shared_ptr<PI_Hole>>& getHoles() const noexcept {

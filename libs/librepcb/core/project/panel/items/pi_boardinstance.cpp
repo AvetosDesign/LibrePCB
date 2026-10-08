@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #include "pi_boardinstance.h"
 
 #include "../../../serialization/sexpression.h"
@@ -53,9 +50,8 @@ PI_BoardInstance::PI_BoardInstance(const SExpression& node)
 }
 
 PI_BoardInstance::PI_BoardInstance(const Uuid& uuid, const Uuid& board,
-                                       const Point& position,
-                                       const Angle& rotation,
-                                       bool flipped, bool locked) noexcept
+                                   const Point& position, const Angle& rotation,
+                                   bool flipped, bool locked) noexcept
   : onEdited(*this),
     mUuid(uuid),
     mBoard(board),

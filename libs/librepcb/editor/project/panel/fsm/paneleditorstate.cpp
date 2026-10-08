@@ -179,9 +179,9 @@ PanelEditorState::VCutSnap PanelEditorState::calculateVCutSnap(
                    PI_VCut::BoundEdge::PanelTop);
   }
 
-  const PanelSnap::LineResult result = PanelSnap::snapLine(
-      vertical ? PanelSnap::Axis::X : PanelSnap::Axis::Y, position, targets,
-      calculateSnapTolerance(cursorPos));
+  const PanelSnap::LineResult result =
+      PanelSnap::snapLine(vertical ? PanelSnap::Axis::X : PanelSnap::Axis::Y,
+                          position, targets, calculateSnapTolerance(cursorPos));
   scene->setSnapGuides(result.guides);
 
   // A panel edge wins over a board edge on the same line.

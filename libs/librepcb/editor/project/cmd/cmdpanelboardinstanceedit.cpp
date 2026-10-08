@@ -17,15 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "cmdpanelboardinstanceedit.h"
 
-#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/panelplacement.h>
+#include <librepcb/core/project/panel/items/pi_boardinstance.h>
 
 #include <QtCore>
 

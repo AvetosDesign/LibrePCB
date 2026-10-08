@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -147,10 +144,10 @@ PanelSetupDialog::PanelSetupDialog(GuiApplication& app, Panel& panel,
   mUi->spbxBackboneWidth->setDecimals(2);
   mUi->spbxBackboneWidth->setRange(0.0, 100.0);
   // The frame widths only matter for the Open routing style.
-  connect(mUi->cbxRoutingStyle,
-          static_cast<void (QComboBox::*)(int)>(
-              &QComboBox::currentIndexChanged),
-          this, &PanelSetupDialog::updateFrameWidthsEnabled);
+  connect(
+      mUi->cbxRoutingStyle,
+      static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+      this, &PanelSetupDialog::updateFrameWidthsEnabled);
   // Hole size/spacing only matter if mouse bites are included.
   connect(mUi->cbxDefaultMouseBites, &QCheckBox::toggled,
           mUi->spbxDefaultMouseBiteDiameter, &QWidget::setEnabled);
@@ -199,8 +196,7 @@ void PanelSetupDialog::load() noexcept {
   mUi->spbxWidth->setValue(mPanel.getWidth()->toMm());
   mUi->spbxHeight->setValue(mPanel.getHeight()->toMm());
   mUi->spbxDefaultTabWidth->setValue(mPanel.getDefaultTabWidth()->toMm());
-  mUi->cbxDefaultMouseBites->setChecked(
-      mPanel.getDefaultMouseBitesEnabled());
+  mUi->cbxDefaultMouseBites->setChecked(mPanel.getDefaultMouseBitesEnabled());
   // setChecked() only emits toggled() on a change, so sync explicitly.
   mUi->spbxDefaultMouseBiteDiameter->setEnabled(
       mPanel.getDefaultMouseBitesEnabled());
@@ -257,10 +253,9 @@ bool PanelSetupDialog::apply() noexcept {
   const std::optional<Length> bitDiameter =
       parseLengthWithUnit(mUi->cbxRouterBitSize->currentText());
   if ((!bitDiameter) || (*bitDiameter <= 0)) {
-    QMessageBox::warning(
-        this, tr("Could not apply settings"),
-        tr("Invalid router bit size: '%1'")
-            .arg(mUi->cbxRouterBitSize->currentText()));
+    QMessageBox::warning(this, tr("Could not apply settings"),
+                         tr("Invalid router bit size: '%1'")
+                             .arg(mUi->cbxRouterBitSize->currentText()));
     return false;
   }
 
@@ -270,12 +265,12 @@ bool PanelSetupDialog::apply() noexcept {
         ElementName(mUi->edtPanelName->text().trimmed()));  // can throw
     // Changing the size also moves the V-cuts near the top/right edge along
     // (see CmdPanelEdit), same as resizing the panel on the canvas.
-    cmd->setWidth(PositiveLength(spinBoxLength(*mUi->spbxWidth,
-                                               *mPanel.getWidth())),
-                  false);  // can throw
-    cmd->setHeight(PositiveLength(spinBoxLength(*mUi->spbxHeight,
-                                                *mPanel.getHeight())),
-                   false);  // can throw
+    cmd->setWidth(
+        PositiveLength(spinBoxLength(*mUi->spbxWidth, *mPanel.getWidth())),
+        false);  // can throw
+    cmd->setHeight(
+        PositiveLength(spinBoxLength(*mUi->spbxHeight, *mPanel.getHeight())),
+        false);  // can throw
     cmd->setDefaultTabWidth(PositiveLength(
         Length::fromMm(mUi->spbxDefaultTabWidth->value())));  // can throw
     cmd->setDefaultMouseBitesEnabled(mUi->cbxDefaultMouseBites->isChecked());
@@ -288,12 +283,12 @@ bool PanelSetupDialog::apply() noexcept {
     cmd->setRoutingStyle(
         static_cast<Panel::RoutingStyle>(mUi->cbxRoutingStyle->currentIndex()));
     cmd->setRouterBitDiameter(PositiveLength(*bitDiameter));  // can throw
-    cmd->setFrameWidthTopBottom(UnsignedLength(Length::fromMm(
-        mUi->spbxFrameWidthTopBottom->value())));  // can throw
-    cmd->setFrameWidthLeftRight(UnsignedLength(Length::fromMm(
-        mUi->spbxFrameWidthLeftRight->value())));  // can throw
-    cmd->setBackboneWidth(UnsignedLength(Length::fromMm(
-        mUi->spbxBackboneWidth->value())));  // can throw
+    cmd->setFrameWidthTopBottom(UnsignedLength(
+        Length::fromMm(mUi->spbxFrameWidthTopBottom->value())));  // can throw
+    cmd->setFrameWidthLeftRight(UnsignedLength(
+        Length::fromMm(mUi->spbxFrameWidthLeftRight->value())));  // can throw
+    cmd->setBackboneWidth(UnsignedLength(
+        Length::fromMm(mUi->spbxBackboneWidth->value())));  // can throw
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

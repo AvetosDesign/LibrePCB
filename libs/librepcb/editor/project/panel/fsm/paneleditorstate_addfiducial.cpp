@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -183,8 +181,8 @@ bool PanelEditorState_AddFiducial::addFiducial(const Point& pos) noexcept {
     mIsUndoCmdActive = true;
     CmdPanelFiducialAdd* cmdAdd = new CmdPanelFiducialAdd(
         mContext.panel, pos, Angle::deg0(), mCurrentDiameter,
-        mCurrentCopperClearance,
-        MaskConfig::manual(*mCurrentCopperClearance), mCurrentFlipped);
+        mCurrentCopperClearance, MaskConfig::manual(*mCurrentCopperClearance),
+        mCurrentFlipped);
     mContext.undoStack.appendToCmdGroup(cmdAdd);
     mCurrentFiducial = cmdAdd->getFiducial();
     Q_ASSERT(mCurrentFiducial);

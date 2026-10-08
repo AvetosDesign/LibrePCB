@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PI_FIDUCIAL_H
 #define LIBREPCB_CORE_PI_FIDUCIAL_H
 
@@ -50,26 +48,24 @@ class SExpression;
  * @brief The PI_Fiducial class represents a single fiducial placed directly
  *        on a panel
  *
- * Per claude/librepcb_panel_design_decisions.md, decision 4 and the
- * follow-on scoping conversation: a fiducial on a board can be "local"
- * (scoped to a single footprint, see ::librepcb::Pad::Function::
- * LocalFiducial) or "global" (scoped to the whole board, ::librepcb::Pad::
- * Function::GlobalFiducial). A fiducial placed directly on a panel (not
- * tied to any footprint) is always conceptually the "global" kind - it
- * establishes a reference point for the panel as a whole - so PI_Fiducial
- * has no function field at all; there is only one kind of panel fiducial.
+ * A fiducial on a board can be "local" (scoped to a single footprint, see
+ * ::librepcb::Pad::Function::LocalFiducial) or "global" (scoped to the whole
+ * board, ::librepcb::Pad::Function::GlobalFiducial). A fiducial placed
+ * directly on a panel (not tied to any footprint) is always conceptually the
+ * "global" kind - it establishes a reference point for the panel as a whole
+ * - so PI_Fiducial has no function field at all; there is only one kind of
+ * panel fiducial.
  *
  * Geometrically this mirrors the board editor's default global-fiducial
  * pad preset (see BoardEditorState_AddPad's constructor): a circular
  * copper pad (100% corner radius) with a copper clearance and a stop-mask
  * opening sized to it, no solder paste, no drill. Unlike ::librepcb::Pad
  * (the board/footprint pad base class, entangled with net-line-anchor
- * machinery via ::librepcb::BI_Pad that a panel has no use for - see the
- * investigation in claude/librepcb_panelization_tool_addboard_slice.md's
- * fiducial-tool scoping), PI_Fiducial is a small, self-contained value
- * class following the exact same lightweight pattern as ::librepcb::
- * PI_BoardInstance and ::librepcb::PI_Hole - no core/geometry/pad.h
- * dependency, no net segment involvement.
+ * machinery via ::librepcb::BI_Pad that a panel has no use for),
+ * PI_Fiducial is a small, self-contained value class following the exact
+ * same lightweight pattern as ::librepcb::PI_BoardInstance and
+ * ::librepcb::PI_Hole - no core/geometry/pad.h dependency, no net segment
+ * involvement.
  *
  * Since a fiducial is a single-layer copper feature (like ::librepcb::Pad's
  * own SMT pads), it needs a board-side (top/bottom copper layer) just like
@@ -164,7 +160,7 @@ struct PI_FiducialListNameProvider {
 };
 using PI_FiducialList =
     SerializableObjectList<PI_Fiducial, PI_FiducialListNameProvider,
-                            PI_Fiducial::Event>;
+                           PI_Fiducial::Event>;
 
 /*******************************************************************************
  *  End of File

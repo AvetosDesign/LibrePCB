@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDLOCKSELECTEDPANELITEMS_H
 #define LIBREPCB_EDITOR_CMDLOCKSELECTEDPANELITEMS_H
 
@@ -45,7 +43,8 @@ class PanelGraphicsScene;
  ******************************************************************************/
 
 /**
- * @brief The CmdLockSelectedPanelItems class locks or unlocks all selected panel items
+ * @brief The CmdLockSelectedPanelItems class locks or unlocks all selected
+ * panel items
  *
  * The panel counterpart of the Board editor's equivalent command. The
  * selected items are collected with ::librepcb::editor::PanelSelectionQuery
@@ -62,7 +61,8 @@ public:
   ~CmdLockSelectedPanelItems() noexcept override;
 
   // Operator Overloadings
-  CmdLockSelectedPanelItems& operator=(const CmdLockSelectedPanelItems& rhs) = delete;
+  CmdLockSelectedPanelItems& operator=(const CmdLockSelectedPanelItems& rhs) =
+      delete;
 };
 
 /*******************************************************************************

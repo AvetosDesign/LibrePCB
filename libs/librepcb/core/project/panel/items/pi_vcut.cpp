@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -108,17 +106,17 @@ PI_VCut::PI_VCut(const SExpression& node)
     mBoundSegEnd(node.tryGetChild("bind_seg_end")
                      ? Point(node.getChild("bind_seg_end"))
                      : Point()),
-    mBoundSegNormal(node.tryGetChild("bind_seg_normal")
-                        ? deserialize<Angle>(
-                              node.getChild("bind_seg_normal/@0"))
-                        : Angle(0)) {
+    mBoundSegNormal(
+        node.tryGetChild("bind_seg_normal")
+            ? deserialize<Angle>(node.getChild("bind_seg_normal/@0"))
+            : Angle(0)) {
   const QString orientation = node.getChild("orientation/@0").getValue();
   if (orientation == "vertical") {
     mVertical = true;
   } else if (orientation != "horizontal") {
-    throw RuntimeError(__FILE__, __LINE__,
-                       QString("Unknown V-cut orientation: \"%1\"")
-                           .arg(orientation));
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("Unknown V-cut orientation: \"%1\"").arg(orientation));
   }
 }
 
@@ -168,8 +166,8 @@ void PI_VCut::setLocked(bool locked) noexcept {
 void PI_VCut::setBinding(BoundEdge edge, const Length& offset) noexcept {
   Q_ASSERT(edge != BoundEdge::Board);  // Use #setBoardBinding() for that.
   const Length newOffset = (edge == BoundEdge::None) ? Length(0) : offset;
-  const bool changed = (edge != mBoundEdge) || (newOffset != mOffset) ||
-      mBoundBoard.has_value();
+  const bool changed =
+      (edge != mBoundEdge) || (newOffset != mOffset) || mBoundBoard.has_value();
   if (changed) {
     mBoundEdge = edge;
     mOffset = newOffset;
@@ -184,9 +182,8 @@ void PI_VCut::setBinding(BoundEdge edge, const Length& offset) noexcept {
   }
 }
 
-void PI_VCut::setBoardBinding(const Uuid& boardInstance,
-                              const Point& segStart, const Point& segEnd,
-                              const Angle& segNormal,
+void PI_VCut::setBoardBinding(const Uuid& boardInstance, const Point& segStart,
+                              const Point& segEnd, const Angle& segNormal,
                               const Length& offset) noexcept {
   const bool changed = (mBoundEdge != BoundEdge::Board) ||
       (mBoundBoard != boardInstance) || (mBoundSegStart != segStart) ||
@@ -214,8 +211,7 @@ QString PI_VCut::getBoundEdgeLabel(BoundEdge edge) noexcept {
     case BoundEdge::PanelBottom:
       return tr("Panel bottom edge");
     case BoundEdge::Board:
-      // Not naming the specific board yet - open question, see
-      // claude/librepcb_panel_vcut_tool.md.
+      // The specific board is not named (yet).
       return tr("Board edge");
     default:
       return QString();
@@ -234,8 +230,8 @@ void PI_VCut::serialize(SExpression& root) const {
   root.appendChild("position", mPosition);
   root.appendChild("lock", mLocked);
   if (mBoundEdge != BoundEdge::None) {
-    root.appendChild(
-        "bind", SExpression::createToken(boundEdgeToToken(mBoundEdge)));
+    root.appendChild("bind",
+                     SExpression::createToken(boundEdgeToToken(mBoundEdge)));
     root.appendChild("bind_offset", mOffset);
     if (mBoundEdge == BoundEdge::Board) {
       Q_ASSERT(mBoundBoard);
@@ -281,8 +277,8 @@ Length PI_VCut::getPanelEdgeOffset(BoundEdge edge, const Length& position,
 }
 
 std::optional<PI_VCut::BoardEdgeAxis> PI_VCut::resolveBoardEdge(
-    const Transform& boardTransform, const Point& segStart,
-    const Point& segEnd, const Angle& segNormal) noexcept {
+    const Transform& boardTransform, const Point& segStart, const Point& segEnd,
+    const Angle& segNormal) noexcept {
   const Angle rot = boardTransform.getRotation().mappedTo0_360deg();
   if ((rot != Angle::deg0()) && (rot != Angle::deg90()) &&
       (rot != Angle::deg180()) && (rot != Angle::deg270())) {

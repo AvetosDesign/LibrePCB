@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -54,7 +52,6 @@ namespace librepcb {
 /*******************************************************************************
  *  Local Helpers
  ******************************************************************************/
-
 namespace {
 
 // Geometry in plain doubles (nanometers), for the many distance and
@@ -126,8 +123,9 @@ qreal distToRect(const QPointF& p, const QRectF& r) {
 
 // Even-odd point-in-polygon test over several paths (boundary = inside).
 bool isInside(const QPointF& p, const ClipperLib::Paths& paths) {
-  const ClipperLib::IntPoint ip(static_cast<ClipperLib::cInt>(std::llround(p.x())),
-                                static_cast<ClipperLib::cInt>(std::llround(p.y())));
+  const ClipperLib::IntPoint ip(
+      static_cast<ClipperLib::cInt>(std::llround(p.x())),
+      static_cast<ClipperLib::cInt>(std::llround(p.y())));
   bool inside = false;
   for (const ClipperLib::Path& path : paths) {
     const int res = ClipperLib::PointInPolygon(ip, path);
@@ -356,9 +354,10 @@ QHash<Uuid, QVector<PanelOutlineBuilder::MouseBite>>
     const Uuid& boardUuid = instance.getBoard();
     if (result.contains(boardUuid)) continue;
     if (const Board* board = mProject.getBoardByUuid(boardUuid)) {
-      result.insert(boardUuid,
-                    calcMouseBites(*board, mPanel.getTabsOfBoard(
-                                               boardUuid)));  // can throw
+      result.insert(
+          boardUuid,
+          calcMouseBites(*board,
+                         mPanel.getTabsOfBoard(boardUuid)));  // can throw
     }
   }
   return result;
@@ -852,19 +851,19 @@ ClipperLib::Paths PanelOutlineBuilder::getFrame() const {
   }
   ClipperLib::Paths frame = getPanelRect();
   if (((left * 2) < width) && ((bottom * 2) < height)) {
-    const Path inner = Path::rect(Point(left, bottom),
-                                  Point(width - left, height - bottom));
+    const Path inner =
+        Path::rect(Point(left, bottom), Point(width - left, height - bottom));
     ClipperHelpers::subtract(
-        frame, ClipperLib::Paths{ClipperHelpers::convert(inner,
-                                                         maxArcTolerance())},
+        frame,
+        ClipperLib::Paths{ClipperHelpers::convert(inner, maxArcTolerance())},
         ClipperLib::pftNonZero, ClipperLib::pftNonZero);  // can throw
   }
   return frame;
 }
 
 ClipperLib::Paths PanelOutlineBuilder::getPanelRect() const {
-  const Path rect = Path::rect(
-      Point(0, 0), Point(*mPanel.getWidth(), *mPanel.getHeight()));
+  const Path rect =
+      Path::rect(Point(0, 0), Point(*mPanel.getWidth(), *mPanel.getHeight()));
   return ClipperLib::Paths{ClipperHelpers::convert(rect, maxArcTolerance())};
 }
 

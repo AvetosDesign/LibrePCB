@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// All modifications were reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -99,8 +96,7 @@ WindowSection::WindowSection(GuiApplication& app, MainWindow& win,
             DerivedUiObjectList<TabList, Board3dTab, ui::Board3dTabData>>(
             mTabs),
         std::make_shared<
-            DerivedUiObjectList<TabList, PanelTab, ui::PanelTabData>>(
-            mTabs),
+            DerivedUiObjectList<TabList, PanelTab, ui::PanelTabData>>(mTabs),
         std::make_shared<DerivedUiObjectList<TabList, ProjectLibraryTab,
                                              ui::ProjectLibraryTabData>>(mTabs),
         -1,  // Current tab index

@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// All modifications were reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -48,8 +45,8 @@
 #include "project/board/board3dtab.h"
 #include "project/board/boardeditor.h"
 #include "project/library/projectlibrarytab.h"
-#include "project/panel/paneltab.h"
 #include "project/panel/paneleditor.h"
+#include "project/panel/paneltab.h"
 #include "project/projecteditor.h"
 #include "project/projectreadmerenderer.h"
 #include "project/schematic/schematiceditor.h"

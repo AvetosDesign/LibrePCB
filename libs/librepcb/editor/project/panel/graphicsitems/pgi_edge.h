@@ -104,9 +104,7 @@ public:
   }
   PI_VCut::BoundEdge getPanelEdge() const noexcept { return mPanelEdge; }
   bool isBoardEdge() const noexcept { return mBoardInstance.has_value(); }
-  const BoardEdgeSnap::Segment& getSegment() const noexcept {
-    return mSegment;
-  }
+  const BoardEdgeSnap::Segment& getSegment() const noexcept { return mSegment; }
   bool isHighlighted() const noexcept { return mHighlighted; }
 
   // General Methods

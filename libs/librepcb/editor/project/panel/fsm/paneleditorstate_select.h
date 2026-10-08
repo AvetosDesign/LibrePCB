@@ -472,7 +472,7 @@ private:
    * A locked, board-bound V-cut can't be *reoriented* by its board (that
    * would move/rotate a locked item), so for @p isReorientation callers the
    * V-cut is unbound instead (unless #getIgnoreLocks() is active, in which
-   * case it's treated exactly like an unlocked one). A locked V-cut's 
+   * case it's treated exactly like an unlocked one). A locked V-cut's
    * *position* always follows a plain move of its board (@p isReorientation
    * `false`) regardless of lock state - translating a bound V-cut to keep it
    * on its edge isn't the same as independently moving/reorienting a locked
@@ -504,7 +504,7 @@ private:
    * mouse-move step.
    *
    * Callers must call this only after the boards in #mDragCmds have
-   * already had their live position/rotation update applied, so 
+   * already had their live position/rotation update applied, so
    * ::librepcb::PI_VCut::resolveBoardEdge() sees the board's current
    * placement. For an unlocked follower (or any follower while
    * #getIgnoreLocks() is active): moves it if
@@ -514,7 +514,7 @@ private:
    *
    * **Locked followers:** for a plain move step (@p isReorientation `false`),
    * a locked follower still follows like an unlocked one. For a reorientation
-   * step (@p isReorientation `true`), a locked follower's binding is 
+   * step (@p isReorientation `true`), a locked follower's binding is
    * **silently broken right here** instead of being reoriented.
    * Sets #mDragHadLockedVCutBreak when it performs a break, so
    * #processGraphicsSceneLeftMouseButtonReleased() knows to ask for

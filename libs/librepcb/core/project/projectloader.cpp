@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in modifications to this file.
-// All modifications have been reviewed by a human.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -856,10 +853,9 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
   const std::unique_ptr<const SExpression> root =
       SExpression::parse(dir->read(fp.getFilename()), fp);
 
-  Panel* panel =
-      new Panel(p, std::move(dir), fp.getParentDir().getFilename(),
-               deserialize<Uuid>(root->getChild("@0")),
-               deserialize<ElementName>(root->getChild("name/@0")));
+  Panel* panel = new Panel(p, std::move(dir), fp.getParentDir().getFilename(),
+                           deserialize<Uuid>(root->getChild("@0")),
+                           deserialize<ElementName>(root->getChild("name/@0")));
   p.addPanel(*panel);
 
   // Rectangular outline size. Older panel.lp files (from before this
@@ -868,8 +864,7 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
   // so there's nothing more to do for those.
   if (const SExpression* size = root->tryGetChild("size")) {
     panel->setWidth(deserialize<PositiveLength>(size->getChild("width/@0")));
-    panel->setHeight(
-        deserialize<PositiveLength>(size->getChild("height/@0")));
+    panel->setHeight(deserialize<PositiveLength>(size->getChild("height/@0")));
   }
 
   // Grid interval/unit for the panel editor. Older panel.lp files (from
@@ -912,8 +907,8 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
           tabDefaults->getChild("mouse_bite_spacing/@0")));
     }
     if (tabDefaults->tryGetChild("mouse_bite_offset")) {
-      panel->setDefaultMouseBiteOffset(deserialize<Length>(
-          tabDefaults->getChild("mouse_bite_offset/@0")));
+      panel->setDefaultMouseBiteOffset(
+          deserialize<Length>(tabDefaults->getChild("mouse_bite_offset/@0")));
     }
   }
 
@@ -925,8 +920,8 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
           deserialize<Panel::RoutingStyle>(routing->getChild("style/@0")));
     }
     if (routing->tryGetChild("bit_diameter")) {
-      panel->setRouterBitDiameter(deserialize<PositiveLength>(
-          routing->getChild("bit_diameter/@0")));
+      panel->setRouterBitDiameter(
+          deserialize<PositiveLength>(routing->getChild("bit_diameter/@0")));
     }
     if (routing->tryGetChild("frame_width_top_bottom")) {
       panel->setFrameWidthTopBottom(deserialize<UnsignedLength>(
@@ -937,8 +932,8 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
           routing->getChild("frame_width_left_right/@0")));
     }
     if (routing->tryGetChild("backbone_width")) {
-      panel->setBackboneWidth(deserialize<UnsignedLength>(
-          routing->getChild("backbone_width/@0")));
+      panel->setBackboneWidth(
+          deserialize<UnsignedLength>(routing->getChild("backbone_width/@0")));
     }
   }
 
@@ -997,7 +992,8 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
 
   // Board checksums, keyed by referenced board UUID (not by instance).
   if (const SExpression* checksums = root->tryGetChild("checksums")) {
-    foreach (const SExpression* node, checksums->getChildren("board_checksum")) {
+    foreach (const SExpression* node,
+             checksums->getChildren("board_checksum")) {
       panel->setBoardChecksum(deserialize<Uuid>(node->getChild("@0")),
                               node->getChild("value/@0").getValue());
     }

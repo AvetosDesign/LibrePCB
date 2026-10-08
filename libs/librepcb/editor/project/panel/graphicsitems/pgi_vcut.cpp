@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -137,8 +135,8 @@ QPainterPath PGI_VCut::buildPathPx(const Panel& panel, bool vertical,
     // to it, half the arrow's half-width long on each side.
     const Length tickHalfLength = arrowHalfWidth / 2;
     const Length tickGap(300000);  // 0.3 mm beyond the "v" tip
-    for (const Length& tip : {start - arrowLength - tickGap,
-                              end + arrowLength + tickGap}) {
+    for (const Length& tip :
+         {start - arrowLength - tickGap, end + arrowLength + tickGap}) {
       path.moveTo(toPx(tip, v - tickHalfLength));
       path.lineTo(toPx(tip, v + tickHalfLength));
     }

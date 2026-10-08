@@ -192,10 +192,8 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
   QSettings cs;
   mShowOutlinePreview =
       cs.value("panel_editor/show_outline_preview", true).toBool();
-  mSnapBoards =
-      cs.value("panel_editor/snap_boards_enabled", true).toBool();
-  mSnapPanel =
-      cs.value("panel_editor/snap_panel_enabled", true).toBool();
+  mSnapBoards = cs.value("panel_editor/snap_boards_enabled", true).toBool();
+  mSnapPanel = cs.value("panel_editor/snap_panel_enabled", true).toBool();
 
   // The V-cut snap offset is an editing aid, so it is remembered per client
   // (like the other toggles) and not stored in the panel.

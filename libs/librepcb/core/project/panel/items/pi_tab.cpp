@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -63,16 +61,14 @@ PI_Tab::PI_Tab(const SExpression& node)
                     ? std::optional<bool>(
                           deserialize<bool>(node.getChild("mouse_bites/@0")))
                     : std::nullopt),
-    mMouseBiteDiameter(
-        node.tryGetChild("mouse_bite_diameter")
-            ? deserialize<UnsignedLength>(
-                  node.getChild("mouse_bite_diameter/@0"))
-            : UnsignedLength(0)),
-    mMouseBiteSpacing(
-        node.tryGetChild("mouse_bite_spacing")
-            ? deserialize<UnsignedLength>(
-                  node.getChild("mouse_bite_spacing/@0"))
-            : UnsignedLength(0)) {
+    mMouseBiteDiameter(node.tryGetChild("mouse_bite_diameter")
+                           ? deserialize<UnsignedLength>(
+                                 node.getChild("mouse_bite_diameter/@0"))
+                           : UnsignedLength(0)),
+    mMouseBiteSpacing(node.tryGetChild("mouse_bite_spacing")
+                          ? deserialize<UnsignedLength>(
+                                node.getChild("mouse_bite_spacing/@0"))
+                          : UnsignedLength(0)) {
 }
 
 PI_Tab::PI_Tab(const Uuid& uuid, const Uuid& board, const Point& position,
