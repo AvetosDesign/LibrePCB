@@ -231,19 +231,6 @@ export component PanelTab inherits Tab {
                 }
             }
 
-            show-tabs-btn := SceneButton {
-                icon: @image-url("../../../../../img/show-tab-markers.svg");
-                tooltip: @tr("Tab Markers");
-                base-color: tabs[index].background-color;
-                base-text-color: tabs[index].foreground-color;
-                style: checkbox;
-                checked: tabs[index].show-tabs;
-
-                clicked => {
-                    tabs[index].show-tabs = !self.checked;
-                }
-            }
-
             show-outline-preview-btn := SceneButton {
                 icon: @image-url("../../../../font-awesome/svgs/regular/eye.svg");
                 tooltip: @tr("Panel Outline Preview");

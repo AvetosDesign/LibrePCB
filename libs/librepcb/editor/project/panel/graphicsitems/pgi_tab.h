@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_TAB_H
 #define LIBREPCB_EDITOR_PGI_TAB_H
 
@@ -166,12 +164,12 @@ public:
   void updateGeometry() noexcept;
 
   /**
-   * @brief Show the marker or the triangle (display toggle)
+   * @brief Show the marker or the triangle
    *
    * The two are mutually exclusive: the item is always visible (unless
-   * #updateGeometry() hides it), either as the marker (dot and arrow) or,
-   * when the marker is not shown, as a small triangle. Both are the
-   * same selectable item, so clicking either does the same.
+   * #updateGeometry() hides it), either as the marker (dot and arrow) or
+   * as a small triangle. Both are the same selectable item, so clicking
+   * either does the same.
    *
    * @param shown   Whether to show the marker (true) or the triangle (false).
    */

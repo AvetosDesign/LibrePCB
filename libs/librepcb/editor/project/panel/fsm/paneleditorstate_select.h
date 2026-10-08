@@ -133,6 +133,8 @@ class PGI_Tab;
  *    board's design (see #startMovingTab()), moving it on all copies - and
  *    Delete to remove the selected tab(s) from all copies. A marker drag
  *    always moves just the clicked tab, never the rest of the selection.
+ *    A double click on a marker opens its properties dialog
+ *    (#processEditProperties()).
  *    Tabs are otherwise not part of Rotate/Flip/Lock/Cut/Copy: they follow
  *    their boards automatically, and copying a board placement copies its
  *    design's tabs along (added on paste only where missing).
@@ -204,6 +206,8 @@ public:
   bool processGraphicsSceneLeftMouseButtonPressed(
       const GraphicsSceneMouseEvent& e) noexcept override;
   bool processGraphicsSceneLeftMouseButtonReleased(
+      const GraphicsSceneMouseEvent& e) noexcept override;
+  bool processGraphicsSceneLeftMouseButtonDoubleClicked(
       const GraphicsSceneMouseEvent& e) noexcept override;
   bool processGraphicsSceneRightMouseButtonReleased(
       const GraphicsSceneMouseEvent& e) noexcept override;
