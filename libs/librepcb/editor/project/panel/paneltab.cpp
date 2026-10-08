@@ -116,7 +116,6 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mSelectFiducial(false),
     mSelectVCut(false),
     mIgnorePlacementLocks(false),
-    mShowTabs(true),
     mSnapBoards(true),
     mSnapPanel(true),
     mTabToolActive(false),
@@ -191,7 +190,6 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
 
   // Restore client settings (same approach as SchematicTab's pin numbers).
   QSettings cs;
-  mShowTabs = cs.value("panel_editor/show_tabs", true).toBool();
   mShowOutlinePreview =
       cs.value("panel_editor/show_outline_preview", true).toBool();
   mSnapBoards =
@@ -329,7 +327,6 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       l2s(*mPanel.getGridInterval()),  // Grid interval
       l2s(mPanel.getGridUnit()),  // Length unit
       mIgnorePlacementLocks,  // Ignore placement locks
-      mShowTabs,  // Show tabs
       mShowOutlinePreview,  // Show outline preview
       mSnapBoards,  // Snap to boards
       mSnapPanel,  // Snap to panel
@@ -391,14 +388,6 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   // Placement locks - not a model/project setting, just a per-tab UI
   // override, mirroring Board2dTab::setDerivedUiData()'s identical block.
   mIgnorePlacementLocks = data.ignore_placement_locks;
-
-  // Tab markers visibility - also a per-client UI setting.
-  if (data.show_tabs != mShowTabs) {
-    mShowTabs = data.show_tabs;
-    QSettings cs;
-    cs.setValue("panel_editor/show_tabs", mShowTabs);
-    updateTabsVisibility();
-  }
 
   // Panel outline preview - also a per-client UI setting.
   if (data.show_outline_preview != mShowOutlinePreview) {
@@ -1234,7 +1223,7 @@ void PanelTab::rebuildPlanesOfBoard(const Uuid& boardUuid) noexcept {
 
 void PanelTab::updateTabsVisibility() noexcept {
   if (mScene) {
-    mScene->setTabsVisible(mShowTabs || mTabToolActive);
+    mScene->setTabsVisible(mTabToolActive);
   }
 }
 

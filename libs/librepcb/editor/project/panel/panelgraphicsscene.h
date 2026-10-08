@@ -311,10 +311,9 @@ public:
   void setTabTriangleAlpha(int alpha, int selectedAlpha) noexcept;
 
   /**
-   * @brief Show all tab markers, or the triangles instead (display
-   *        toggle)
+   * @brief Show all tab markers, or the triangles instead
    *
-   * The markers and the triangles are mutually exclusive, both are the
+   * The markers and the triangles are mutually exclusive. Both represent the
    * selectable tab. Applied to every current PGI_Tab item (see
    * PGI_Tab::setMarkerShown()) and remembered for tab items added later.
    *

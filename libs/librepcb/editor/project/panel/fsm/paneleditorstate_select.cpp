@@ -803,6 +803,33 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
   return true;
 }
 
+bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonDoubleClicked(
+    const GraphicsSceneMouseEvent& e) noexcept {
+  if (isBusy()) return false;
+
+  // With Shift or Ctrl the user is modifying the selection, not opening
+  // a dialog.
+  if (e.modifiers & (Qt::ShiftModifier | Qt::ControlModifier)) return false;
+
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return false;
+
+  // Only a tab marker has a properties dialog, so far.
+  foreach (QGraphicsItem* item, scene->items(e.scenePos.toPxQPointF())) {
+    if (PGI_Tab* tabItem = dynamic_cast<PGI_Tab*>(item)) {
+      if (!tabItem->isSelected()) {
+        scene->clearSelection();
+        tabItem->setSelected(true);
+      }
+      updateSelectionProperties();
+      return processEditProperties();
+    }
+  }
+
+  // Double clicks on anything else are ignored.
+  return false;
+}
+
 bool PanelEditorState_Select::bindSelectedVCutToEdge() noexcept {
   if (isBusy()) return false;
 

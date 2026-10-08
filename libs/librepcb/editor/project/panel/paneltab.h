@@ -178,11 +178,9 @@ private:
   /**
    * @brief Apply the tab markers' visibility to the scene
    *
-   * Markers are shown if the "Tab Markers" display toggle (#mShowTabs) is
-   * on, or whenever the Add Tab tool is active (#mTabToolActive), since
-   * that tool needs them to avoid placing tabs on top of each other.
-   * Otherwise the tabs are shown as small triangles instead (the two
-   * are mutually exclusive), so tabs can always be selected.
+   * Markers are shown whenever the Add Tab tool is active (#mTabToolActive),
+   * since that tool needs them to avoid placing tabs on top of each other.
+   * Otherwise, the tabs are shown as small triangles instead.
    */
   void updateTabsVisibility() noexcept;
 
@@ -360,7 +358,6 @@ private:
   bool mSelectFiducial;
   bool mSelectVCut;  ///< Select tool: selection is all V-cuts
   bool mIgnorePlacementLocks;
-  bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
   bool mSnapBoards;  ///< "Snap to Boards" toggle, see fsmGetSnapBoardsEnabled()
   bool mSnapPanel;  ///< "Snap to Panel" toggle, see fsmGetSnapPanelEnabled()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
