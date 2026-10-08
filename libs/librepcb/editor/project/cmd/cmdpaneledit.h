@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by a human on 2026-09-16.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELEDIT_H
 
@@ -50,14 +47,15 @@ namespace editor {
  * ::librepcb::editor::CmdBoardEdit's shape (old/new value pairs, diffed in
  * #performExecute()). Covers the panel's name, its outline width &
  * height, its tab defaults (width, mouse bites enabled, mouse bite hole
- * diameter/spacing/offset), and its routing settings (style, router bit diameter, frame
- * widths, backbone width). Width & height also support "immediate" application, so a single
- * instance of this command can be reused both for the one-shot Panel Setup
- * dialog apply (::librepcb::editor::PanelSetupDialog, immediate=false) and
- * for a live edge-drag resize preview on the canvas 
+ * diameter/spacing/offset), and its routing settings (style, router bit
+ *diameter, frame widths, backbone width). Width & height also support
+ *"immediate" application, so a single instance of this command can be reused
+ *both for the one-shot Panel Setup dialog apply
+ *(::librepcb::editor::PanelSetupDialog, immediate=false) and for a live
+ *edge-drag resize preview on the canvas
  *(::librepcb::editor::PanelEditorState_Select, immediate=true).
  * Because width & height can be applied immediately (i.e. before this command
- * is executed on the undo stack), the destructor reverts them back to their 
+ * is executed on the undo stack), the destructor reverts them back to their
  * original values if the command is destroyed without having been executed.
  *
  * Changing the width or height also updates any V-cut

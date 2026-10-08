@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -416,9 +414,8 @@ void OutputJobRunner::runImpl(const GerberExcellonOutputJob& job) {
 
     // Build one BoardPlacement per board instance placed on the panel, each
     // referencing its own real, unmodified Board - see
-    // BoardGerberExport::BoardPlacement and
-    // claude/librepcb_panel_gerber_export_plan.md for why this reuses the
-    // exact same per-board drawing logic instead of duplicating it.
+    // BoardGerberExport::BoardPlacement. This reuses the exact same per-board
+    // drawing logic instead of duplicating it.
     QVector<BoardGerberExport::BoardPlacement> placements;
     for (const PI_BoardInstance& instance : panel->getBoardInstances()) {
       if (Board* board = mProject.getBoardByUuid(instance.getBoard())) {
@@ -428,8 +425,8 @@ void OutputJobRunner::runImpl(const GerberExcellonOutputJob& job) {
         // which was calculated from scratch above regardless of whether the
         // board's own planes were previously outdated.
         rebuildOutdatedPlanes(*board);  // can throw
-        BoardGerberExport::BoardPlacement placement{
-            board, instance.getTransform()};
+        BoardGerberExport::BoardPlacement placement{board,
+                                                    instance.getTransform()};
         const auto overrideIt =
             planeOverridesByBoard.constFind(board->getUuid());
         if (overrideIt != planeOverridesByBoard.constEnd()) {

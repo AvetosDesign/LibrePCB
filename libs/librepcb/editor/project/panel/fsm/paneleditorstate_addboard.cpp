@@ -99,8 +99,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneMouseMoved(
   if (!mIsUndoCmdActive) return false;
   if (!mCurrentInstanceEditCmd) return false;
 
-  const Point pos = snapPosition(
-      e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
+  const Point pos =
+      snapPosition(e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
   // set temporary position of the current board placement
   mCurrentInstanceEditCmd->setPosition(pos, true);
   return true;
@@ -118,8 +118,8 @@ bool PanelEditorState_AddBoard::processGraphicsSceneLeftMouseButtonPressed(
   const bool flipped =
       mCurrentInstance ? mCurrentInstance->getFlipped() : false;
 
-  const Point pos = snapPosition(
-      e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
+  const Point pos =
+      snapPosition(e.scenePos.mappedToGrid(getGridInterval()), e.modifiers);
   try {
     // place the current board placement finally
     if (mCurrentInstanceEditCmd) {

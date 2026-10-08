@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -98,9 +96,8 @@ bool PanelEditorState_AddHole::processGraphicsSceneLeftMouseButtonPressed(
   return true;
 }
 
-bool PanelEditorState_AddHole::
-    processGraphicsSceneLeftMouseButtonDoubleClicked(
-        const GraphicsSceneMouseEvent& e) noexcept {
+bool PanelEditorState_AddHole::processGraphicsSceneLeftMouseButtonDoubleClicked(
+    const GraphicsSceneMouseEvent& e) noexcept {
   // Ignored - the preceding press already placed a hole, so handling this
   // as another press would stack a duplicate hole at the same position.
   Q_UNUSED(e);

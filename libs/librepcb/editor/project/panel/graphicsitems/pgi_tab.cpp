@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -95,9 +93,9 @@ QPainterPath PGI_Tab::markerShapePx() noexcept {
   shaft.addRect(QRectF(QPointF(shaftStart, -shaftHalfWidth),
                        QPointF(shaftEnd, shaftHalfWidth)));
   QPainterPath head;
-  head.addPolygon(QPolygonF({QPointF(shaftEnd, -headHalfWidth),
-                             QPointF(headEnd, 0),
-                             QPointF(shaftEnd, headHalfWidth)}));
+  head.addPolygon(
+      QPolygonF({QPointF(shaftEnd, -headHalfWidth), QPointF(headEnd, 0),
+                 QPointF(shaftEnd, headHalfWidth)}));
   head.closeSubpath();
   return dot.united(shaft).united(head);
 }
@@ -110,9 +108,9 @@ QPainterPath PGI_Tab::triangleShapePx() noexcept {
   const qreal halfBase = Length::fromMm(0.75).toPx();
   const qreal height = Length::fromMm(1.0).toPx();
   QPainterPath triangle;
-  triangle.addPolygon(QPolygonF({QPointF(baseX, -halfBase),
-                                 QPointF(baseX, halfBase),
-                                 QPointF(baseX + height, 0)}));
+  triangle.addPolygon(
+      QPolygonF({QPointF(baseX, -halfBase), QPointF(baseX, halfBase),
+                 QPointF(baseX + height, 0)}));
   triangle.closeSubpath();
   return triangle;
 }

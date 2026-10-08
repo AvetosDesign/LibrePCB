@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDREMOVESELECTEDPANELITEMS_H
 #define LIBREPCB_EDITOR_CMDREMOVESELECTEDPANELITEMS_H
 
@@ -56,13 +54,15 @@ class CmdRemoveSelectedPanelItems final : public UndoCommandGroup {
 public:
   // Constructors / Destructor
   CmdRemoveSelectedPanelItems() = delete;
-  CmdRemoveSelectedPanelItems(const CmdRemoveSelectedPanelItems& other) = delete;
+  CmdRemoveSelectedPanelItems(const CmdRemoveSelectedPanelItems& other) =
+      delete;
   explicit CmdRemoveSelectedPanelItems(PanelGraphicsScene& scene, Panel& panel,
                                        bool includeLockedItems) noexcept;
   ~CmdRemoveSelectedPanelItems() noexcept override;
 
   // Operator Overloadings
-  CmdRemoveSelectedPanelItems& operator=(const CmdRemoveSelectedPanelItems& rhs) = delete;
+  CmdRemoveSelectedPanelItems& operator=(
+      const CmdRemoveSelectedPanelItems& rhs) = delete;
 };
 
 /*******************************************************************************

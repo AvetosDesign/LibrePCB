@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -70,8 +68,7 @@ CmdLockSelectedPanelItems::CmdLockSelectedPanelItems(PanelGraphicsScene& scene,
     cmd->setLocked(locked, false);
     appendChild(cmd.release());
   }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
-           query.getFiducials()) {
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     std::unique_ptr<CmdPanelFiducialEdit> cmd(
         new CmdPanelFiducialEdit(*fiducial));
     cmd->setLocked(locked, false);

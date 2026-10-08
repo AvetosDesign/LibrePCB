@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #include "pgi_outline.h"
 
 #include <librepcb/core/project/panel/panel.h>
@@ -56,13 +53,13 @@ void PGI_Outline::updateOutline() noexcept {
   prepareGeometryChange();
   mOutlineRectPx =
       QRectF(QPointF(0, 0),
-            Point(*mPanel.getWidth(), *mPanel.getHeight()).toPxQPointF())
+             Point(*mPanel.getWidth(), *mPanel.getHeight()).toPxQPointF())
           .normalized();
   update();
 }
 
 void PGI_Outline::setColors(const QColor& color,
-                                  const QColor& colorHighlighted) noexcept {
+                            const QColor& colorHighlighted) noexcept {
   if ((color != mColor) || (colorHighlighted != mColorHighlighted)) {
     mColor = color;
     mColorHighlighted = colorHighlighted;
@@ -113,8 +110,8 @@ void PGI_Outline::setRectShown(bool shown) noexcept {
 }
 
 void PGI_Outline::paint(QPainter* painter,
-                             const QStyleOptionGraphicsItem* option,
-                             QWidget* widget) {
+                        const QStyleOptionGraphicsItem* option,
+                        QWidget* widget) {
   Q_UNUSED(widget);
   if (mRectShown) {
     painter->setPen(QPen(mColor, 0));
@@ -132,7 +129,8 @@ void PGI_Outline::paint(QPainter* painter,
   painter->setPen(QPen(handleColor, 0));
   painter->setBrush(QBrush(handleColor));
   const QPointF corner = mOutlineRectPx.topRight();
-  const QPointF widthHandle(mOutlineRectPx.right(), mOutlineRectPx.center().y());
+  const QPointF widthHandle(mOutlineRectPx.right(),
+                            mOutlineRectPx.center().y());
   const QPointF heightHandle(mOutlineRectPx.center().x(), mOutlineRectPx.top());
   for (const QPointF& p : {corner, widthHandle, heightHandle}) {
     painter->drawRect(QRectF(p.x() - mHandleRadiusPx, p.y() - mHandleRadiusPx,

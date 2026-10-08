@@ -105,9 +105,9 @@ TEST_F(PanelSnapTest, testBoundsTranslated) {
 }
 
 TEST_F(PanelSnapTest, testPanelBounds) {
-  EXPECT_EQ(bounds(0, 100, 80, 0),
-            PanelSnap::panelBounds(PositiveLength(mm(100)),
-                                   PositiveLength(mm(80))));
+  EXPECT_EQ(
+      bounds(0, 100, 80, 0),
+      PanelSnap::panelBounds(PositiveLength(mm(100)), PositiveLength(mm(80))));
 }
 
 /*******************************************************************************
@@ -131,8 +131,8 @@ TEST_F(PanelSnapTest, testToleranceIsInclusive) {
   EXPECT_EQ(1, count(result, Axis::X));
 
   // One nanometer less tolerance: out of reach.
-  result = PanelSnap::snap(moving, {panel100()},
-                           UnsignedLength(Length(499999)));
+  result =
+      PanelSnap::snap(moving, {panel100()}, UnsignedLength(Length(499999)));
   EXPECT_EQ(Length(0), result.dx);
   EXPECT_TRUE(result.guides.isEmpty());
 }
@@ -263,9 +263,9 @@ TEST_F(PanelSnapTest, testNearestCandidateWins) {
 TEST_F(PanelSnapTest, testTieGoesToTheFirstTarget) {
   // Left edge at 5: the first target's left edge is 1 mm to the left, the
   // second's 1 mm to the right.
-  const auto result = snap(
-      bounds(5, 15, 45, 40),
-      {board(bounds(4, 100, 205, 200)), board(bounds(6, 106, 205, 200))});
+  const auto result =
+      snap(bounds(5, 15, 45, 40),
+           {board(bounds(4, 100, 205, 200)), board(bounds(6, 106, 205, 200))});
   EXPECT_EQ(mm(-1), result.dx);
   EXPECT_EQ(mm(4), only(result, Axis::X).coordinate);
 }
@@ -273,10 +273,10 @@ TEST_F(PanelSnapTest, testTieGoesToTheFirstTarget) {
 TEST_F(PanelSnapTest, testTargetsOnTheSameLineGiveOneGuide) {
   // Two boards whose left edge is 0.5 mm from the moving right edge, plus a
   // third one in reach but at a different distance (no guide).
-  const auto result = snap(bounds(0, 10, 105, 100),
-                           {board(bounds(10.5, 20, 5, 0)),
-                            board(bounds(10.5, 30, 55, 50)),
-                            board(bounds(10.8, 30, 55, 50))});
+  const auto result =
+      snap(bounds(0, 10, 105, 100),
+           {board(bounds(10.5, 20, 5, 0)), board(bounds(10.5, 30, 55, 50)),
+            board(bounds(10.8, 30, 55, 50))});
   EXPECT_EQ(mm(0.5), result.dx);
   // A single guide, spanning the moving group and both boards on the line.
   const Guide g = only(result, Axis::X);
@@ -288,9 +288,9 @@ TEST_F(PanelSnapTest, testTargetsOnTheSameLineGiveOneGuide) {
 TEST_F(PanelSnapTest, testOppositeAndSameKindOnOneLineGiveOneGuide) {
   // The moving left edge (10.2) snaps to 10, which is the right edge of the
   // first board and the left edge of the second.
-  const auto result = snap(bounds(10.2, 15, 105, 100),
-                           {board(bounds(0, 10, 5, 0)),
-                            board(bounds(10, 20, 5, 0))});
+  const auto result =
+      snap(bounds(10.2, 15, 105, 100),
+           {board(bounds(0, 10, 5, 0)), board(bounds(10, 20, 5, 0))});
   EXPECT_EQ(mm(-0.2), result.dx);
   const Guide g = only(result, Axis::X);
   EXPECT_EQ(mm(10), g.coordinate);
@@ -300,8 +300,7 @@ TEST_F(PanelSnapTest, testOppositeAndSameKindOnOneLineGiveOneGuide) {
 
 TEST_F(PanelSnapTest, testIdenticalBoundsGuideAllSixLines) {
   // Already perfectly lined up: no correction, but three lines per axis.
-  const auto result =
-      snap(bounds(0, 10, 5, 0), {board(bounds(0, 10, 5, 0))});
+  const auto result = snap(bounds(0, 10, 5, 0), {board(bounds(0, 10, 5, 0))});
   EXPECT_EQ(Length(0), result.dx);
   EXPECT_EQ(Length(0), result.dy);
   EXPECT_EQ(3, count(result, Axis::X));
@@ -368,13 +367,11 @@ TEST_F(PanelSnapTest, testZeroSizeGroup) {
 /*******************************************************************************
  *  snapLine() Tests
  ******************************************************************************/
-
 namespace {
 PanelSnap::EdgeTarget edge(qreal coordinate, qreal start, qreal end,
                            int tag = 0) {
   return PanelSnap::EdgeTarget{Length::fromMm(coordinate),
-                               Length::fromMm(start), Length::fromMm(end),
-                               tag};
+                               Length::fromMm(start), Length::fromMm(end), tag};
 }
 
 PanelSnap::LineResult snapLineMm(qreal position,
@@ -415,8 +412,7 @@ TEST_F(PanelSnapTest, testSnapLineNearestWins) {
 }
 
 TEST_F(PanelSnapTest, testSnapLineTieGoesToFirst) {
-  const auto result =
-      snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.8, 0, 5, 2)});
+  const auto result = snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.8, 0, 5, 2)});
   EXPECT_EQ(mm(0.2), result.shift);
   ASSERT_EQ(1, result.tags.count());
   EXPECT_EQ(1, result.tags.first());
@@ -452,8 +448,7 @@ TEST_F(PanelSnapTest, testSnapLineTargetsOnOneCoordinateMergeToOneGuide) {
 
 TEST_F(PanelSnapTest, testSnapLineOtherCoordinateNotReported) {
   // Only the target which is actually snapped to gets a guide and a tag.
-  const auto result =
-      snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.9, 0, 5, 2)});
+  const auto result = snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.9, 0, 5, 2)});
   EXPECT_EQ(mm(-0.1), result.shift);
   ASSERT_EQ(1, result.guides.count());
   EXPECT_EQ(mm(9.9), result.guides.first().coordinate);
@@ -478,8 +473,7 @@ TEST_F(PanelSnapTest, testSnapLineNegativeCoordinates) {
 
 TEST_F(PanelSnapTest, testSnapLineYAxisGuide) {
   const auto result = PanelSnap::snapLine(
-      PanelSnap::Axis::Y, mm(4.9), {edge(5, 0, 100)},
-      UnsignedLength(mm(0.5)));
+      PanelSnap::Axis::Y, mm(4.9), {edge(5, 0, 100)}, UnsignedLength(mm(0.5)));
   EXPECT_EQ(mm(0.1), result.shift);
   EXPECT_EQ(PanelSnap::Axis::Y, result.guides.first().axis);
 }

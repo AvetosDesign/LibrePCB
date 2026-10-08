@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEREMOVE_H
 #define LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEREMOVE_H
 
@@ -36,8 +34,8 @@
  ******************************************************************************/
 namespace librepcb {
 
-class Panel;
 class PI_BoardInstance;
+class Panel;
 
 namespace editor {
 

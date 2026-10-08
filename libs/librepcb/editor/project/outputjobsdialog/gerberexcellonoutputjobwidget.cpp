@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -268,8 +266,7 @@ GerberExcellonOutputJobWidget::GerberExcellonOutputJobWidget(
           &GerberExcellonOutputJobWidget::apply);
 
   // Boards/Panels. A single All/Default/Custom selection drives both the
-  // job's board set and panel set together (see
-  // claude/librepcb_panel_gerber_export_plan.md for the reasoning). If the
+  // job's board set and panel set together. If the
   // two sets ever disagree - e.g. a job saved before this shared radio
   // group existed - fall back to "Custom", since the per-item checkboxes
   // above (via checkStateFor(), which still evaluates each set's own

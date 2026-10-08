@@ -1,5 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- AI DISCLAIMER: Claude AI assisted in the writing of this file. -->
 <ui version="4.0">
  <class>librepcb::editor::TabPropertiesDialog</class>
  <widget class="QDialog" name="librepcb::editor::TabPropertiesDialog">

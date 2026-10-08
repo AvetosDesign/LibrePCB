@@ -20,7 +20,6 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
 
 #include "panelclipboarddata.h"
 

@@ -636,6 +636,8 @@ add_library(
   project/cmd/cmddragselectedschematicitems.h
   project/cmd/cmdflipselectedboarditems.cpp
   project/cmd/cmdflipselectedboarditems.h
+  project/cmd/cmdlockselectedpanelitems.cpp
+  project/cmd/cmdlockselectedpanelitems.h
   project/cmd/cmdnetclassadd.cpp
   project/cmd/cmdnetclassadd.h
   project/cmd/cmdnetclassedit.cpp
@@ -684,10 +686,6 @@ add_library(
   project/cmd/cmdpanelvcutedit.h
   project/cmd/cmdpanelvcutremove.cpp
   project/cmd/cmdpanelvcutremove.h
-  project/cmd/cmdremoveselectedpanelitems.cpp
-  project/cmd/cmdremoveselectedpanelitems.h
-  project/cmd/cmdlockselectedpanelitems.cpp
-  project/cmd/cmdlockselectedpanelitems.h
   project/cmd/cmdpasteboarditems.cpp
   project/cmd/cmdpasteboarditems.h
   project/cmd/cmdpasteschematicitems.cpp
@@ -702,6 +700,8 @@ add_library(
   project/cmd/cmdremoveboarditems.h
   project/cmd/cmdremoveselectedboarditems.cpp
   project/cmd/cmdremoveselectedboarditems.h
+  project/cmd/cmdremoveselectedpanelitems.cpp
+  project/cmd/cmdremoveselectedpanelitems.h
   project/cmd/cmdremoveselectedschematicitems.cpp
   project/cmd/cmdremoveselectedschematicitems.h
   project/cmd/cmdremoveunusedlibraryelements.cpp
@@ -796,6 +796,51 @@ add_library(
   project/newprojectwizard/newprojectwizardpage_metadata.cpp
   project/newprojectwizard/newprojectwizardpage_metadata.h
   project/newprojectwizard/newprojectwizardpage_metadata.ui
+  project/outputjobsdialog/archiveoutputjobwidget.cpp
+  project/outputjobsdialog/archiveoutputjobwidget.h
+  project/outputjobsdialog/archiveoutputjobwidget.ui
+  project/outputjobsdialog/board3doutputjobwidget.cpp
+  project/outputjobsdialog/board3doutputjobwidget.h
+  project/outputjobsdialog/board3doutputjobwidget.ui
+  project/outputjobsdialog/bomoutputjobwidget.cpp
+  project/outputjobsdialog/bomoutputjobwidget.h
+  project/outputjobsdialog/bomoutputjobwidget.ui
+  project/outputjobsdialog/copyoutputjobwidget.cpp
+  project/outputjobsdialog/copyoutputjobwidget.h
+  project/outputjobsdialog/copyoutputjobwidget.ui
+  project/outputjobsdialog/gerberexcellonoutputjobwidget.cpp
+  project/outputjobsdialog/gerberexcellonoutputjobwidget.h
+  project/outputjobsdialog/gerberexcellonoutputjobwidget.ui
+  project/outputjobsdialog/gerberx3outputjobwidget.cpp
+  project/outputjobsdialog/gerberx3outputjobwidget.h
+  project/outputjobsdialog/gerberx3outputjobwidget.ui
+  project/outputjobsdialog/graphicsoutputjobwidget.cpp
+  project/outputjobsdialog/graphicsoutputjobwidget.h
+  project/outputjobsdialog/graphicsoutputjobwidget.ui
+  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.cpp
+  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.h
+  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.ui
+  project/outputjobsdialog/lppzoutputjobwidget.cpp
+  project/outputjobsdialog/lppzoutputjobwidget.h
+  project/outputjobsdialog/lppzoutputjobwidget.ui
+  project/outputjobsdialog/netlistoutputjobwidget.cpp
+  project/outputjobsdialog/netlistoutputjobwidget.h
+  project/outputjobsdialog/netlistoutputjobwidget.ui
+  project/outputjobsdialog/outputjobhomewidget.cpp
+  project/outputjobsdialog/outputjobhomewidget.h
+  project/outputjobsdialog/outputjobhomewidget.ui
+  project/outputjobsdialog/outputjoblistwidgetitem.cpp
+  project/outputjobsdialog/outputjoblistwidgetitem.h
+  project/outputjobsdialog/outputjoblistwidgetitem.ui
+  project/outputjobsdialog/outputjobsdialog.cpp
+  project/outputjobsdialog/outputjobsdialog.h
+  project/outputjobsdialog/outputjobsdialog.ui
+  project/outputjobsdialog/pickplaceoutputjobwidget.cpp
+  project/outputjobsdialog/pickplaceoutputjobwidget.h
+  project/outputjobsdialog/pickplaceoutputjobwidget.ui
+  project/outputjobsdialog/projectjsonoutputjobwidget.cpp
+  project/outputjobsdialog/projectjsonoutputjobwidget.h
+  project/outputjobsdialog/projectjsonoutputjobwidget.ui
   project/panel/boardproxy.cpp
   project/panel/boardproxy.h
   project/panel/fsm/paneleditorfsm.cpp
@@ -845,51 +890,6 @@ add_library(
   project/panel/tabpropertiesdialog.cpp
   project/panel/tabpropertiesdialog.h
   project/panel/tabpropertiesdialog.ui
-  project/outputjobsdialog/archiveoutputjobwidget.cpp
-  project/outputjobsdialog/archiveoutputjobwidget.h
-  project/outputjobsdialog/archiveoutputjobwidget.ui
-  project/outputjobsdialog/board3doutputjobwidget.cpp
-  project/outputjobsdialog/board3doutputjobwidget.h
-  project/outputjobsdialog/board3doutputjobwidget.ui
-  project/outputjobsdialog/bomoutputjobwidget.cpp
-  project/outputjobsdialog/bomoutputjobwidget.h
-  project/outputjobsdialog/bomoutputjobwidget.ui
-  project/outputjobsdialog/copyoutputjobwidget.cpp
-  project/outputjobsdialog/copyoutputjobwidget.h
-  project/outputjobsdialog/copyoutputjobwidget.ui
-  project/outputjobsdialog/gerberexcellonoutputjobwidget.cpp
-  project/outputjobsdialog/gerberexcellonoutputjobwidget.h
-  project/outputjobsdialog/gerberexcellonoutputjobwidget.ui
-  project/outputjobsdialog/gerberx3outputjobwidget.cpp
-  project/outputjobsdialog/gerberx3outputjobwidget.h
-  project/outputjobsdialog/gerberx3outputjobwidget.ui
-  project/outputjobsdialog/graphicsoutputjobwidget.cpp
-  project/outputjobsdialog/graphicsoutputjobwidget.h
-  project/outputjobsdialog/graphicsoutputjobwidget.ui
-  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.cpp
-  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.h
-  project/outputjobsdialog/interactivehtmlbomoutputjobwidget.ui
-  project/outputjobsdialog/lppzoutputjobwidget.cpp
-  project/outputjobsdialog/lppzoutputjobwidget.h
-  project/outputjobsdialog/lppzoutputjobwidget.ui
-  project/outputjobsdialog/netlistoutputjobwidget.cpp
-  project/outputjobsdialog/netlistoutputjobwidget.h
-  project/outputjobsdialog/netlistoutputjobwidget.ui
-  project/outputjobsdialog/outputjobhomewidget.cpp
-  project/outputjobsdialog/outputjobhomewidget.h
-  project/outputjobsdialog/outputjobhomewidget.ui
-  project/outputjobsdialog/outputjoblistwidgetitem.cpp
-  project/outputjobsdialog/outputjoblistwidgetitem.h
-  project/outputjobsdialog/outputjoblistwidgetitem.ui
-  project/outputjobsdialog/outputjobsdialog.cpp
-  project/outputjobsdialog/outputjobsdialog.h
-  project/outputjobsdialog/outputjobsdialog.ui
-  project/outputjobsdialog/pickplaceoutputjobwidget.cpp
-  project/outputjobsdialog/pickplaceoutputjobwidget.h
-  project/outputjobsdialog/pickplaceoutputjobwidget.ui
-  project/outputjobsdialog/projectjsonoutputjobwidget.cpp
-  project/outputjobsdialog/projectjsonoutputjobwidget.h
-  project/outputjobsdialog/projectjsonoutputjobwidget.ui
   project/partinformationprovider.cpp
   project/partinformationprovider.h
   project/partinformationtooltip.cpp

@@ -1167,10 +1167,9 @@ void PanelEditorState_Select::dragVCutWithSnap(
   cmd.setPosition(snapped, true);
   mDragVCutSnapCorrection = snap.shift;
   if (snap.panelEdge != PI_VCut::BoundEdge::None) {
-    cmd.setBinding(snap.panelEdge,
-                   mContext.panel.getVCutBoundEdgeOffset(snap.panelEdge,
-                                                         snapped),
-                   true);
+    cmd.setBinding(
+        snap.panelEdge,
+        mContext.panel.getVCutBoundEdgeOffset(snap.panelEdge, snapped), true);
   } else {
     rebindVCut(cmd, true);  // The offset of the existing binding, if any.
   }
@@ -1183,11 +1182,10 @@ void PanelEditorState_Select::restoreVCutDragBinding(
     cmd.setBinding(PI_VCut::BoundEdge::None, Length(0), true);
   } else if (edge == PI_VCut::BoundEdge::Board) {
     if (cmd.getOldBoundBoard()) {
-      cmd.setBoardBinding(*cmd.getOldBoundBoard(),
-                          cmd.getOldBoundSegmentStart(),
-                          cmd.getOldBoundSegmentEnd(),
-                          cmd.getOldBoundSegmentNormal(), cmd.getOldOffset(),
-                          true);
+      cmd.setBoardBinding(
+          *cmd.getOldBoundBoard(), cmd.getOldBoundSegmentStart(),
+          cmd.getOldBoundSegmentEnd(), cmd.getOldBoundSegmentNormal(),
+          cmd.getOldOffset(), true);
     }
   } else {
     cmd.setBinding(edge, cmd.getOldOffset(), true);

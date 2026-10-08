@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// Modifications were last reviewed by a human on 2026-09-17.
-
 #ifndef LIBREPCB_EDITOR_EDITORCOMMANDSET_H
 #define LIBREPCB_EDITOR_EDITORCOMMANDSET_H
 

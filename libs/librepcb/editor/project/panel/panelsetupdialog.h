@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #ifndef LIBREPCB_EDITOR_PANELSETUPDIALOG_H
 #define LIBREPCB_EDITOR_PANELSETUPDIALOG_H
 
@@ -59,9 +56,9 @@ class PanelSetupDialog;
  * ::librepcb::Panel today, on four tabs: "General" (name, outline
  * width/height), "Design" (groups "Tab Defaults": default width - see
  * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bite Defaults": whether
- * mouse bites are included, default hole size, spacing and offset; "Framing": routing
- * style, frame widths and backbone width) and "Manufacturing" (router bit size), all
- * applied together via a single
+ * mouse bites are included, default hole size, spacing and offset; "Framing":
+ * routing style, frame widths and backbone width) and "Manufacturing" (router
+ * bit size), all applied together via a single
  * ::librepcb::editor::CmdPanelEdit, plus "DRC Settings". DRC rules (e.g.
  * the minimum V-cut distances to the panel edge, copper, holes and
  * components) are kept separate from the design settings, like Board Setup
@@ -71,7 +68,8 @@ class PanelSetupDialog;
  * ::librepcb::editor::BoardSetupDialog ("Clearances", "Minimum Sizes").
  * The width & height
  * and tab default fields are currently plain `QDoubleSpinBox` fields
- * instead of a dedicated length-edit widget.  It may be desirable to revise this in the future.
+ * instead of a dedicated length-edit widget.  It may be desirable to revise
+ * this in the future.
  */
 class PanelSetupDialog final : public QDialog {
   Q_OBJECT

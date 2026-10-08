@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #ifndef LIBREPCB_EDITOR_PGI_OUTLINE_H
 #define LIBREPCB_EDITOR_PGI_OUTLINE_H
 
@@ -61,15 +58,15 @@ namespace editor {
  * Since `Panel` is a `QObject` but this item is a plain `QGraphicsItem` (not
  * a `QObject`), it does not connect to `Panel::outlineChanged` itself.
  * `PanelGraphicsScene` owns that connection and calls #updateOutline() when
- * it fires, the same way it reconciles board-instance items on 
+ * it fires, the same way it reconciles board-instance items on
  * `Panel::boardInstanceAdded`/`Removed`.
  *
  * The panel is deliberately given a negative Z value so board instances (see
  * PGI_BoardInstance) always paint above it rather than depending on
  * insertion order into the scene.
  *
- * The three resize handles are painted in a distinct, fixed color so they 
- * read as interactive controls rather than as part of the outline shape.  
+ * The three resize handles are painted in a distinct, fixed color so they
+ * read as interactive controls rather than as part of the outline shape.
  * ::librepcb::editor::PanelEditorState_Select also swaps in an appropriate
  * resize cursor (diagonal/horizontal/vertical) when the mouse hovers one of
  * them, matching the usual desktop convention.
@@ -147,7 +144,7 @@ public:
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
   void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-            QWidget* widget) override;
+             QWidget* widget) override;
 
   // Operator Overloadings
   PGI_Outline& operator=(const PGI_Outline& rhs) = delete;

@@ -1,5 +1,3 @@
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 import {
     ListScrollView,
     PanelHeader,
@@ -48,8 +46,7 @@ component BoardListItem inherits Rectangle {
 // Lets the user place a copy of one of the project's boards onto the
 // currently open panel. Deliberately much simpler than PlaceDevicesPanel
 // (no footprint/soldering/density settings - a panel never duplicates or
-// edits a board's content, only places a reference to it, see
-// claude/librepcb_panel_design_decisions.md). A double click on a board
+// edits a board's content, only places a reference to it). A double click on a board
 // triggers PanelTab::setDerivedUiData()'s self-resetting place-board-index
 // field, which starts PanelEditorState_AddBoard.
 export component PlaceBoardsPanel inherits FocusScope {

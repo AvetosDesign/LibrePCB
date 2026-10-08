@@ -142,8 +142,8 @@ Length PanelSnap::Bounds::getMiddle() const noexcept {
 
 PanelSnap::Bounds PanelSnap::Bounds::translated(
     const Point& delta) const noexcept {
-  return Bounds{left + delta.getX(), right + delta.getX(),
-                top + delta.getY(), bottom + delta.getY()};
+  return Bounds{left + delta.getX(), right + delta.getX(), top + delta.getY(),
+                bottom + delta.getY()};
 }
 
 bool PanelSnap::Bounds::operator==(const Bounds& rhs) const noexcept {

@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELFIDUCIALEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELFIDUCIALEDIT_H
 
@@ -110,8 +108,7 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void rotate(const Angle& angle, const Point& center,
-             bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
 
   // Getters
   const Point& getPosition() const noexcept { return mNewPos; }

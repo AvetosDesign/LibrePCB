@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELHOLEEDIT_H
 #define LIBREPCB_EDITOR_CMDPANELHOLEEDIT_H
 
@@ -52,8 +50,7 @@ namespace editor {
  * tool's secondary toolbar can live-preview the drill diameter while
  * placing, matching Board's own Add Hole toolbar. Stop-mask editing and
  * Select-tool integration (drag/rotate/cut/copy/paste) are still deferred
- * to a follow-up slice, per
- * claude/librepcb_panelization_tool_addboard_slice.md.
+ * to a follow-up.
  */
 class CmdPanelHoleEdit final : public UndoCommand {
 public:
@@ -101,8 +98,7 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void rotate(const Angle& angle, const Point& center,
-             bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
 
   // Getters
   const Point& getPosition() const noexcept { return mNewPos; }

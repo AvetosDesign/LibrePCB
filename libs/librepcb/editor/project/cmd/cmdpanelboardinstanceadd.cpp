@@ -17,15 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "cmdpanelboardinstanceadd.h"
 
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 
@@ -45,7 +43,7 @@ CmdPanelBoardInstanceAdd::CmdPanelBoardInstanceAdd(
   : UndoCommand(tr("Add board to panel")),
     mPanel(panel),
     mInstance(new PI_BoardInstance(Uuid::createRandom(), board, position,
-                                     rotation, flipped, locked)) {
+                                   rotation, flipped, locked)) {
 }
 
 CmdPanelBoardInstanceAdd::~CmdPanelBoardInstanceAdd() noexcept {

@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PANELEDITORSTATE_ADDTAB_H
 #define LIBREPCB_EDITOR_PANELEDITORSTATE_ADDTAB_H
 
@@ -57,8 +55,8 @@ namespace editor {
  * PanelGraphicsScene::findNearestBoardEdge()), within a small screen-space
  * tolerance. The tab belongs to that board's design, so it appears on
  * every placed copy of the board. Clicks away from any edge, or on an
- * existing tab marker, add nothing. The cursor position is used as-is (never snapped to the grid),
- * since the tab slides continuously along the edge.
+ * existing tab marker, add nothing. The cursor position is used as-is (never
+ * snapped to the grid), since the tab slides continuously along the edge.
  *
  * Instead, whenever a click *would* add a tab, a semi-transparent "phantom"
  * marker is shown at that spot (PanelGraphicsScene::setTabPhantom()), and

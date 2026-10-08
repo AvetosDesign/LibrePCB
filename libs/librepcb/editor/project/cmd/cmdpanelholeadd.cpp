@@ -17,15 +17,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
 #include "cmdpanelholeadd.h"
 
-#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 
@@ -45,8 +43,8 @@ CmdPanelHoleAdd::CmdPanelHoleAdd(Panel& panel, const Point& position,
                                  bool locked) noexcept
   : UndoCommand(tr("Add hole to panel")),
     mPanel(panel),
-    mHole(new PI_Hole(Uuid::createRandom(), position, diameter,
-                       stopMaskConfig, locked)) {
+    mHole(new PI_Hole(Uuid::createRandom(), position, diameter, stopMaskConfig,
+                      locked)) {
 }
 
 CmdPanelHoleAdd::~CmdPanelHoleAdd() noexcept {

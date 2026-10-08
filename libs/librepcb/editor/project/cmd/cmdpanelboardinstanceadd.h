@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEADD_H
 #define LIBREPCB_EDITOR_CMDPANELBOARDINSTANCEADD_H
 
@@ -38,8 +36,8 @@
  ******************************************************************************/
 namespace librepcb {
 
-class Panel;
 class PI_BoardInstance;
+class Panel;
 
 namespace editor {
 
@@ -53,8 +51,7 @@ namespace editor {
  * Adds a new ::librepcb::PI_BoardInstance (a placed reference to one of
  * the project's boards) to a ::librepcb::Panel. Mirrors the simple shape of
  * CmdPanelRemove rather than the much more involved CmdAddDeviceToBoard,
- * since placing a board reference on a panel needs no library-copy logic -
- * see claude/librepcb_panelization_tool_addboard_slice.md.
+ * since placing a board reference on a panel needs no library-copy logic.
  */
 class CmdPanelBoardInstanceAdd final : public UndoCommand {
 public:

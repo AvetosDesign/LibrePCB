@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELADD_H
 #define LIBREPCB_EDITOR_CMDPANELADD_H
 
@@ -57,7 +54,7 @@ class CmdPanelAdd final : public UndoCommand {
 public:
   // Constructors / Destructor
   CmdPanelAdd(Project& project, const QString& dirName,
-             const ElementName& name) noexcept;
+              const ElementName& name) noexcept;
   ~CmdPanelAdd() noexcept override;
 
   // Getters

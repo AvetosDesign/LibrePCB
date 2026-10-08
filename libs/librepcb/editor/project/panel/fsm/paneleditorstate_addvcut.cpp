@@ -43,10 +43,7 @@ namespace editor {
 
 PanelEditorState_AddVCut::PanelEditorState_AddVCut(
     const Context& context) noexcept
-  : PanelEditorState(context),
-    mVertical(false),
-    mCurrentPos(),
-    mModifiers() {
+  : PanelEditorState(context), mVertical(false), mCurrentPos(), mModifiers() {
 }
 
 PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {

@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #include "pi_fiducial.h"
 
 #include "../../../serialization/sexpression.h"
@@ -57,11 +55,10 @@ PI_Fiducial::PI_Fiducial(const SExpression& node)
 }
 
 PI_Fiducial::PI_Fiducial(const Uuid& uuid, const Point& position,
-                         const Angle& rotation,
-                         const PositiveLength& diameter,
+                         const Angle& rotation, const PositiveLength& diameter,
                          const UnsignedLength& copperClearance,
-                         const MaskConfig& stopMaskConfig,
-                         bool flipped, bool locked) noexcept
+                         const MaskConfig& stopMaskConfig, bool flipped,
+                         bool locked) noexcept
   : onEdited(*this),
     mUuid(uuid),
     mPosition(position),
@@ -97,8 +94,7 @@ void PI_Fiducial::setDiameter(const PositiveLength& diameter) noexcept {
   }
 }
 
-void PI_Fiducial::setCopperClearance(
-    const UnsignedLength& clearance) noexcept {
+void PI_Fiducial::setCopperClearance(const UnsignedLength& clearance) noexcept {
   if (clearance != mCopperClearance) {
     mCopperClearance = clearance;
     onEdited.notify(Event::CopperClearanceChanged);

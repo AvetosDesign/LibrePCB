@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -147,14 +145,12 @@ bool TabPropertiesDialog::apply() noexcept {
                            ? std::optional<bool>()
                            : std::optional<bool>(bites),
                        false);
-    cmd->setMouseBiteDiameter(
-        toOverride(mUi->edtBiteDiameter->getValue(),
-                   mPanel.getDefaultMouseBiteDiameter()),
-        false);
-    cmd->setMouseBiteSpacing(
-        toOverride(mUi->edtBiteSpacing->getValue(),
-                   mPanel.getDefaultMouseBiteSpacing()),
-        false);
+    cmd->setMouseBiteDiameter(toOverride(mUi->edtBiteDiameter->getValue(),
+                                         mPanel.getDefaultMouseBiteDiameter()),
+                              false);
+    cmd->setMouseBiteSpacing(toOverride(mUi->edtBiteSpacing->getValue(),
+                                        mPanel.getDefaultMouseBiteSpacing()),
+                             false);
     mUndoStack.execCmd(cmd.release());  // can throw
     return true;
   } catch (const Exception& e) {

@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_PGI_FIDUCIAL_H
 #define LIBREPCB_EDITOR_PGI_FIDUCIAL_H
 
@@ -98,14 +96,14 @@ public:
    *                       bottom and selected - see @p topSelectedColor.
    */
   void setColors(const QColor& topColor, const QColor& topSelectedColor,
-                const QColor& botColor,
-                const QColor& botSelectedColor) noexcept;
+                 const QColor& botColor,
+                 const QColor& botSelectedColor) noexcept;
 
   // Inherited from QGraphicsItem
   QRectF boundingRect() const noexcept override;
   QPainterPath shape() const noexcept override;
   void paint(QPainter* painter, const QStyleOptionGraphicsItem* option,
-            QWidget* widget) override;
+             QWidget* widget) override;
 
   // Operator Overloadings
   PGI_Fiducial& operator=(const PGI_Fiducial& rhs) = delete;

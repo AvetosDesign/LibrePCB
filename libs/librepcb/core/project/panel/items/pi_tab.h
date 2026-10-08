@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_CORE_PI_TAB_H
 #define LIBREPCB_CORE_PI_TAB_H
 
@@ -52,8 +50,7 @@ class SExpression;
  *
  * A tab marks where a breakaway tab will connect a placed board to the rest
  * of the panel, following the KiKit Viewer model (a placed "annotation"
- * marker rather than an automatically computed tab position - see
- * claude/librepcb_panel_design_decisions.md, decision 4, "Tabs"). This
+ * marker rather than an automatically computed tab position). This
  * class only stores the marker itself; the tab's actual solid geometry
  * (and any mouse bites) will be generated from it at build time.
  *

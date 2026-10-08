@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-
 #ifndef LIBREPCB_CORE_BOARDGERBEREXPORT_H
 #define LIBREPCB_CORE_BOARDGERBEREXPORT_H
 
@@ -79,8 +77,7 @@ class Project;
  * setOutlineOverride() / setExtraNpthDrills() rather than being read from any
  * Board, and only take effect for the layers/files they apply to.
  *
- * Known limitations of the multi-placement mode (not yet handled - see
- * `claude/librepcb_panel_gerber_export_plan.md` in the project's docs):
+ * Known limitations of the multi-placement mode (not yet handled):
  *   - All placements are assumed to share the same layer stack (inner layer
  *     count, solder resist, enabled silkscreen layers, etc.) - these
  *     properties are always read from the *first* placement's board.
@@ -131,7 +128,8 @@ public:
   BoardGerberExport() = delete;
   BoardGerberExport(const BoardGerberExport& other) = delete;
   explicit BoardGerberExport(const Board& board) noexcept;
-  explicit BoardGerberExport(const QVector<BoardPlacement>& placements) noexcept;
+  explicit BoardGerberExport(
+      const QVector<BoardPlacement>& placements) noexcept;
   ~BoardGerberExport() noexcept override;
 
   // Getters
@@ -223,7 +221,7 @@ private:
 
   int drawNpthDrills(ExcellonGenerator& gen) const;
   int drawPthDrills(ExcellonGenerator& gen) const;
-  QMap<LayerPair, QVector<std::pair<const BI_Via*, Transform> > >
+  QMap<LayerPair, QVector<std::pair<const BI_Via*, Transform>>>
       getBlindBuriedVias() const;
   void drawLayer(GerberGenerator& gen, const Layer& layer) const;
   void drawGlueLayer(GerberGenerator& gen, const Layer& layer,
@@ -235,7 +233,7 @@ private:
   void drawDevice(GerberGenerator& gen, const BI_Device& device,
                   const Layer& layer, const Transform& xf) const;
   void drawPad(GerberGenerator& gen, const BI_Pad& pad, const Layer& layer,
-              const Transform& xf) const;
+               const Transform& xf) const;
   void drawPolygon(GerberGenerator& gen, const Layer& layer,
                    const Path& outline, const UnsignedLength& lineWidth,
                    bool fill, GerberGenerator::Function function,

@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It has been reviewed by a human.
-
 #ifndef LIBREPCB_CORE_PANEL_H
 #define LIBREPCB_CORE_PANEL_H
 
@@ -63,12 +60,12 @@ class Project;
  * (from the same project) for fabrication. It intentionally holds no board
  * *content* of its own: every placed copy is a ::librepcb::PI_BoardInstance
  * (which references a board by UUID) plus its placement (position, rotation,
- * flip) on the panel. The panel editor can place, move and remove 
- * instances only.  It includes a provision to open a referenced board's own 
+ * flip) on the panel. The panel editor can place, move and remove
+ * instances only.  It includes a provision to open a referenced board's own
  * editor to change its design, but it can never modify the board data itself.
  *
  * To detect when a referenced board's content has changed since the panel
- * last worked with it, the panel stores a checksum per referenced board 
+ * last worked with it, the panel stores a checksum per referenced board
  * design (keyed by board UUID, not by placement instance. What exactly gets
  * hashed, when the stored checksum gets refreshed, and how a mismatch is
  * surfaced to the user are all deliberately left to later work; this class
@@ -96,8 +93,6 @@ public:
    *  - #Tight: a single route (one router bit wide) runs around the
    *    perimeter of each placed board, interrupted by the tabs; everything
    *    else stays solid.
-   *
-   * See claude/librepcb_panel_toolpath_investigation.md.
    */
   enum class RoutingStyle {
     None,
@@ -208,8 +203,7 @@ public:
    * the origin (0,0) to (width,height) - no position/rotation of its own.
    * Defaults to #defaultWidth for newly created panels. Editable via
    * #setWidth(); resizing by dragging an edge on the canvas, and a Panel
-   * settings dialog, are both future work (see
-   * claude/librepcb_panel_design_decisions.md) - this only provides the
+   * settings dialog, are both future work - this only provides the
    * model-level storage and accessors.
    */
   const PositiveLength& getWidth() const noexcept { return mWidth; }
@@ -228,9 +222,7 @@ public:
    * global workspace setting), so different panels can use different grid
    * spacings for placing boards. The grid *style* (dots/lines/off) is still
    * shared across Board and Panel tabs via the workspace's boardGridStyle
-   * setting (see claude/librepcb_panelization_tool_addboard_slice.md,
-   * slice 18's reasoning for reusing Board's color scheme) - only the
-   * interval/unit are per-document, matching Board.
+   * setting - only the interval/unit are per-document, matching Board.
    */
   const PositiveLength& getGridInterval() const noexcept {
     return mGridInterval;
@@ -293,8 +285,7 @@ public:
    * @return The tab's spacing override if it has one, otherwise
    *         #getDefaultMouseBiteSpacing().
    */
-  PositiveLength getEffectiveMouseBiteSpacing(
-      const PI_Tab& tab) const noexcept;
+  PositiveLength getEffectiveMouseBiteSpacing(const PI_Tab& tab) const noexcept;
 
   /**
    * @brief Check whether tabs get mouse bites by default
@@ -311,8 +302,7 @@ public:
    *
    * Diameter of the non-plated holes drilled along a tab's cut line(s).
    * Defaults to #initialDefaultMouseBiteDiameter. Per-tab overrides and
-   * the mouse bite geometry itself are future work (see
-   * claude/librepcb_panel_design_decisions.md, "Mouse bites").
+   * the mouse bite geometry itself are future work.
    */
   const PositiveLength& getDefaultMouseBiteDiameter() const noexcept {
     return mDefaultMouseBiteDiameter;
@@ -455,9 +445,7 @@ public:
   }
 
   // Board Instance Methods
-  PI_BoardInstanceList& getBoardInstances() noexcept {
-    return mBoardInstances;
-  }
+  PI_BoardInstanceList& getBoardInstances() noexcept { return mBoardInstances; }
   const PI_BoardInstanceList& getBoardInstances() const noexcept {
     return mBoardInstances;
   }
@@ -486,9 +474,7 @@ public:
 
   // Fiducial Methods
   PI_FiducialList& getFiducials() noexcept { return mFiducials; }
-  const PI_FiducialList& getFiducials() const noexcept {
-    return mFiducials;
-  }
+  const PI_FiducialList& getFiducials() const noexcept { return mFiducials; }
   std::shared_ptr<PI_Fiducial> getFiducial(const Uuid& uuid) noexcept {
     return mFiducials.find(uuid);
   }

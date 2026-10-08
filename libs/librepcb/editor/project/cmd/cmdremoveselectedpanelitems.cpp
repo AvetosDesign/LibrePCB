@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -68,8 +66,7 @@ CmdRemoveSelectedPanelItems::CmdRemoveSelectedPanelItems(
   foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
     appendChild(new CmdPanelHoleRemove(panel, hole));
   }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
-           query.getFiducials()) {
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     appendChild(new CmdPanelFiducialRemove(panel, fiducial));
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {

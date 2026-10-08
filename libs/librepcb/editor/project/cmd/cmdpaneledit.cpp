@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by a human on 2026-09-16.
-
 #include "cmdpaneledit.h"
 
 #include <librepcb/core/project/panel/items/pi_vcut.h>
@@ -67,8 +64,8 @@ CmdPanelEdit::~CmdPanelEdit() noexcept {
   if (!wasEverExecuted()) {
     // Revert any live ("immediate") preview changes back to their
     // original values. This is a no-op for a command that was only used
-	// non-immediately (e.g. from ::librepcb::editor::PanelSetupDialog),
-	// since the values are already unchanged in that case.
+    // non-immediately (e.g. from ::librepcb::editor::PanelSetupDialog),
+    // since the values are already unchanged in that case.
     mPanel.setWidth(mOldWidth);
     mPanel.setHeight(mOldHeight);
     applyVCutPositions(mOldWidth, mOldHeight);
@@ -138,12 +135,14 @@ void CmdPanelEdit::setRouterBitDiameter(
   mNewRouterBitDiameter = diameter;
 }
 
-void CmdPanelEdit::setFrameWidthTopBottom(const UnsignedLength& width) noexcept {
+void CmdPanelEdit::setFrameWidthTopBottom(
+    const UnsignedLength& width) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewFrameWidthTopBottom = width;
 }
 
-void CmdPanelEdit::setFrameWidthLeftRight(const UnsignedLength& width) noexcept {
+void CmdPanelEdit::setFrameWidthLeftRight(
+    const UnsignedLength& width) noexcept {
   Q_ASSERT(!wasEverExecuted());
   mNewFrameWidthLeftRight = width;
 }
@@ -221,20 +220,9 @@ void CmdPanelEdit::applyVCutPositions(const PositiveLength& width,
       // An unbound V-cut, or one bound to a *board* edge, doesn't move on
       // a panel resize at all - a board-bound V-cut instead follows its
       // board (see PanelEditorState_Select::followBoardBoundVCuts()/
-      // updateDragFollowerVCuts()), never the panel outline. This
-      // replaces the old "nearest edge" pairing - see
-      // claude/librepcb_panel_vcut_tool.md.
-      //
-      // BUG FIX (Sean, 2026-09-24): board-bound V-cuts used to fall
-      // through into the switch below (added for slice 2, before board
-      // binding existed) and hit its `default: break;`, leaving `pos` at
-      // its default-constructed Length(0) and then calling
-      // setPosition(0) unconditionally - collapsing every board-bound
-      // V-cut onto the panel origin (vertical ones to X=0, horizontal
-      // ones to Y=0) on every panel resize, including on undo/revert
-      // (performUndo()/the destructor's revert path both call this same
-      // function with the pre-resize width/height, which triggered the
-      // identical bug rather than restoring the V-cut's position).
+      // updateDragFollowerVCuts()), never the panel outline. Restoring the
+      // stored position also covers undo/revert, which call this function
+      // with the pre-resize width/height.
       entry.first->setPosition(entry.second);
       continue;
     }

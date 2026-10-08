@@ -20,7 +20,6 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
 
 #include "projectattributelookup.h"
 
@@ -301,9 +300,9 @@ bool ProjectAttributeLookup::query(const Panel& panel, const QString& key,
   // template is shared between its board set and panel set, so a template
   // using only {{BOARD}} would otherwise resolve to the same (empty) value
   // for every panel and collide. To produce a unique path for a job that
-  // exports both boards and panels, the template should use "{{BOARD}}{{PANEL}}"
-  // (exactly one of the two resolves to a non-empty value for any given
-  // export target) rather than {{BOARD}} alone.
+  // exports both boards and panels, the template should use
+  // "{{BOARD}}{{PANEL}}" (exactly one of the two resolves to a non-empty value
+  // for any given export target) rather than {{BOARD}} alone.
   if (key == QLatin1String("PANEL")) {
     value = *panel.getName();
     return true;
