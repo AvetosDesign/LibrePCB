@@ -175,6 +175,46 @@ PanelSnap::Result PanelSnap::snap(const Bounds& moving,
   return result;
 }
 
+PanelSnap::LineResult PanelSnap::snapLine(
+    Axis axis, const Length& position, const QVector<EdgeTarget>& targets,
+    const UnsignedLength& tolerance) noexcept {
+  LineResult result;
+  std::optional<int64_t> best;
+  for (const EdgeTarget& target : targets) {
+    const int64_t shift = target.coordinate.toNm() - position.toNm();
+    if ((qAbs(shift) <= tolerance->toNm()) &&
+        ((!best) || (qAbs(shift) < qAbs(*best)))) {
+      best = shift;
+    }
+  }
+  result.shift = Length(best.value_or(0));
+
+  const Length corrected = position + result.shift;
+  for (const EdgeTarget& target : targets) {
+    if (target.coordinate != corrected) {
+      continue;
+    }
+    const Length start = qMin(target.spanStart, target.spanEnd);
+    const Length end = qMax(target.spanStart, target.spanEnd);
+    bool merged = false;
+    for (Guide& guide : result.guides) {
+      if (guide.coordinate == corrected) {
+        guide.spanStart = qMin(guide.spanStart, start);
+        guide.spanEnd = qMax(guide.spanEnd, end);
+        merged = true;
+        break;
+      }
+    }
+    if (!merged) {
+      result.guides.append(Guide{axis, corrected, start, end});
+    }
+    if (!result.tags.contains(target.tag)) {
+      result.tags.append(target.tag);
+    }
+  }
+  return result;
+}
+
 /*******************************************************************************
  *  End of File
  ******************************************************************************/

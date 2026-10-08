@@ -366,6 +366,125 @@ TEST_F(PanelSnapTest, testZeroSizeGroup) {
 }
 
 /*******************************************************************************
+ *  snapLine() Tests
+ ******************************************************************************/
+
+namespace {
+PanelSnap::EdgeTarget edge(qreal coordinate, qreal start, qreal end,
+                           int tag = 0) {
+  return PanelSnap::EdgeTarget{Length::fromMm(coordinate),
+                               Length::fromMm(start), Length::fromMm(end),
+                               tag};
+}
+
+PanelSnap::LineResult snapLineMm(qreal position,
+                                 const QVector<PanelSnap::EdgeTarget>& targets,
+                                 qreal toleranceMm = 0.5) {
+  return PanelSnap::snapLine(PanelSnap::Axis::X, Length::fromMm(position),
+                             targets,
+                             UnsignedLength(Length::fromMm(toleranceMm)));
+}
+}  // namespace
+
+TEST_F(PanelSnapTest, testSnapLineNoTargets) {
+  const auto result = snapLineMm(10, {});
+  EXPECT_EQ(mm(0), result.shift);
+  EXPECT_TRUE(result.guides.isEmpty());
+  EXPECT_TRUE(result.tags.isEmpty());
+}
+
+TEST_F(PanelSnapTest, testSnapLineInsideAndOutsideTolerance) {
+  EXPECT_EQ(mm(0.4), snapLineMm(9.6, {edge(10, 0, 5)}).shift);
+  EXPECT_EQ(mm(-0.4), snapLineMm(10.4, {edge(10, 0, 5)}).shift);
+  const auto outside = snapLineMm(9.4, {edge(10, 0, 5)});
+  EXPECT_EQ(mm(0), outside.shift);
+  EXPECT_TRUE(outside.guides.isEmpty());
+  EXPECT_TRUE(outside.tags.isEmpty());
+}
+
+TEST_F(PanelSnapTest, testSnapLineToleranceIsInclusive) {
+  EXPECT_EQ(mm(0.5), snapLineMm(9.5, {edge(10, 0, 5)}, 0.5).shift);
+}
+
+TEST_F(PanelSnapTest, testSnapLineNearestWins) {
+  const auto result =
+      snapLineMm(10.1, {edge(9.8, 0, 5, 1), edge(10.3, 0, 5, 2)});
+  EXPECT_EQ(mm(0.2), result.shift);
+  ASSERT_EQ(1, result.tags.count());
+  EXPECT_EQ(2, result.tags.first());
+}
+
+TEST_F(PanelSnapTest, testSnapLineTieGoesToFirst) {
+  const auto result =
+      snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.8, 0, 5, 2)});
+  EXPECT_EQ(mm(0.2), result.shift);
+  ASSERT_EQ(1, result.tags.count());
+  EXPECT_EQ(1, result.tags.first());
+}
+
+TEST_F(PanelSnapTest, testSnapLineGuide) {
+  const auto result = snapLineMm(9.8, {edge(10, 2, 8)});
+  ASSERT_EQ(1, result.guides.count());
+  EXPECT_EQ(PanelSnap::Axis::X, result.guides.first().axis);
+  EXPECT_EQ(mm(10), result.guides.first().coordinate);
+  EXPECT_EQ(mm(2), result.guides.first().spanStart);
+  EXPECT_EQ(mm(8), result.guides.first().spanEnd);
+}
+
+TEST_F(PanelSnapTest, testSnapLineGuideSpanOrderIsNormalized) {
+  const auto result = snapLineMm(10, {edge(10, 8, 2)});
+  ASSERT_EQ(1, result.guides.count());
+  EXPECT_EQ(mm(2), result.guides.first().spanStart);
+  EXPECT_EQ(mm(8), result.guides.first().spanEnd);
+}
+
+TEST_F(PanelSnapTest, testSnapLineTargetsOnOneCoordinateMergeToOneGuide) {
+  const auto result = snapLineMm(
+      9.9, {edge(10, 0, 5, 1), edge(10, 20, 30, 2), edge(10, 3, 4, 1)});
+  EXPECT_EQ(mm(0.1), result.shift);
+  ASSERT_EQ(1, result.guides.count());
+  EXPECT_EQ(mm(0), result.guides.first().spanStart);
+  EXPECT_EQ(mm(30), result.guides.first().spanEnd);
+  EXPECT_EQ(2, result.tags.count());  // No duplicates.
+  EXPECT_TRUE(result.tags.contains(1));
+  EXPECT_TRUE(result.tags.contains(2));
+}
+
+TEST_F(PanelSnapTest, testSnapLineOtherCoordinateNotReported) {
+  // Only the target which is actually snapped to gets a guide and a tag.
+  const auto result =
+      snapLineMm(10, {edge(10.2, 0, 5, 1), edge(9.9, 0, 5, 2)});
+  EXPECT_EQ(mm(-0.1), result.shift);
+  ASSERT_EQ(1, result.guides.count());
+  EXPECT_EQ(mm(9.9), result.guides.first().coordinate);
+  ASSERT_EQ(1, result.tags.count());
+  EXPECT_EQ(2, result.tags.first());
+}
+
+TEST_F(PanelSnapTest, testSnapLineAlreadyOnTarget) {
+  // A zero shift still reports the guide and tag.
+  const auto result = snapLineMm(10, {edge(10, 0, 5, 7)});
+  EXPECT_EQ(mm(0), result.shift);
+  EXPECT_EQ(1, result.guides.count());
+  ASSERT_EQ(1, result.tags.count());
+  EXPECT_EQ(7, result.tags.first());
+}
+
+TEST_F(PanelSnapTest, testSnapLineNegativeCoordinates) {
+  const auto result = snapLineMm(-9.8, {edge(-10, -5, 5)});
+  EXPECT_EQ(mm(-0.2), result.shift);
+  EXPECT_EQ(mm(-10), result.guides.first().coordinate);
+}
+
+TEST_F(PanelSnapTest, testSnapLineYAxisGuide) {
+  const auto result = PanelSnap::snapLine(
+      PanelSnap::Axis::Y, mm(4.9), {edge(5, 0, 100)},
+      UnsignedLength(mm(0.5)));
+  EXPECT_EQ(mm(0.1), result.shift);
+  EXPECT_EQ(PanelSnap::Axis::Y, result.guides.first().axis);
+}
+
+/*******************************************************************************
  *  End of File
  ******************************************************************************/
 

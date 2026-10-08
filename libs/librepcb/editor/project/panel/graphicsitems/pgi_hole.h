@@ -52,9 +52,7 @@ namespace editor {
  *
  * Selectable and movable (::librepcb::editor::PanelEditorState_Select
  * wires up click-select and drag), mirroring PGI_BoardInstance's
- * ItemIsSelectable flag exactly. Rotate/flip/cut/copy/paste and the
- * context menu are still deferred - see
- * claude/librepcb_panelization_tool_addboard_slice.md.
+ * ItemIsSelectable flag exactly.
  */
 class PGI_Hole final : public QGraphicsItem {
 public:

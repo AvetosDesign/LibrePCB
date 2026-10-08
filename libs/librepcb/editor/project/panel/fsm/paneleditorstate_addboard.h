@@ -109,7 +109,7 @@ private:
    * @brief Apply the smart snap to a placement position
    *
    * @param pos        The grid-snapped cursor position.
-   * @param modifiers  The current keyboard modifiers (Alt bypasses).
+   * @param modifiers  The current keyboard modifiers (Alt disables snapping).
    *
    * @return @p pos, adjusted so the current placement's bounds line up with
    *         another board or the panel, if one is within the tolerance.

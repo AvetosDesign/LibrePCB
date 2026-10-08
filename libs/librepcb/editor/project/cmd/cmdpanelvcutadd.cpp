@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -40,10 +38,15 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelVCutAdd::CmdPanelVCutAdd(Panel& panel, bool vertical,
-                                 const Length& position, bool locked) noexcept
+                                 const Length& position, bool locked,
+                                 PI_VCut::BoundEdge boundEdge,
+                                 const Length& offset) noexcept
   : UndoCommand(tr("Add V-cut to panel")),
     mPanel(panel),
     mVCut(new PI_VCut(Uuid::createRandom(), vertical, position, locked)) {
+  if (boundEdge != PI_VCut::BoundEdge::None) {
+    mVCut->setBinding(boundEdge, offset);
+  }
 }
 
 CmdPanelVCutAdd::~CmdPanelVCutAdd() noexcept {

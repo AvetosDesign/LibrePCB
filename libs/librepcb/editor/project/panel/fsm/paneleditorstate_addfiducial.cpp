@@ -52,8 +52,7 @@ PanelEditorState_AddFiducial::PanelEditorState_AddFiducial(
   : PanelEditorState(context),
     mIsUndoCmdActive(false),
     // Matches BoardEditorState_AddPad's Pad::Function::GlobalFiducial
-    // preset (1mm diameter, 0.5mm copper clearance) - see
-    // claude/librepcb_panelization_tool_addboard_slice.md.
+    // preset (1mm diameter, 0.5mm copper clearance).
     mCurrentDiameter(1000000),
     mCurrentCopperClearance(500000),
     mCurrentFlipped(false) {
@@ -77,8 +76,8 @@ bool PanelEditorState_AddFiducial::entry() noexcept {
   mAdapter.fsmSetViewCursor(Qt::CrossCursor);
   // Enables the 'F' shortcut/Edit-menu Flip action during placement, not
   // just the toolbar's own board-side toggle button (which calls
-  // #setFlipped() directly and was never gated by this) - see
-  // PanelEditorState_AddBoard::entry()'s identical call for the pattern.
+  // #setFlipped() directly) - see PanelEditorState_AddBoard::entry()'s
+  // identical call for the pattern.
   mAdapter.fsmSetFeatures(
       PanelEditorFsmAdapter::Features(PanelEditorFsmAdapter::Feature::Flip));
   return true;

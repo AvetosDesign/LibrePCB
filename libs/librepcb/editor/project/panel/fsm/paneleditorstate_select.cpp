@@ -78,6 +78,7 @@ PanelEditorState_Select::PanelEditorState_Select(
     mIsPickingVCutBindEdge(false),
     mDragSnapPending(false),
     mDragHadLockedVCutBreak(false),
+    mDragVCutBaselineUnbound(false),
     mResizeHandle(PGI_Outline::ResizeHandle::None),
     mSelectionKind(SelectionKind::None),
     mCurrentDiameter(1000000),
@@ -188,12 +189,7 @@ bool PanelEditorState_Select::processFlip() noexcept {
        (!mDragFiducialCmds.empty()))) {
     // A drag is in progress - flip the live preview, same as
     // right-click-during-drag rotate (see #processRotate()/
-    // #rotateSelection()). Previously this just returned false whenever
-    // mIsUndoCmdActive was true, silently no-oping Flip for the whole
-    // duration of any drag (Sean, 2026-09-24: "trying to flip a placed
-    // board while dragging doesn't appear to work") - #rotateSelection()
-    // already had this in-drag redirect, #flipSelection() below is its
-    // Flip counterpart.
+    // #rotateSelection()).
     return flipSelection();
   }
   if (isBusy()) return false;  // e.g. a resize drag in progress.
@@ -624,11 +620,10 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
       cmd->translate(delta, true);
     }
-    // Live drag-preview following (claude/librepcb_panel_vcut_tool.md) -
-    // must run right after the boards' own translate() above, so
-    // ::librepcb::PI_VCut::resolveBoardEdge() sees their already-updated
-    // position. A plain translate - locked followers still update too, see
-    // #updateDragFollowerVCuts()'s doc comment.
+    // Live drag-preview following - must run right after the boards' own
+    // translate() above, so ::librepcb::PI_VCut::resolveBoardEdge() sees
+    // their already-updated position. A plain translate - locked followers
+    // still update too, see #updateDragFollowerVCuts()'s doc comment.
     updateDragFollowerVCuts(false);
     for (const std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
       cmd->translate(delta, true);
@@ -638,11 +633,12 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     }
     for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
       // Translate, snap/clamp onto the panel, and keep the binding in sync
-      // (BUG FIX, Sean, 2026-09-24: this used to corrupt a board-bound
-      // V-cut's segment data on every drag step - see
-      // #translateAndRebindVCut()'s doc comment for the full story, now
-      // centralized there instead of duplicated here).
-      translateAndRebindVCut(*cmd, delta, true);
+      if (isSingleVCutDrag()) {
+        // Individually dragged V-cuts snap to board sides and panel edges.
+        dragVCutWithSnap(*cmd, delta, pos, e.modifiers);
+      } else {
+        translateAndRebindVCut(*cmd, delta, true);
+      }
     }
     mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
     mDragLastPos = pos;
@@ -744,9 +740,8 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
   // Commit-time gate for a drag that silently broke a locked, board-bound
   // V-cut's binding during an in-drag rotate/flip
   // (#mDragHadLockedVCutBreak, set by #updateDragFollowerVCuts() right
-  // where it happens) - this is where the user is actually asked (Sean's
-  // design, 2026-09-25: "the warning/confirmation dialog always occurs on
-  // the commit... for drag operations, it happens on the release"). Uses
+  // where it happens) - this is where the user is actually asked, on the
+  // release of the drag. Uses
   // #confirmUnbindLockedVCuts() directly rather than
   // #confirmUnbindLockedBoardVCuts() - by now the affected V-cut(s) are
   // already unbound, so re-scanning for a locked-and-still-board-bound
@@ -1059,9 +1054,9 @@ void PanelEditorState_Select::followBoardBoundVCuts(
     std::unique_ptr<CmdPanelVCutEdit> cmd(new CmdPanelVCutEdit(vcut));
     if (isReorientation && vcut.isLocked() && (!ignoreLocks)) {
       // A locked V-cut can't be reoriented - unbind it instead of
-      // following the board's new rotation/flip (Sean's design,
-      // 2026-09-25). The caller must already have confirmed this via
-      // #confirmUnbindLockedBoardVCuts() before reaching here.
+      // following the board's new rotation/flip. The caller must already
+      // have confirmed this via #confirmUnbindLockedBoardVCuts() before
+      // reaching here.
       cmd->setBinding(PI_VCut::BoundEdge::None, Length(0), false);
     } else {
       // Unlocked, "ignore locks" active, or a plain move (a translate-only
@@ -1083,12 +1078,16 @@ void PanelEditorState_Select::translateAndRebindVCut(
       clampVCutToPanel(cmd.isVertical(),
                        cmd.getPosition().mappedToGrid(*getGridInterval())),
       immediate);
+  rebindVCut(cmd, immediate);
+}
+
+void PanelEditorState_Select::rebindVCut(CmdPanelVCutEdit& cmd,
+                                         bool immediate) const noexcept {
   // Keep a bound V-cut bound - only its offset from the (unchanged) edge
   // follows the new position, mirroring how it would be re-derived after a
   // panel resize (::librepcb::editor::CmdPanelEdit::applyVCutPositions()).
-  // Board edges (slice 3) need ::librepcb::Panel::resolveVCutBoardEdge(), not
-  // #Panel::getVCutBoundEdgeOffset() (panel edges only) - see this method's
-  // doc comment for the bug that using the wrong one caused.
+  // Board edges need ::librepcb::Panel::resolveVCutBoardEdge(), not
+  // #Panel::getVCutBoundEdgeOffset() (panel edges only).
   if (cmd.getVCut().isBound() &&
       (cmd.getVCut().getBoundEdge() == PI_VCut::BoundEdge::Board)) {
     const std::optional<Uuid>& boundBoard =
@@ -1103,8 +1102,8 @@ void PanelEditorState_Select::translateAndRebindVCut(
                           cmd.getVCut().getBoundSegmentNormal(), offset,
                           immediate);
     } else {
-      // Board instance gone, or rotated non-orthogonally since binding -
-      // can't recompute an offset, so unbind and leave the V-cut at its
+      // Board instance is gone, or rotated non-orthogonally since binding -
+      // we can't recompute an offset, so unbind and leave the V-cut at its
       // just-moved position, same "stays put" rule as every other unbind
       // path.
       cmd.setBinding(PI_VCut::BoundEdge::None, Length(0), immediate);
@@ -1116,23 +1115,69 @@ void PanelEditorState_Select::translateAndRebindVCut(
   }
 }
 
+bool PanelEditorState_Select::isSingleVCutDrag() const noexcept {
+  return (mDragVCutCmds.size() == 1) && mDragCmds.empty() &&
+      mDragHoleCmds.empty() && mDragFiducialCmds.empty();
+}
+
+void PanelEditorState_Select::dragVCutWithSnap(
+    CmdPanelVCutEdit& cmd, const Point& delta, const Point& cursorPos,
+    Qt::KeyboardModifiers modifiers) noexcept {
+  // Take back the snap of the previous step (and its binding), then move
+  // like any V-cut - the position is the grid-snapped one again.
+  cmd.setPosition(cmd.getPosition() - mDragVCutSnapCorrection, true);
+  mDragVCutSnapCorrection = Length(0);
+  restoreVCutDragBinding(cmd);
+  translateAndRebindVCut(cmd, delta, true);
+
+  const VCutSnap snap = calculateVCutSnap(cmd.isVertical(), cmd.getPosition(),
+                                          cursorPos, modifiers);
+  const Length snapped = cmd.getPosition() + snap.shift;
+  if (!isVCutOnPanel(cmd.isVertical(), snapped)) {
+    clearSnapGuides();  // Not a position a V-cut may have.
+    return;
+  }
+  cmd.setPosition(snapped, true);
+  mDragVCutSnapCorrection = snap.shift;
+  if (snap.panelEdge != PI_VCut::BoundEdge::None) {
+    cmd.setBinding(snap.panelEdge,
+                   mContext.panel.getVCutBoundEdgeOffset(snap.panelEdge,
+                                                         snapped),
+                   true);
+  } else {
+    rebindVCut(cmd, true);  // The offset of the existing binding, if any.
+  }
+}
+
+void PanelEditorState_Select::restoreVCutDragBinding(
+    CmdPanelVCutEdit& cmd) const noexcept {
+  const PI_VCut::BoundEdge edge = cmd.getOldBoundEdge();
+  if (mDragVCutBaselineUnbound || (edge == PI_VCut::BoundEdge::None)) {
+    cmd.setBinding(PI_VCut::BoundEdge::None, Length(0), true);
+  } else if (edge == PI_VCut::BoundEdge::Board) {
+    if (cmd.getOldBoundBoard()) {
+      cmd.setBoardBinding(*cmd.getOldBoundBoard(),
+                          cmd.getOldBoundSegmentStart(),
+                          cmd.getOldBoundSegmentEnd(),
+                          cmd.getOldBoundSegmentNormal(), cmd.getOldOffset(),
+                          true);
+    }
+  } else {
+    cmd.setBinding(edge, cmd.getOldOffset(), true);
+  }
+}
+
 void PanelEditorState_Select::updateDragFollowerVCuts(
     bool isReorientation) noexcept {
   const bool ignoreLocks = getIgnoreLocks();
   for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragFollowerVCutCmds) {
     if (isReorientation && cmd->getVCut().isLocked() && (!ignoreLocks)) {
       // Break the binding right in the live preview instead of reorienting
-      // a locked item (Sean's design, 2026-09-25). If an earlier translate
-      // step in this same drag already moved the V-cut along with its
-      // board (rule #2), setBinding() alone would leave it frozen at that
-      // displaced position, since it only touches the binding fields, not
-      // position/orientation. So revert those back to their pre-drag
-      // values first, then unbind - the V-cut should end up exactly where
-      // it was before the drag started, not wherever it had drifted to.
-      // Track that this happened (#mDragHadLockedVCutBreak) rather than
-      // letting the eventual commit-time check re-derive it by scanning
-      // for a locked V-cut that's still bound - by then it won't be,
-      // since we're unbinding it right now.
+      // a locked item. If an earlier translate step in this same drag already
+      // moved the V-cut, setBinding() alone would leave it frozen at that
+      // displaced position. Revert those back to their pre-drag values
+      // first, then unbind, leaving the V-cut exactly where it was before the
+      // drag started, not wherever it had drifted to.
       mDragHadLockedVCutBreak = true;
       cmd->setVertical(cmd->wasVertical(), true);
       cmd->setPosition(cmd->getOldPosition(), true);
@@ -1352,6 +1397,8 @@ bool PanelEditorState_Select::clearSelection() noexcept {
 
 void PanelEditorState_Select::beginDragSnap() noexcept {
   mDragSnapCorrection = Point(0, 0);
+  mDragVCutSnapCorrection = Length(0);
+  mDragVCutBaselineUnbound = false;
   QSet<Uuid> dragged;
   for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
     dragged.insert(cmd->getInstance().getUuid());
@@ -1386,11 +1433,15 @@ Point PanelEditorState_Select::calculateDragSnap(
 
 void PanelEditorState_Select::resetDragSnap() noexcept {
   mDragSnapCorrection = Point(0, 0);
+  mDragVCutSnapCorrection = Length(0);
+  // A rotated V-cut was unbound (see rotateSelection())
+  mDragVCutBaselineUnbound = true;
   clearSnapGuides();
 }
 
 void PanelEditorState_Select::endDragSnap() noexcept {
   mDragSnapCorrection = Point(0, 0);
+  mDragVCutSnapCorrection = Length(0);
   endSnap();
 }
 
@@ -1433,13 +1484,12 @@ bool PanelEditorState_Select::startMovingSelection(
     mDragVCutCmds.push_back(std::make_unique<CmdPanelVCutEdit>(*vcut));
   }
   // Board-bound V-cuts not themselves selected also need to move live
-  // with their dragged board(s) - "followers", in the original design's
-  // terms (claude/librepcb_panel_vcut_tool.md) - see
+  // with their dragged board(s) - "followers", see
   // #mDragFollowerVCutCmds/#updateDragFollowerVCuts(). Locked ones are
-  // included too now (Sean's design, 2026-09-25): a locked follower still
-  // needs live position updates for a plain move, and needs to be present
-  // so a later in-drag rotate/flip can silently break its binding - see
-  // #updateDragFollowerVCuts()'s doc comment for how each case is handled.
+  // included too: a locked follower still needs live position updates for
+  // a plain move, and needs to be present so a later in-drag rotate/flip
+  // can silently break its binding - see #updateDragFollowerVCuts()'s doc
+  // comment for how each case is handled.
   if (!mDragCmds.empty()) {
     QSet<Uuid> draggedBoards;
     for (const std::unique_ptr<CmdPanelBoardInstanceEdit>& cmd : mDragCmds) {
@@ -1558,8 +1608,7 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   // multi-item selection. The center is recomputed fresh on every rotation
   // rather than needing to be tracked separately - see #dragGroupCenter()
   // (shared with #flipSelection()) for the averaging itself, including the
-  // rotation-pivot refinement (real outline center rather than origin) -
-  // see claude/librepcb_panelization_tool_addboard_slice.md.
+  // rotation pivot (real outline center rather than origin).
   int centerCount = 0;
   Point center = dragGroupCenter(centerCount);
   if (centerCount == 0) {
@@ -1600,8 +1649,9 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   // rotate() above. Unlike the #mDragVCutCmds loop above, a follower is
   // never itself directly bound-and-rotated here (it's not the thing
   // being rotated, its board is), so there's no silent-unbind-on-rotate
-  // case to mirror - #updateDragFollowerVCuts() only unbinds a follower
-  // if its board's new rotation is non-orthogonal.
+  // case to mirror - #updateDragFollowerVCuts() unbinds a follower if its
+  // board's new rotation is non-orthogonal, or if the follower is locked
+  // (unless locks are ignored).
   updateDragFollowerVCuts(true);
   // The group's bounds changed: whatever was snapped is gone (smart snap).
   resetDragSnap();
@@ -1703,8 +1753,7 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
 
   // Flip the whole selection as one rigid group about its combined
   // geometric center - same convention as rotateSelection() for a
-  // multi-item selection, and the same rotation-pivot refinement (see
-  // claude/librepcb_panelization_tool_addboard_slice.md): each board's real
+  // multi-item selection, and the same rotation pivot: each board's real
   // outline center is averaged, not its origin, so an off-center outline
   // doesn't visibly "orbit" around a point that isn't actually its center.
   // A hole's or fiducial's own position already is its center (both are
@@ -2284,7 +2333,7 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
   }
 
   // V-cuts: for a single V-cut, either its distance to the nearest
-  // parallel panel edge (unbound - same as before), or its absolute
+  // parallel panel edge (unbound), or its absolute
   // coordinate plus its offset from its bound edge (bound - the "nearest
   // edge" framing doesn't apply once it's following a specific edge, which
   // might not even be the nearest one). The panel spans (0,0) to

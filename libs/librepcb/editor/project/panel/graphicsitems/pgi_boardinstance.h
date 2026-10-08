@@ -119,7 +119,8 @@ public:
   /**
    * @brief Show or hide the (unselected) placement outline
    *
-   * Driven by the Panel tab's "Board Outlines" display toggle. Only the
+   * Driven by the visibility of the board outlines layer (see
+   * ::librepcb::editor::PanelTab::boardOutlinesLayerEdited()). Only the
    * normal-state reference outline is affected.
    *
    * @param shown   Whether the outline should be drawn when not selected.
@@ -129,7 +130,7 @@ public:
   /**
    * @brief Get the outline's current geometric center, in scene coordinates
    *
-   * Used for the rotation/flip pivot refinement. A board's outline
+   * Used as the rotation/flip pivot. A board's outline
    * isn't necessarily rectangular and isn't necessarily centered on its own
    * origin, so pivoting rotate/flip about PI_BoardInstance::getPosition()
    * (the origin) can visibly "orbit" an off-center board around a point

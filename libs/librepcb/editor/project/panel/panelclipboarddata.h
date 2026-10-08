@@ -59,8 +59,7 @@ namespace editor {
  * plus its position/rotation/flip, and ::librepcb::PI_BoardInstance/
  * ::librepcb::PI_Hole/::librepcb::PI_Fiducial are already directly
  * S-Expression-serializable, so no embedded content or intermediate struct
- * is needed - see claude/librepcb_panelization_tool_addboard_slice.md
- * (slice 8). #mInstances/#mHoles/#mFiducials each serialize under their
+ * is needed. #mInstances/#mHoles/#mFiducials each serialize under their
  * own distinct tag ("board"/"hole"/"fiducial" respectively - see each
  * type's ListNameProvider), so all three coexist as children of the same
  * root node without ambiguity, exactly like ::librepcb::Panel's own
@@ -76,19 +75,16 @@ namespace editor {
  *
  * Note: pasting a board UUID that doesn't exist in the target project (e.g.
  * pasting into a different project than the one that was copied from) is
- * intentionally not supported yet - see the slice 8 notes in the project
- * doc for the current behavior and the planned follow-up.
+ * intentionally not supported yet (such placements are skipped on paste,
+ * see ::librepcb::editor::PanelEditorState_Select::processPaste()).
  *
  * Deliberately holds no separate "cursor position at copy time" field
- * (slice 8's original design had one, modeled on Board/Footprint's
- * clipboard data). Paste computes its placement offset from the FIRST
- * copied instance's own position instead - see
- * ::librepcb::editor::PanelEditorState_Select::processPaste() and
- * claude/librepcb_panelization_tool_addboard_slice.md, slice 11 - so the
- * cursor always lands exactly on a board's origin during placement,
+ * (unlike Board/Footprint's clipboard data). Paste computes its placement
+ * offset from the FIRST copied item's own position instead - see
+ * ::librepcb::editor::PanelEditorState_Select::processPaste() - so the
+ * cursor always lands exactly on that item's origin during placement,
  * matching ::librepcb::editor::PanelEditorState_AddBoard's placement
- * behavior and making pasted boards reproducibly grid-alignable. A
- * recorded cursor position would just be unused dead weight now.
+ * behavior and making pasted boards reproducibly grid-alignable.
  */
 class PanelClipboardData final {
 public:

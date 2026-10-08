@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -27,6 +25,8 @@
 #include "../../../undostack.h"
 #include "../../cmd/cmdpanelvcutadd.h"
 #include "../panelgraphicsscene.h"
+
+#include <librepcb/core/project/panel/panel.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -43,7 +43,10 @@ namespace editor {
 
 PanelEditorState_AddVCut::PanelEditorState_AddVCut(
     const Context& context) noexcept
-  : PanelEditorState(context), mVertical(false), mCurrentPos() {
+  : PanelEditorState(context),
+    mVertical(false),
+    mCurrentPos(),
+    mModifiers() {
 }
 
 PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {
@@ -56,6 +59,7 @@ PanelEditorState_AddVCut::~PanelEditorState_AddVCut() noexcept {
 bool PanelEditorState_AddVCut::entry() noexcept {
   mCurrentPos = mAdapter.fsmMapGlobalPosToScenePos(QCursor::pos())
                     .mappedToGrid(getGridInterval());
+  mModifiers = QGuiApplication::keyboardModifiers();
   mAdapter.fsmToolEnter(*this);
   mAdapter.fsmSetViewCursor(Qt::CrossCursor);
   mAdapter.fsmSetFeatures(
@@ -68,6 +72,7 @@ bool PanelEditorState_AddVCut::exit() noexcept {
   if (PanelGraphicsScene* scene = getActivePanelScene()) {
     scene->clearVCutPhantom();
   }
+  clearSnapGuides();
   mAdapter.fsmSetFeatures(PanelEditorFsmAdapter::Features());
   mAdapter.fsmSetViewCursor(std::nullopt);
   mAdapter.fsmToolLeave();
@@ -88,6 +93,7 @@ bool PanelEditorState_AddVCut::processRotate(const Angle& rotation) noexcept {
 bool PanelEditorState_AddVCut::processGraphicsSceneMouseMoved(
     const GraphicsSceneMouseEvent& e) noexcept {
   mCurrentPos = e.scenePos.mappedToGrid(getGridInterval());
+  mModifiers = e.modifiers;
   updatePhantom();
   return true;
 }
@@ -95,14 +101,21 @@ bool PanelEditorState_AddVCut::processGraphicsSceneMouseMoved(
 bool PanelEditorState_AddVCut::processGraphicsSceneLeftMouseButtonPressed(
     const GraphicsSceneMouseEvent& e) noexcept {
   mCurrentPos = e.scenePos.mappedToGrid(getGridInterval());
-  const Length position = mVertical ? mCurrentPos.getX() : mCurrentPos.getY();
+  mModifiers = e.modifiers;
+  Length position(0);
+  const VCutSnap snap = calculatePlacement(position);
   if (!isVCutOnPanel(mVertical, position)) {
     return true;  // V-cuts must be placed on the panel - ignore the click.
   }
   try {
     abortBlockingToolsInOtherEditors();
-    execCmd(new CmdPanelVCutAdd(mContext.panel, mVertical,
-                                position));  // can throw
+    // A V-cut snapped to a panel edge is bound to it, all in the one undo
+    // step of the placement.
+    const bool bind = (snap.panelEdge != PI_VCut::BoundEdge::None);
+    execCmd(new CmdPanelVCutAdd(
+        mContext.panel, mVertical, position, false, snap.panelEdge,
+        bind ? mContext.panel.getVCutBoundEdgeOffset(snap.panelEdge, position)
+             : Length(0)));  // can throw
   } catch (const Exception& ex) {
     QMessageBox::critical(parentWidget(), tr("Error"), ex.getMsg());
   }
@@ -142,16 +155,26 @@ void PanelEditorState_AddVCut::setVertical(bool vertical) noexcept {
  *  Private Methods
  ******************************************************************************/
 
+PanelEditorState::VCutSnap PanelEditorState_AddVCut::calculatePlacement(
+    Length& position) noexcept {
+  position = mVertical ? mCurrentPos.getX() : mCurrentPos.getY();
+  const VCutSnap snap =
+      calculateVCutSnap(mVertical, position, mCurrentPos, mModifiers);
+  position += snap.shift;
+  return snap;
+}
+
 void PanelEditorState_AddVCut::updatePhantom() noexcept {
   if (PanelGraphicsScene* scene = getActivePanelScene()) {
     // Only shown where a click would actually place a V-cut, i.e. on the
     // panel.
-    const Length position =
-        mVertical ? mCurrentPos.getX() : mCurrentPos.getY();
+    Length position(0);
+    calculatePlacement(position);
     if (isVCutOnPanel(mVertical, position)) {
       scene->setVCutPhantom(mVertical, position);
     } else {
       scene->clearVCutPhantom();
+      clearSnapGuides();
     }
   }
 }

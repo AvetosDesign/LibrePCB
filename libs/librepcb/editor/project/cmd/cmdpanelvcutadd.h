@@ -17,8 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-
 #ifndef LIBREPCB_EDITOR_CMDPANELVCUTADD_H
 #define LIBREPCB_EDITOR_CMDPANELVCUTADD_H
 
@@ -27,6 +25,7 @@
  ******************************************************************************/
 #include "../../undocommand.h"
 
+#include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/types/length.h>
 
 #include <memory>
@@ -37,7 +36,6 @@
 namespace librepcb {
 
 class Panel;
-class PI_VCut;
 
 namespace editor {
 
@@ -65,9 +63,15 @@ public:
    * @param position  Y coordinate of a horizontal V-cut, or X coordinate of
    *                  a vertical one - see ::librepcb::PI_VCut.
    * @param locked    Whether the V-cut is locked.
+   * @param boundEdge Panel edge to bind the V-cut to (::librepcb::PI_VCut::
+   *                  BoundEdge::None for an unbound V-cut).
+   * @param offset    Offset from the bound edge, see
+   *                  ::librepcb::PI_VCut::getOffset().
    */
   CmdPanelVCutAdd(Panel& panel, bool vertical, const Length& position,
-                  bool locked = false) noexcept;
+                  bool locked = false,
+                  PI_VCut::BoundEdge boundEdge = PI_VCut::BoundEdge::None,
+                  const Length& offset = Length(0)) noexcept;
   ~CmdPanelVCutAdd() noexcept override;
 
   // General Methods

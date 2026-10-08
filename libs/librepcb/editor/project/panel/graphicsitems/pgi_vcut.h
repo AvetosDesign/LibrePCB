@@ -65,9 +65,7 @@ namespace editor {
  * triangles of the same size as the open "v"s.
  *
  * A V-cut bound to an edge (::librepcb::PI_VCut::isBound()) is shown with a
- * short tick mark crossing the line just outside each "v" - a first attempt
- * at a geometry-integrated indicator, in the same spirit as the locked
- * triangles, likely to be revised once seen on screen.
+ * short tick mark crossing the line just outside each "v".
  *
  * The whole line (plus a little tolerance) is clickable - see #shape().
  * Drawn above placed boards and below tab markers. The same geometry is

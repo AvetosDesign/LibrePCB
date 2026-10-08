@@ -57,7 +57,7 @@ class PanelSetupDialog;
  * `QDialogButtonBox`, loaded from the model on construction, applied back
  * to it through an undo command) but scoped down to just what exists on
  * ::librepcb::Panel today, on four tabs: "General" (name, outline
- * width/height), "Design" (groups "Tabs": default width - see
+ * width/height), "Design" (groups "Tab Defaults": default width - see
  * ::librepcb::Panel::getDefaultTabWidth(); "Mouse Bite Defaults": whether
  * mouse bites are included, default hole size, spacing and offset; "Framing": routing
  * style, frame widths and backbone width) and "Manufacturing" (router bit size), all

@@ -55,12 +55,10 @@ struct GraphicsSceneMouseEvent;
  *
  * Trimmed down from ::librepcb::editor::BoardEditorFsm: only six states
  * exist (`SELECT`, `ADD_BOARD`, `ADD_HOLE`, `ADD_FIDUCIAL`, `ADD_TAB`,
- * `ADD_VCUT`), since the panel editor has no
- * other tools yet - see claude/librepcb_panel_design_decisions.md for
- * what's still to come. Unlike
+ * `ADD_VCUT`), since the panel editor has no other tools. Unlike
  * `BoardEditorFsm`, there's no `mPreviousState`/`switchToPreviousState()` -
- * with only one other state to fall back to, aborting a tool always returns
- * to `SELECT` rather than needing to remember what was active before.
+ * aborting a tool always returns to `SELECT` rather than needing to remember
+ * what was active before.
  */
 class PanelEditorFsm final : public QObject {
   Q_OBJECT

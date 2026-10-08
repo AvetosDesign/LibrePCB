@@ -57,7 +57,7 @@ class PanelGraphicsScene;
  * Trimmed down from ::librepcb::editor::BoardEditorFsmAdapter: no
  * net/layer/cross-probe/ruler/tolerance-hit-testing concerns, since a panel
  * has none of that (it only ever references board designs, never their
- * content - see decisions 1/2 in claude/librepcb_panel_design_decisions.md).
+ * content).
  */
 class PanelEditorFsmAdapter {
 public:
@@ -127,13 +127,31 @@ public:
   virtual bool fsmGetIgnoreLocks() const noexcept = 0;
 
   /**
-   * @brief Whether smart snapping is enabled
+   * @brief Whether smart snapping to placed boards is enabled
    *
-   * Backed by the per-client "Snap" toggle button of the panel tab. The
-   * states combine it with the Alt modifier, see
-   * ::librepcb::editor::PanelEditorState::calculateSnap().
+   * Backed by the per-client "Snap to Board Edges/Centers" toggle button of
+   * the panel tab. The states additionally disable all snapping while Alt is
+   * held, see ::librepcb::editor::PanelEditorState::calculateSnap().
    */
-  virtual bool fsmGetSnapEnabled() const noexcept = 0;
+  virtual bool fsmGetSnapBoardsEnabled() const noexcept = 0;
+
+  /**
+   * @brief Whether smart snapping to the panel is enabled
+   *
+   * Backed by the per-client "Snap to Panel Edges/Centers" toggle button of
+   * the panel tab. The states additionally disable all snapping while Alt is
+   * held, see ::librepcb::editor::PanelEditorState::calculateSnap().
+   */
+  virtual bool fsmGetSnapPanelEnabled() const noexcept = 0;
+
+  /**
+   * @brief The snap offset of V-cuts
+   *
+   * The distance a V-cut maintains to the edge it snaps to, from the V-cut
+   * toolbar.  Positive = away from a board (inward from a panel edge),
+   * negative = toward a board.
+   */
+  virtual Length fsmGetVCutSnapOffset() const noexcept = 0;
 
   virtual void fsmToolLeave() noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_Select& state) noexcept = 0;

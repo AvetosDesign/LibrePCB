@@ -84,8 +84,7 @@ class PGI_VCut;
  * BoardGraphicsScene's role as a `GraphicsScene` subclass that keeps a live
  * item registry in sync with the model. Holes, fiducials, tab markers and
  * V-cuts (PGI_Hole, PGI_Fiducial, PGI_Tab, PGI_VCut) are registered the
- * same way. Still no generated tab/mouse-bite geometry (see
- * claude/librepcb_panel_design_decisions.md).
+ * same way.
  *
  * Also caches the current board-instance colors (#setBoardInstanceColors()),
  * set by ::librepcb::editor::PanelTab::applyWorkspaceSettings() - unlike the
@@ -189,9 +188,10 @@ public:
    * Follows ::librepcb::editor::BoardGraphicsScene::selectItemsInRect()'s
    * exact shape: draws the rectangle itself via the inherited
    * GraphicsScene::setSelectionRect(), then recomputes every board
-   * instance/hole/fiducial item's selected state from scratch on each call
-   * (so shrinking or moving the rectangle correctly deselects an item that
-   * is no longer inside it, not just adds newly-covered ones). Called
+   * instance/hole/fiducial/tab/V-cut item's selected state from scratch on
+   * each call (so shrinking or moving the rectangle correctly deselects an
+   * item that is no longer inside it, not just adds newly-covered ones).
+   * Called
    * continuously from PanelEditorState_Select::processGraphicsSceneMouseMoved()
    * while a left-button drag over empty panel space is in progress.
    *
@@ -525,8 +525,8 @@ private:  // Data
   // Note: std::map (not QHash) since QHash's internal reallocation
   // path copy-constructs nodes even when never actually shared, which
   // does not compile for a move-only value type like std::unique_ptr -
-  // the same class of issue as the QVector<std::unique_ptr<...>> one
-  // documented for slice 3c's mDragCmds. Uuid already provides
+  // the same reason PanelEditorState_Select's drag command lists are
+  // std::vector rather than QVector. Uuid already provides
   // operator<(), so std::map needs no new hash specialization.
   // Key: board UUID and side facing up (see BoardProxy::Side).
   std::map<std::pair<Uuid, BoardProxy::Side>, std::unique_ptr<BoardProxy>>

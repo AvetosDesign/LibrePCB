@@ -73,18 +73,14 @@ class SlintGraphicsView;
  * `WindowTab`/`SlintGraphicsView`/`GraphicsScene` mechanics as
  * ::librepcb::editor::Board2dTab and ::librepcb::editor::SchematicTab. The
  * scene is a `PanelGraphicsScene`, which renders every placed board
- * instance (see `claude/librepcb_panelization_tool_addboard_slice.md` for
- * what this slice covers and what's still deferred).
+ * instance.
  *
- * As of this slice, `PanelTab` also drives a `PanelEditorFsm` (via
+ * `PanelTab` also drives a `PanelEditorFsm` (via
  * `PanelEditorFsmAdapter`) and implements `IF_GraphicsViewEventHandler`,
- * following `Board2dTab`'s exact wiring pattern: `SlintGraphicsView`
+ * following `Board2dTab`'s wiring pattern: `SlintGraphicsView`
  * dispatches mouse/key events to whichever event handler is installed via
- * `setEventHandler()`, so no changes were needed to the already-existing
- * `processScenePointerEvent()`/`processSceneKeyPressed()`/etc. methods.
- * This adds the "add board" and "select" tools (place/select/remove board
- * placements); moving an already-placed board by dragging is not
- * implemented yet (see PanelEditorState_Select).
+ * `setEventHandler()`. The tools of the FSM are selecting and editing panel
+ * items, and adding boards, holes, fiducials, tabs and V-cuts.
  */
 class PanelTab final : public WindowTab,
                        public PanelEditorFsmAdapter,
@@ -156,7 +152,9 @@ public:
   void fsmSetFeatures(Features features) noexcept override;
   void fsmSetViewInfoBoxText(const QString& text) noexcept override;
   bool fsmGetIgnoreLocks() const noexcept override;
-  bool fsmGetSnapEnabled() const noexcept override;
+  bool fsmGetSnapBoardsEnabled() const noexcept override;
+  bool fsmGetSnapPanelEnabled() const noexcept override;
+  Length fsmGetVCutSnapOffset() const noexcept override;
   void fsmToolLeave() noexcept override;
   void fsmToolEnter(PanelEditorState_Select& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept override;
@@ -264,8 +262,7 @@ private:
    * Runs ::librepcb::PanelOutlineBuilder synchronously if the preview is
    * enabled (#mShowOutlinePreview) and passes the result to
    * PanelGraphicsScene::setOutlinePreview(). The calculation time is
-   * logged, to decide later whether the preview can be on by default and
-   * whether it needs to run in a background thread.
+   * logged.
    */
   void updateOutlinePreview() noexcept;
 
@@ -355,6 +352,7 @@ private:
   LengthEditContext mToolTabWidth;  ///< Add Tab tool: tab width
   LengthEditContext mToolTabBiteDiameter;  ///< Add Tab tool: hole size
   LengthEditContext mToolTabBiteSpacing;  ///< Add Tab tool: hole spacing
+  LengthEditContext mToolVCutSnapOffset;  ///< V-cut toolbar: snap offset
   bool mToolTabMouseBites;  ///< Add Tab tool: include mouse bites
   bool mToolFlipped;
   bool mToolVCutVertical;  ///< Add V-Cut tool's orientation
@@ -363,7 +361,8 @@ private:
   bool mSelectVCut;  ///< Select tool: selection is all V-cuts
   bool mIgnorePlacementLocks;
   bool mShowTabs;  ///< "Tab Markers" display toggle, see updateTabsVisibility()
-  bool mSnapEnabled;  ///< "Snap" display toggle, see fsmGetSnapEnabled()
+  bool mSnapBoards;  ///< "Snap to Boards" toggle, see fsmGetSnapBoardsEnabled()
+  bool mSnapPanel;  ///< "Snap to Panel" toggle, see fsmGetSnapPanelEnabled()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
   bool mVCutToolActive;  ///< Whether the Add V-Cut tool is active
   bool mShowOutlinePreview;  ///< "Panel Outline Preview" display toggle

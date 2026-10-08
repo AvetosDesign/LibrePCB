@@ -1430,6 +1430,11 @@ export struct PanelTabData {
                         // selection's board side
     tool-vcut-vertical: bool,  // Add V-Cut tool's orientation
                                // (false=horizontal, true=vertical)
+    tool-vcut-snap-offset: LengthEditData,  // Add V-Cut tool (and V-cuts-only
+                                            // selection): snap offset from
+                                            // board/panel edges (positive =
+                                            // away from a board, inward
+                                            // from a panel edge)
     tool-tab-width: LengthEditData,  // Add Tab tool's tab width
     tool-tab-mouse-bites: bool,  // Add Tab tool: include mouse bites
     tool-tab-bite-diameter: LengthEditData,  // Add Tab tool: hole size
@@ -1468,9 +1473,13 @@ export struct PanelTabData {
     // replacing the panel rectangle and the boards' own outlines.
     show-outline-preview: bool,
 
-    // Whether smart snapping (to other boards and the panel) is enabled.
-    // Holding Alt while dragging/placing temporarily inverts it.
-    snap-enabled: bool,
+    // Whether smart snapping to the edges/centers of the boards is enabled.
+    // Holding Alt while dragging/placing disables all snapping.
+    snap-boards-enabled: bool,
+
+    // Whether smart snapping to the edges/centers of the panel is enabled.
+    // Holding Alt while dragging/placing disables all snapping.
+    snap-panel-enabled: bool,
 
     // Write-only: setting this to a valid index into the project's boards
     // triggers placing that board onto the panel, then C++ resets it back
