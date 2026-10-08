@@ -40,6 +40,7 @@
 #include "../project.h"
 #include "../projectattributelookup.h"
 #include "board.h"
+#include "boarddesignrules.h"
 #include "boardfabricationoutputsettings.h"
 #include "items/bi_device.h"
 #include "items/bi_hole.h"
@@ -677,6 +678,18 @@ int BoardGerberExport::drawNpthDrills(ExcellonGenerator& gen) const {
     ++count;
   }
 
+  // Tooling holes placed directly on the panel (already in the shared/panel
+  // coordinate system).
+  if (mPanel) {
+    for (int i = 0; i < mPanel->getHoles().count(); ++i) {
+      if (auto hole = mPanel->getHoles().value(i)) {
+        gen.drill(hole->getPosition(), hole->getDiameter(), false,
+                  ExcellonGenerator::Function::MechanicalDrill);
+        ++count;
+      }
+    }
+  }
+
   return count;
 }
 
@@ -762,6 +775,76 @@ void BoardGerberExport::drawLayer(GerberGenerator& gen,
 
     // draw all non-footprint objects
     drawLayerExceptDevices(gen, localLayer, placement);
+  }
+
+  // draw the panel's own items (tooling holes, fiducials)
+  drawPanelItems(gen, layer);
+}
+
+void BoardGerberExport::drawPanelItems(GerberGenerator& gen,
+                                       const Layer& layer) const {
+  if (!mPanel) {
+    return;  // Not a panel export.
+  }
+
+  // A panel has no design rules of its own, so the automatic stop mask
+  // clearance is taken from the (first) placed board, like the layer stack.
+  auto getMaskOffset = [this](const MaskConfig& config,
+                              const PositiveLength& diameter)
+      -> std::optional<Length> {
+    if (!config.isEnabled()) {
+      return std::nullopt;
+    } else if (auto manualOffset = config.getOffset()) {
+      return *manualOffset;
+    } else {
+      return *mBoard.getDesignRules().getStopMaskClearance().calcValue(
+          *diameter);
+    }
+  };
+
+  // Tooling holes: Only the stop mask opening is drawn here (on both board
+  // sides), the drill itself is exported by drawNpthDrills().
+  if (layer.isStopMask()) {
+    for (int i = 0; i < mPanel->getHoles().count(); ++i) {
+      if (auto hole = mPanel->getHoles().value(i)) {
+        if (auto offset =
+                getMaskOffset(hole->getStopMaskConfig(), hole->getDiameter())) {
+          const Length diameter =
+              (*hole->getDiameter()) + (*offset) + (*offset);
+          if (diameter > 0) {
+            gen.flashCircle(hole->getPosition(), PositiveLength(diameter),
+                            std::nullopt, std::nullopt, QString(), QString(),
+                            QString());
+          }
+        }
+      }
+    }
+  }
+
+  // Fiducials: A circular copper pad on the top or bottom side, plus an
+  // optional stop mask opening on the same side.
+  for (int i = 0; i < mPanel->getFiducials().count(); ++i) {
+    if (auto fiducial = mPanel->getFiducials().value(i)) {
+      const bool bottom = fiducial->getFlipped();
+      if (layer == (bottom ? Layer::botCopper() : Layer::topCopper())) {
+        gen.flashCircle(fiducial->getPosition(), fiducial->getDiameter(),
+                        GerberAttribute::ApertureFunction::FiducialPadGlobal,
+                        QString("N/C"),  // Not connected to any net.
+                        QString(), QString(), QString());
+      } else if (layer ==
+                 (bottom ? Layer::botStopMask() : Layer::topStopMask())) {
+        if (auto offset = getMaskOffset(fiducial->getStopMaskConfig(),
+                                        fiducial->getDiameter())) {
+          const Length diameter =
+              (*fiducial->getDiameter()) + (*offset) + (*offset);
+          if (diameter > 0) {
+            gen.flashCircle(fiducial->getPosition(), PositiveLength(diameter),
+                            std::nullopt, std::nullopt, QString(), QString(),
+                            QString());
+          }
+        }
+      }
+    }
   }
 }
 
