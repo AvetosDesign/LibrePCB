@@ -62,14 +62,9 @@ class Project;
  * Exports Gerber/Excellon fabrication data either for a single ::librepcb::
  * Board (the original, still fully supported use case), or for an arbitrary
  * number of board *placements* at once (each an existing, real Board plus a
- * ::librepcb::Transform describing where/how it is placed) - the latter is
- * what a Panel export needs, since a panel places one or more real, already-
- * existing boards at various positions/rotations/flips rather than owning any
- * copper/silkscreen/etc. content of its own. Every placement is drawn with
- * exactly the same per-item logic used for a plain single-board export
- * (nothing is duplicated or re-implemented), just with the placement's own
- * Transform composed on top of whatever local transform an item already has
- * (e.g. a footprint's own mirror/rotation within its board).
+ * ::librepcb::Transform describing where/how it is placed). Every placement
+ * is drawn with exactly the same per-item logic used for a plain single-board
+ * export with the placement's own Transform.
  *
  * A panel additionally contributes geometry that doesn't belong to any single
  * placed board: its own routed outline (tabs, frame, mouse bites, etc.) and
@@ -77,14 +72,23 @@ class Project;
  * setOutlineOverride() / setExtraNpthDrills() rather than being read from any
  * Board, and only take effect for the layers/files they apply to.
  *
+ * The panel's own tooling holes (::librepcb::PI_Hole) and fiducials
+ * (::librepcb::PI_Fiducial) are read directly from the panel passed to
+ * setPanel() and exported alongside the placed boards' content -- holes as
+ * NPTH drills plus (if enabled) stop mask openings, fiducials as circular
+ * copper pads plus (if enabled) stop mask openings on their respective
+ * board side.
+ *
  * Known limitations of the multi-placement mode (not yet handled):
  *   - All placements are assumed to share the same layer stack (inner layer
  *     count, solder resist, enabled silkscreen layers, etc.) - these
  *     properties are always read from the *first* placement's board.
- *   - Copper planes are drawn from each board's own live fragments, not from
- *     any mouse-bite-aware pullback (that recomputation, already implemented
- *     for the editor's live 2D preview in `editor::BoardProxy`, is planned as
- *     a follow-up rather than being duplicated here yet).
+ *   - Stop mask openings of panel holes/fiducials which are configured to
+ *     use the design rules' automatic clearance take that clearance from the
+ *     *first* placement's board, since a panel has no design rules of its own.
+ *   - The copper clearance of a panel fiducial is not applied to any copper
+ *     planes yet (panels have no copper of their own, and fiducials are not
+ *     expected to overlap a placed board's copper pours).
  *   - exportGlueLayer() / exportComponentLayer() (used by the pick-and-place/
  *     glue output jobs, not by exportPcbLayers()) are not yet placement-aware
  *     and still only consider the first placement's board.
@@ -176,8 +180,10 @@ public:
    * path templates, and the Gerber file metadata, identify the panel -
    * distinctly from \c {{BOARD}}, which still identifies the first
    * placement's board and does NOT resolve to the panel. See
-   * ::librepcb::ProjectAttributeLookup's \c Panel overload. Pass \c nullptr
-   * (the default, set by the constructor) for a normal single-board export.
+   * ::librepcb::ProjectAttributeLookup's \c Panel overload. Also, the
+   * panel's own holes and fiducials are exported (see class description).
+   * Pass \c nullptr (the default, set by the constructor) for a normal
+   * single-board export.
    */
   void setPanel(const Panel* panel) noexcept;
 
@@ -224,6 +230,7 @@ private:
   QMap<LayerPair, QVector<std::pair<const BI_Via*, Transform>>>
       getBlindBuriedVias() const;
   void drawLayer(GerberGenerator& gen, const Layer& layer) const;
+  void drawPanelItems(GerberGenerator& gen, const Layer& layer) const;
   void drawGlueLayer(GerberGenerator& gen, const Layer& layer,
                      const Uuid& assemblyVariant) const;
   void drawLayerExceptDevices(GerberGenerator& gen, const Layer& layer,
