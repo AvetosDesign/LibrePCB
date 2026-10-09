@@ -48,7 +48,7 @@ PanelEditorState_AddHole::PanelEditorState_AddHole(
     const Context& context) noexcept
   : PanelEditorState(context),
     mIsUndoCmdActive(false),
-    mCurrentDiameter(1000000) {
+    mCurrentDiameter(2000000) {
 }
 
 PanelEditorState_AddHole::~PanelEditorState_AddHole() noexcept {
