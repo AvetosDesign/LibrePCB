@@ -26,6 +26,7 @@
 #include "../../../graphics/graphicslayerlist.h"
 #include "../../../undostack.h"
 #include "../../../widgets/graphicsview.h"
+#include "../../commongeometrylayers.h"
 #include "../boardgraphicsscene.h"
 #include "../graphicsitems/bgi_device.h"
 #include "../graphicsitems/bgi_hole.h"
@@ -96,40 +97,7 @@ const LengthUnit& BoardEditorState::getLengthUnit() const noexcept {
 }
 
 QSet<const Layer*> BoardEditorState::getAllowedGeometryLayers() noexcept {
-  static const QSet<const Layer*> commonLayers = {
-      &Layer::boardSheetFrames(),
-      &Layer::boardOutlines(),
-      &Layer::boardCutouts(),
-      &Layer::boardPlatedCutouts(),
-      &Layer::boardMeasures(),
-      &Layer::boardAlignment(),
-      &Layer::boardDocumentation(),
-      &Layer::boardComments(),
-      &Layer::boardGuide(),
-      &Layer::topNames(),
-      &Layer::topValues(),
-      &Layer::topLegend(),
-      &Layer::topDocumentation(),
-      // &Layer::topPackageOutlines(), -> makes no sense in boards
-      // &Layer::topCourtyard(), -> makes no sense in boards
-      // &Layer::topHiddenGrabAreas(), -> makes no sense in boards
-      &Layer::topCopper(),
-      &Layer::topGlue(),
-      &Layer::topSolderPaste(),
-      &Layer::topStopMask(),
-      &Layer::botNames(),
-      &Layer::botValues(),
-      &Layer::botLegend(),
-      &Layer::botDocumentation(),
-      // &Layer::botPackageOutlines(), -> makes no sense in boards
-      // &Layer::botCourtyard(), -> makes no sense in boards
-      // &Layer::botHiddenGrabAreas(), -> makes no sense in boards
-      &Layer::botCopper(),
-      &Layer::botGlue(),
-      &Layer::botSolderPaste(),
-      &Layer::botStopMask(),
-  };
-  return commonLayers | mContext.board.getCopperLayers();
+  return getCommonGeometryLayers() | mContext.board.getCopperLayers();
 }
 
 void BoardEditorState::makeLayerVisible(const ColorRole& role) noexcept {

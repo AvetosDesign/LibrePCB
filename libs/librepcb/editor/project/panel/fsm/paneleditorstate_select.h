@@ -51,9 +51,7 @@ namespace editor {
 
 class CmdPanelBoardInstanceEdit;
 class CmdPanelEdit;
-class CmdPanelFiducialEdit;
-class CmdPanelHoleEdit;
-class CmdPanelStrokeTextEdit;
+class CmdPanelPlacedItemEdit;
 class CmdPanelTabEdit;
 class CmdPanelVCutEdit;
 class PGI_Edge;
@@ -98,13 +96,13 @@ class PGI_Tab;
  *  - Cut/Copy/Paste of board placements, holes, and fiducials via
  *    PanelClipboardData - together, in whatever mix was selected (not
  *    required to be homogeneous). Paste reuses the existing drag-move
- *    machinery (mDragCmds/mDragHoleCmds/mDragFiducialCmds/
- *    mIsUndoCmdActive) so the user places the pasted item(s) with the same
- *    click-to-drop interaction as an ordinary drag. Pasting a board UUID
- *    that isn't part of this project (e.g. clipboard content copied from a
- *    different project) is not supported yet, and will generate a status
- *    bar message stating such - holes and fiducials have no such
- *    restriction (they carry no reference to project content).
+ *    machinery (mDragCmds/mDragItemCmds/mIsUndoCmdActive) so the user places
+ *    the pasted item(s) with the same click-to-drop interaction as an
+ *    ordinary drag. Pasting a board UUID that isn't part of this project
+ *    (e.g. clipboard content copied from a different project) is not supported
+ *    yet, and will generate a status bar message stating such - holes and
+ *    fiducials have no such restriction (they carry no reference to project
+ *    content).
  *  - Feature-flag gating is DYNAMIC, matching BoardEditorState_Select.
  *  - Standalone (not-dragging) Rotate and Flip, reachable from the Edit
  *    menu/toolbar/keyboard shortcuts (#rotateSelectedItems()/
@@ -771,9 +769,9 @@ private:
   /// rotate unbinds it), so there is nothing to restore.
   bool mDragVCutBaselineUnbound;
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
-  std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
-  std::vector<std::unique_ptr<CmdPanelFiducialEdit>> mDragFiducialCmds;
-  std::vector<std::unique_ptr<CmdPanelStrokeTextEdit>> mDragStrokeTextCmds;
+  /// Holes, fiducials and texts moved by the drag, in this order. They are
+  /// all handled through the common CmdPanelPlacedItemEdit interface.
+  std::vector<std::unique_ptr<CmdPanelPlacedItemEdit>> mDragItemCmds;
   /// Non-null only while dragging a tab marker along the board edges -
   /// mutually exclusive with the other drag commands.
   std::unique_ptr<CmdPanelTabEdit> mDragTabCmd;
@@ -785,15 +783,13 @@ private:
   /// rotate step, and appended to the undo group at commit. Locked, bound
   /// V-cuts are excluded (same as #followBoardBoundVCuts()).
   std::vector<std::unique_ptr<CmdPanelVCutEdit>> mDragFollowerVCutCmds;
-  /// Per-mDragCmds/mDragHoleCmds/mDragFiducialCmds-entry offset from the
-  /// cursor, populated only for a paste-placement drag (empty for an
-  /// ordinary selection drag). One vector per item type since a single paste
-  /// can combine all three, each index-aligned with its own
-  /// mDragCmds/mDragHoleCmds/mDragFiducialCmds.
+  /// Per-mDragCmds/mDragItemCmds-entry offset from the cursor, populated
+  /// only for a paste-placement drag (empty for an ordinary selection drag).
+  /// One vector for the board instances and one for all other placed items
+  /// since a single paste can combine all types, each index-aligned with
+  /// its own command vector.
   std::vector<Point> mDragPasteOffsets;
-  std::vector<Point> mDragHolePasteOffsets;
-  std::vector<Point> mDragFiducialPasteOffsets;
-  std::vector<Point> mDragStrokeTextPasteOffsets;
+  std::vector<Point> mDragItemPasteOffsets;
   /// Non-null only while dragging one of PGI_Outline's resize
   /// handles - mutually exclusive with #mDragCmds being non-empty.
   std::unique_ptr<CmdPanelEdit> mResizeCmd;

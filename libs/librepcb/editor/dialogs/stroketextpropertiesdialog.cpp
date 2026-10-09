@@ -216,7 +216,7 @@ bool StrokeTextPropertiesDialog::applyChanges() noexcept {
       std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
           new CmdPanelStrokeTextEdit(*mPanelObj));
       applyChanges(*cmd);
-      cmd->setLocked(mUi->cbxLock->isChecked());
+      cmd->setLocked(mUi->cbxLock->isChecked(), false);
       mUndoStack.execCmd(cmd.release());  // can throw
     }
     return true;

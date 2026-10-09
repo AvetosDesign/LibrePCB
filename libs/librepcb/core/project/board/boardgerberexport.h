@@ -45,6 +45,7 @@ class BI_Pad;
 class BI_Via;
 class Board;
 class BoardFabricationOutputSettings;
+class BoardStrokeTextData;
 class Circle;
 class GerberGenerator;
 class Layer;
@@ -236,6 +237,10 @@ private:
   void drawLayer(GerberGenerator& gen, const Layer& layer) const;
   void drawPanelItems(GerberGenerator& gen, const Layer& layer) const;
   void drawPanelStrokeTexts(GerberGenerator& gen, const Layer& layer) const;
+  void drawStrokeText(GerberGenerator& gen, const Layer& layer,
+                      const BoardStrokeTextData& data,
+                      const QVector<Path>& paths, const Transform& xf,
+                      const QString& component) const;
   void drawGlueLayer(GerberGenerator& gen, const Layer& layer,
                      const Uuid& assemblyVariant) const;
   void drawLayerExceptDevices(GerberGenerator& gen, const Layer& layer,

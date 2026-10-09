@@ -23,7 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../undocommand.h"
+#include "cmdpanelplaceditemedit.h"
 
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/point.h>
@@ -54,7 +54,7 @@ namespace editor {
  * CmdDeviceInstanceEdit this doesn't need ScopeGuardList for exception
  * safety in performUndo()/performRedo().
  */
-class CmdPanelBoardInstanceEdit final : public UndoCommand {
+class CmdPanelBoardInstanceEdit final : public CmdPanelPlacedItemEdit {
 public:
   // Constructors / Destructor
   CmdPanelBoardInstanceEdit() = delete;
@@ -63,17 +63,18 @@ public:
   ~CmdPanelBoardInstanceEdit() noexcept override;
 
   // General Methods
-  void setPosition(const Point& pos, bool immediate) noexcept;
-  void translate(const Point& deltaPos, bool immediate) noexcept;
+  void setPosition(const Point& pos, bool immediate) noexcept override;
+  void translate(const Point& deltaPos, bool immediate) noexcept override;
   void snapToGrid(const PositiveLength& gridInterval, bool immediate) noexcept;
   void setRotation(const Angle& angle, bool immediate) noexcept;
-  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center,
+              bool immediate) noexcept override;
   void setFlipped(bool flipped, bool immediate) noexcept;
-  void flip(const Point& center, bool immediate) noexcept;
-  void setLocked(bool locked, bool immediate) noexcept;
+  void flip(const Point& center, bool immediate) noexcept override;
+  void setLocked(bool locked, bool immediate) noexcept override;
 
   // Getters
-  const Point& getPosition() const noexcept { return mNewPos; }
+  const Point& getPosition() const noexcept override { return mNewPos; }
   const PI_BoardInstance& getInstance() const noexcept { return mInstance; }
 
   // Operator Overloadings

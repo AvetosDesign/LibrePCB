@@ -34,6 +34,7 @@
 #include "../../cmd/cmdpanelfiducialedit.h"
 #include "../../cmd/cmdpanelholeadd.h"
 #include "../../cmd/cmdpanelholeedit.h"
+#include "../../cmd/cmdpanelplaceditemedit.h"
 #include "../../cmd/cmdpanelstroketextadd.h"
 #include "../../cmd/cmdpanelstroketextedit.h"
 #include "../../cmd/cmdpaneltabadd.h"
@@ -71,6 +72,80 @@
  ******************************************************************************/
 namespace librepcb {
 namespace editor {
+
+namespace {
+
+// Creates one edit command of type T per item, lets @p op configure it and
+// appends it to the currently open command group of the undo stack.
+template <typename T, typename Items, typename Op>
+void appendEditCmds(UndoStack& stack, const Items& items, Op op) {
+  for (const auto& item : items) {
+    std::unique_ptr<T> cmd(new T(*item));
+    op(*cmd);
+    stack.appendToCmdGroup(cmd.release());  // can throw
+  }
+}
+
+// Same as appendEditCmds() for all selected holes, fiducials and texts, i.e.
+// all placed items which are handled uniformly through their common
+// CmdPanelPlacedItemEdit interface. Board instances are not included since
+// they need special treatment (e.g. bound V-cuts).
+template <typename Op>
+void appendPlacedItemEditCmds(UndoStack& stack,
+                              const PanelSelectionQuery& query, Op op) {
+  appendEditCmds<CmdPanelHoleEdit>(stack, query.getHoles(), op);
+  appendEditCmds<CmdPanelFiducialEdit>(stack, query.getFiducials(), op);
+  appendEditCmds<CmdPanelStrokeTextEdit>(stack, query.getStrokeTexts(), op);
+}
+
+// Sums up the centers of all selected boards (real outline center, not the
+// origin), holes, fiducials and texts (their own position). Returns the
+// average, or the origin if nothing but V-cuts (which are never counted) is
+// selected. The number of counted items is returned in @p count.
+Point calcSelectionCenter(PanelGraphicsScene& scene,
+                          const PanelSelectionQuery& query,
+                          int& count) noexcept {
+  Point center(0, 0);
+  count = 0;
+  foreach (const std::shared_ptr<PI_BoardInstance>& instance,
+           query.getBoardInstances()) {
+    auto item = scene.getBoardInstanceItem(instance->getUuid());
+    center += item ? item->getCenter() : instance->getPosition();
+    count++;
+  }
+  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
+    center += hole->getPosition();
+    count++;
+  }
+  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
+    center += fiducial->getPosition();
+    count++;
+  }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    center += text->getData().getPosition();
+    count++;
+  }
+  if (count > 0) {
+    center /= static_cast<int64_t>(count);
+  }
+  return center;
+}
+
+// Returns the topmost text within the given (tolerance) area, or nullptr.
+// Text glyphs are thin strokes which are hard to hit exactly, so (like Board)
+// a text is picked within a few screen pixels of its glyphs.
+PGI_StrokeText* findStrokeTextAt(PanelGraphicsScene& scene,
+                                 const QPainterPath& area) noexcept {
+  foreach (QGraphicsItem* item,
+           scene.items(area, Qt::IntersectsItemShape, Qt::DescendingOrder)) {
+    if (PGI_StrokeText* textItem = dynamic_cast<PGI_StrokeText*>(item)) {
+      return textItem;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
 
 /*******************************************************************************
  *  Constructors / Destructor
@@ -179,7 +254,7 @@ bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be rotated.
   if (mIsUndoCmdActive &&
       ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()) ||
-       (!mDragStrokeTextCmds.empty()))) {
+       (!mDragItemCmds.empty()))) {
     // A drag is in progress - rotate the live preview, same as
     // right-click-during-drag (see
     // processGraphicsSceneRightMouseButtonReleased()).
@@ -191,9 +266,7 @@ bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
 
 bool PanelEditorState_Select::processFlip() noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be flipped.
-  if (mIsUndoCmdActive &&
-      ((!mDragCmds.empty()) || (!mDragHoleCmds.empty()) ||
-       (!mDragFiducialCmds.empty()) || (!mDragStrokeTextCmds.empty()))) {
+  if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragItemCmds.empty()))) {
     // A drag is in progress - flip the live preview, same as
     // right-click-during-drag rotate (see #processRotate()/
     // #rotateSelection()).
@@ -324,8 +397,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
       mContext.undoStack.appendToCmdGroup(addCmd);  // can throw
 
       if (auto hole = addCmd->getHole()) {
-        mDragHoleCmds.push_back(std::make_unique<CmdPanelHoleEdit>(*hole));
-        mDragHolePasteOffsets.push_back(src.getPosition() - referencePos);
+        mDragItemCmds.push_back(std::make_unique<CmdPanelHoleEdit>(*hole));
+        mDragItemPasteOffsets.push_back(src.getPosition() - referencePos);
         if (auto item = scene->getHoleItem(hole->getUuid())) {
           item->setSelected(true);
         }
@@ -340,9 +413,9 @@ bool PanelEditorState_Select::processPaste() noexcept {
       mContext.undoStack.appendToCmdGroup(addCmd);  // can throw
 
       if (auto fiducial = addCmd->getFiducial()) {
-        mDragFiducialCmds.push_back(
+        mDragItemCmds.push_back(
             std::make_unique<CmdPanelFiducialEdit>(*fiducial));
-        mDragFiducialPasteOffsets.push_back(src.getPosition() - referencePos);
+        mDragItemPasteOffsets.push_back(src.getPosition() - referencePos);
         if (auto item = scene->getFiducialItem(fiducial->getUuid())) {
           item->setSelected(true);
         }
@@ -356,9 +429,8 @@ bool PanelEditorState_Select::processPaste() noexcept {
       mContext.undoStack.appendToCmdGroup(
           new CmdPanelStrokeTextAdd(mContext.panel, text));  // can throw
 
-      mDragStrokeTextCmds.push_back(
-          std::make_unique<CmdPanelStrokeTextEdit>(*text));
-      mDragStrokeTextPasteOffsets.push_back(src.getPosition() - referencePos);
+      mDragItemCmds.push_back(std::make_unique<CmdPanelStrokeTextEdit>(*text));
+      mDragItemPasteOffsets.push_back(src.getPosition() - referencePos);
       if (auto item = scene->getStrokeTextItem(text->getUuid())) {
         item->setSelected(true);
       }
@@ -392,14 +464,11 @@ bool PanelEditorState_Select::processPaste() noexcept {
       }
     }
 
-    if (mDragCmds.empty() && mDragHoleCmds.empty() &&
-        mDragFiducialCmds.empty() && mDragStrokeTextCmds.empty()) {
+    if (mDragCmds.empty() && mDragItemCmds.empty()) {
       mContext.undoStack.abortCmdGroup();  // can throw
       mIsUndoCmdActive = false;
       mDragPasteOffsets.clear();
-      mDragHolePasteOffsets.clear();
-      mDragFiducialPasteOffsets.clear();
-      mDragStrokeTextPasteOffsets.clear();
+      mDragItemPasteOffsets.clear();
       if (skippedUnknownBoard) {
         mAdapter.fsmSetStatusBarMessage(
             tr("Pasting boards from another project is not supported yet."),
@@ -571,20 +640,17 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     return true;
   }
 
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
+  if (mDragCmds.empty() && mDragItemCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
-  if (!mDragPasteOffsets.empty() || !mDragHolePasteOffsets.empty() ||
-      !mDragFiducialPasteOffsets.empty() ||
-      !mDragStrokeTextPasteOffsets.empty()) {
+  if (!mDragPasteOffsets.empty() || !mDragItemPasteOffsets.empty()) {
     // Paste-placement drag: always snap to an absolute position derived
     // from the current cursor position, rather than accumulating
     // incremental deltas starting from wherever the cursor was when
-    // Paste was triggered. One offset vector per item type (a paste can
-    // combine all three, a non-homogeneous group), each index-aligned
-    // with its own mDragCmds/mDragHoleCmds/mDragFiducialCmds.
+    // Paste was triggered. One offset vector for the board instances and one
+    // for all other placed items (a paste can combine all types, a non-
+    // homogeneous group), each index-aligned with mDragCmds/mDragItemCmds.
     Q_ASSERT(mDragPasteOffsets.size() == mDragCmds.size());
 
     // Smart snap: the position is absolute here, so the correction is
@@ -600,20 +666,10 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     for (std::size_t i = 0; i < mDragCmds.size(); ++i) {
       mDragCmds[i]->setPosition(pos + mDragPasteOffsets[i] + snap, true);
     }
-    Q_ASSERT(mDragHolePasteOffsets.size() == mDragHoleCmds.size());
-    for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
-      mDragHoleCmds[i]->setPosition(pos + mDragHolePasteOffsets[i] + snap,
+    Q_ASSERT(mDragItemPasteOffsets.size() == mDragItemCmds.size());
+    for (std::size_t i = 0; i < mDragItemCmds.size(); ++i) {
+      mDragItemCmds[i]->setPosition(pos + mDragItemPasteOffsets[i] + snap,
                                     true);
-    }
-    Q_ASSERT(mDragFiducialPasteOffsets.size() == mDragFiducialCmds.size());
-    for (std::size_t i = 0; i < mDragFiducialCmds.size(); ++i) {
-      mDragFiducialCmds[i]->setPosition(
-          pos + mDragFiducialPasteOffsets[i] + snap, true);
-    }
-    Q_ASSERT(mDragStrokeTextPasteOffsets.size() == mDragStrokeTextCmds.size());
-    for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
-      mDragStrokeTextCmds[i]->setPosition(
-          pos + mDragStrokeTextPasteOffsets[i] + snap, true);
     }
     mDragLastPos = pos;
     return true;
@@ -630,12 +686,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     std::optional<Point> anchor;
     if (!mDragCmds.empty()) {
       anchor = mDragCmds.front()->getPosition();
-    } else if (!mDragHoleCmds.empty()) {
-      anchor = mDragHoleCmds.front()->getPosition();
-    } else if (!mDragFiducialCmds.empty()) {
-      anchor = mDragFiducialCmds.front()->getPosition();
-    } else if (!mDragStrokeTextCmds.empty()) {
-      anchor = mDragStrokeTextCmds.front()->getPosition();
+    } else if (!mDragItemCmds.empty()) {
+      anchor = mDragItemCmds.front()->getPosition();
     }
     if (anchor) {
       delta += anchor->mappedToGrid(getGridInterval()) - *anchor;
@@ -658,14 +710,7 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
     // their already-updated position. A plain translate - locked followers
     // still update too, see #updateDragFollowerVCuts()'s doc comment.
     updateDragFollowerVCuts(false);
-    for (const std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
-      cmd->translate(delta, true);
-    }
-    for (const std::unique_ptr<CmdPanelFiducialEdit>& cmd : mDragFiducialCmds) {
-      cmd->translate(delta, true);
-    }
-    for (const std::unique_ptr<CmdPanelStrokeTextEdit>& cmd :
-         mDragStrokeTextCmds) {
+    for (const std::unique_ptr<CmdPanelPlacedItemEdit>& cmd : mDragItemCmds) {
       cmd->translate(delta, true);
     }
     for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
@@ -723,14 +768,9 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   // Such a hit wins over a board placement below it, but not over the other
   // small items, which were already hit exactly above.
   if ((!clickedItem) || dynamic_cast<PGI_BoardInstance*>(clickedItem)) {
-    const QList<QGraphicsItem*> nearItems =
-        scene->items(mAdapter.fsmCalcPosWithTolerance(e.scenePos),
-                     Qt::IntersectsItemShape, Qt::DescendingOrder);
-    foreach (QGraphicsItem* item, nearItems) {
-      if (dynamic_cast<PGI_StrokeText*>(item)) {
-        clickedItem = item;
-        break;
-      }
+    if (PGI_StrokeText* textItem = findStrokeTextAt(
+            *scene, mAdapter.fsmCalcPosWithTolerance(e.scenePos))) {
+      clickedItem = textItem;
     }
   }
 
@@ -820,18 +860,10 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
       mDragCmds.clear();
-      for (std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
+      for (std::unique_ptr<CmdPanelPlacedItemEdit>& cmd : mDragItemCmds) {
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
-      mDragHoleCmds.clear();
-      for (std::unique_ptr<CmdPanelFiducialEdit>& cmd : mDragFiducialCmds) {
-        mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-      }
-      mDragFiducialCmds.clear();
-      for (std::unique_ptr<CmdPanelStrokeTextEdit>& cmd : mDragStrokeTextCmds) {
-        mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-      }
-      mDragStrokeTextCmds.clear();
+      mDragItemCmds.clear();
       for (std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
@@ -847,9 +879,7 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
       }
       mDragFollowerVCutCmds.clear();
       mDragPasteOffsets.clear();
-      mDragHolePasteOffsets.clear();
-      mDragFiducialPasteOffsets.clear();
-      mDragStrokeTextPasteOffsets.clear();
+      mDragItemPasteOffsets.clear();
     }
     mContext.undoStack.commitCmdGroup();  // can throw
     mIsUndoCmdActive = false;
@@ -875,17 +905,14 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonDoubleClicked(
 
   // A text is hit within a few screen pixels of its glyphs (see
   // processGraphicsSceneLeftMouseButtonPressed()).
-  foreach (QGraphicsItem* item,
-           scene->items(mAdapter.fsmCalcPosWithTolerance(e.scenePos),
-                        Qt::IntersectsItemShape, Qt::DescendingOrder)) {
-    if (PGI_StrokeText* textItem = dynamic_cast<PGI_StrokeText*>(item)) {
-      if (!textItem->isSelected()) {
-        scene->clearSelection();
-        textItem->setSelected(true);
-      }
-      updateSelectionProperties();
-      return processEditProperties();
+  if (PGI_StrokeText* textItem = findStrokeTextAt(
+          *scene, mAdapter.fsmCalcPosWithTolerance(e.scenePos))) {
+    if (!textItem->isSelected()) {
+      scene->clearSelection();
+      textItem->setSelected(true);
     }
+    updateSelectionProperties();
+    return processEditProperties();
   }
 
   // Tab markers and texts have a properties dialog, so far.
@@ -1218,8 +1245,7 @@ void PanelEditorState_Select::rebindVCut(CmdPanelVCutEdit& cmd,
 
 bool PanelEditorState_Select::isSingleVCutDrag() const noexcept {
   return (mDragVCutCmds.size() == 1) && mDragCmds.empty() &&
-      mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragStrokeTextCmds.empty();
+      mDragItemCmds.empty();
 }
 
 void PanelEditorState_Select::dragVCutWithSnap(
@@ -1367,7 +1393,7 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
 
   if (mIsUndoCmdActive &&
       ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()) ||
-       (!mDragStrokeTextCmds.empty()))) {
+       (!mDragItemCmds.empty()))) {
     return rotateSelection(Angle::deg90());
   }
   if (mIsUndoCmdActive) {
@@ -1560,9 +1586,7 @@ bool PanelEditorState_Select::startMovingSelection(
     const Point& startPos) noexcept {
   Q_ASSERT(!mIsUndoCmdActive);
   Q_ASSERT(mDragCmds.empty());
-  Q_ASSERT(mDragHoleCmds.empty());
-  Q_ASSERT(mDragFiducialCmds.empty());
-  Q_ASSERT(mDragStrokeTextCmds.empty());
+  Q_ASSERT(mDragItemCmds.empty());
   Q_ASSERT(mDragVCutCmds.empty());
   Q_ASSERT(mDragFollowerVCutCmds.empty());
 
@@ -1587,15 +1611,13 @@ bool PanelEditorState_Select::startMovingSelection(
     mDragCmds.push_back(std::make_unique<CmdPanelBoardInstanceEdit>(*instance));
   }
   foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-    mDragHoleCmds.push_back(std::make_unique<CmdPanelHoleEdit>(*hole));
+    mDragItemCmds.push_back(std::make_unique<CmdPanelHoleEdit>(*hole));
   }
   foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
-    mDragFiducialCmds.push_back(
-        std::make_unique<CmdPanelFiducialEdit>(*fiducial));
+    mDragItemCmds.push_back(std::make_unique<CmdPanelFiducialEdit>(*fiducial));
   }
   foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
-    mDragStrokeTextCmds.push_back(
-        std::make_unique<CmdPanelStrokeTextEdit>(*text));
+    mDragItemCmds.push_back(std::make_unique<CmdPanelStrokeTextEdit>(*text));
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
     mDragVCutCmds.push_back(std::make_unique<CmdPanelVCutEdit>(*vcut));
@@ -1625,8 +1647,7 @@ bool PanelEditorState_Select::startMovingSelection(
     }
   }
 
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
+  if (mDragCmds.empty() && mDragItemCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -1636,9 +1657,7 @@ bool PanelEditorState_Select::startMovingSelection(
   } catch (const Exception& e) {
     QMessageBox::critical(parentWidget(), tr("Error"), e.getMsg());
     mDragCmds.clear();
-    mDragHoleCmds.clear();
-    mDragFiducialCmds.clear();
-    mDragStrokeTextCmds.clear();
+    mDragItemCmds.clear();
     mDragVCutCmds.clear();
     mDragFollowerVCutCmds.clear();
     return false;
@@ -1700,16 +1719,7 @@ Point PanelEditorState_Select::dragGroupCenter(int& count) noexcept {
     center += item ? item->getCenter() : cmd->getPosition();
     count++;
   }
-  for (const std::unique_ptr<CmdPanelHoleEdit>& cmd : mDragHoleCmds) {
-    center += cmd->getPosition();
-    count++;
-  }
-  for (const std::unique_ptr<CmdPanelFiducialEdit>& cmd : mDragFiducialCmds) {
-    center += cmd->getPosition();
-    count++;
-  }
-  for (const std::unique_ptr<CmdPanelStrokeTextEdit>& cmd :
-       mDragStrokeTextCmds) {
+  for (const std::unique_ptr<CmdPanelPlacedItemEdit>& cmd : mDragItemCmds) {
     center += cmd->getPosition();
     count++;
   }
@@ -1720,8 +1730,7 @@ Point PanelEditorState_Select::dragGroupCenter(int& count) noexcept {
 }
 
 bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
+  if (mDragCmds.empty() && mDragItemCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -1774,34 +1783,19 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   updateDragFollowerVCuts(true);
   // The group's bounds changed: whatever was snapped is gone (smart snap).
   resetDragSnap();
-  for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
-    mDragHoleCmds[i]->rotate(angle, center, true);
-    if (i < mDragHolePasteOffsets.size()) {
-      mDragHolePasteOffsets[i] = mDragHoleCmds[i]->getPosition() - mDragLastPos;
-    }
-  }
-  for (std::size_t i = 0; i < mDragFiducialCmds.size(); ++i) {
-    mDragFiducialCmds[i]->rotate(angle, center, true);
-    if (i < mDragFiducialPasteOffsets.size()) {
-      mDragFiducialPasteOffsets[i] =
-          mDragFiducialCmds[i]->getPosition() - mDragLastPos;
-    }
-  }
-  // A text spins about its own origin as well (like a fiducial), see
-  // CmdPanelStrokeTextEdit::rotate().
-  for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
-    mDragStrokeTextCmds[i]->rotate(angle, center, true);
-    if (i < mDragStrokeTextPasteOffsets.size()) {
-      mDragStrokeTextPasteOffsets[i] =
-          mDragStrokeTextCmds[i]->getPosition() - mDragLastPos;
+  // Holes, fiducials and texts: holes only move around the pivot, the others
+  // also spin about their own origin, see the respective edit commands.
+  for (std::size_t i = 0; i < mDragItemCmds.size(); ++i) {
+    mDragItemCmds[i]->rotate(angle, center, true);
+    if (i < mDragItemPasteOffsets.size()) {
+      mDragItemPasteOffsets[i] = mDragItemCmds[i]->getPosition() - mDragLastPos;
     }
   }
   return true;
 }
 
 bool PanelEditorState_Select::flipSelection() noexcept {
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragStrokeTextCmds.empty()) {
+  if (mDragCmds.empty() && mDragItemCmds.empty()) {
     return false;
   }
 
@@ -1834,24 +1828,10 @@ bool PanelEditorState_Select::flipSelection() noexcept {
   updateDragFollowerVCuts(true);
   // The group's bounds changed: whatever was snapped is gone (smart snap).
   resetDragSnap();
-  for (std::size_t i = 0; i < mDragHoleCmds.size(); ++i) {
-    mDragHoleCmds[i]->flip(center, true);
-    if (i < mDragHolePasteOffsets.size()) {
-      mDragHolePasteOffsets[i] = mDragHoleCmds[i]->getPosition() - mDragLastPos;
-    }
-  }
-  for (std::size_t i = 0; i < mDragFiducialCmds.size(); ++i) {
-    mDragFiducialCmds[i]->flip(center, true);
-    if (i < mDragFiducialPasteOffsets.size()) {
-      mDragFiducialPasteOffsets[i] =
-          mDragFiducialCmds[i]->getPosition() - mDragLastPos;
-    }
-  }
-  for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
-    mDragStrokeTextCmds[i]->flip(center, true);
-    if (i < mDragStrokeTextPasteOffsets.size()) {
-      mDragStrokeTextPasteOffsets[i] =
-          mDragStrokeTextCmds[i]->getPosition() - mDragLastPos;
+  for (std::size_t i = 0; i < mDragItemCmds.size(); ++i) {
+    mDragItemCmds[i]->flip(center, true);
+    if (i < mDragItemPasteOffsets.size()) {
+      mDragItemPasteOffsets[i] = mDragItemCmds[i]->getPosition() - mDragLastPos;
     }
   }
   mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
@@ -1888,27 +1868,8 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   // real outline center is averaged, not its origin. A hole's or fiducial's own
   // position already is its center (both are symmetric circles), so no
   // equivalent lookup is needed for them.
-  Point center(0, 0);
   int centerCount = 0;
-  foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-           query.getBoardInstances()) {
-    auto item = scene->getBoardInstanceItem(instance->getUuid());
-    center += item ? item->getCenter() : instance->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-    center += hole->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
-    center += fiducial->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
-    center += text->getData().getPosition();
-    centerCount++;
-  }
-  center /= static_cast<int64_t>(centerCount);
+  const Point center = calcSelectionCenter(*scene, query, centerCount);
 
   // A locked V-cut bound to one of the boards about to be flipped (not
   // itself directly selected) - see
@@ -1926,32 +1887,12 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Flip item(s)"));  // can throw
-    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-             query.getBoardInstances()) {
-      std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
-          new CmdPanelBoardInstanceEdit(*instance));
-      cmd->flip(center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-      std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
-      cmd->flip(center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
-             query.getFiducials()) {
-      std::unique_ptr<CmdPanelFiducialEdit> cmd(
-          new CmdPanelFiducialEdit(*fiducial));
-      cmd->flip(center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_StrokeText>& text,
-             query.getStrokeTexts()) {
-      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
-          new CmdPanelStrokeTextEdit(*text));
-      cmd->flip(center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
+    appendEditCmds<CmdPanelBoardInstanceEdit>(
+        mContext.undoStack, query.getBoardInstances(),
+        [&center](CmdPanelBoardInstanceEdit& cmd) { cmd.flip(center, false); });
+    appendPlacedItemEditCmds(
+        mContext.undoStack, query,
+        [&center](CmdPanelPlacedItemEdit& cmd) { cmd.flip(center, false); });
     if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> flippedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
@@ -1993,32 +1934,14 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
 
   try {
     mContext.undoStack.beginCmdGroup(tr("Move item(s)"));  // can throw
-    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-             query.getBoardInstances()) {
-      std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
-          new CmdPanelBoardInstanceEdit(*instance));
-      cmd->translate(delta, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-      std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
-      cmd->translate(delta, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
-             query.getFiducials()) {
-      std::unique_ptr<CmdPanelFiducialEdit> cmd(
-          new CmdPanelFiducialEdit(*fiducial));
-      cmd->translate(delta, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_StrokeText>& text,
-             query.getStrokeTexts()) {
-      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
-          new CmdPanelStrokeTextEdit(*text));
-      cmd->translate(delta, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
+    appendEditCmds<CmdPanelBoardInstanceEdit>(
+        mContext.undoStack, query.getBoardInstances(),
+        [&delta](CmdPanelBoardInstanceEdit& cmd) {
+          cmd.translate(delta, false);
+        });
+    appendPlacedItemEditCmds(
+        mContext.undoStack, query,
+        [&delta](CmdPanelPlacedItemEdit& cmd) { cmd.translate(delta, false); });
     // Directly-selected V-cuts are translated (and rebound) individually -
     // see #translateAndRebindVCut(). A V-cut that's ALSO bound to one of
     // the boards moved above is excluded from followBoardBoundVCuts()'s
@@ -2102,29 +2025,9 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   // pivot, so rotating it alone still only spins it about itself - a no-op
   // for a hole's position, and an in-place rotation of a fiducial's
   // orientation).
-  Point center(0, 0);
   int centerCount = 0;
-  foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-           query.getBoardInstances()) {
-    auto item = scene->getBoardInstanceItem(instance->getUuid());
-    center += item ? item->getCenter() : instance->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-    center += hole->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
-    center += fiducial->getPosition();
-    centerCount++;
-  }
-  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
-    center += text->getData().getPosition();
-    centerCount++;
-  }
-  if (centerCount > 0) {
-    center /= static_cast<int64_t>(centerCount);
-  } else {
+  Point center = calcSelectionCenter(*scene, query, centerCount);
+  if (centerCount == 0) {
     // Only V-cuts are selected: V-cuts have no position of their own, so
     // pivot at the center of their in-panel midpoints.
     center = getVCutsCenter(query.getVCuts());
@@ -2162,32 +2065,15 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       }
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
-    foreach (const std::shared_ptr<PI_BoardInstance>& instance,
-             query.getBoardInstances()) {
-      std::unique_ptr<CmdPanelBoardInstanceEdit> cmd(
-          new CmdPanelBoardInstanceEdit(*instance));
-      cmd->rotate(angle, center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Hole>& hole, query.getHoles()) {
-      std::unique_ptr<CmdPanelHoleEdit> cmd(new CmdPanelHoleEdit(*hole));
-      cmd->rotate(angle, center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_Fiducial>& fiducial,
-             query.getFiducials()) {
-      std::unique_ptr<CmdPanelFiducialEdit> cmd(
-          new CmdPanelFiducialEdit(*fiducial));
-      cmd->rotate(angle, center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
-    foreach (const std::shared_ptr<PI_StrokeText>& text,
-             query.getStrokeTexts()) {
-      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
-          new CmdPanelStrokeTextEdit(*text));
-      cmd->rotate(angle, center, false);
-      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
-    }
+    appendEditCmds<CmdPanelBoardInstanceEdit>(
+        mContext.undoStack, query.getBoardInstances(),
+        [&angle, &center](CmdPanelBoardInstanceEdit& cmd) {
+          cmd.rotate(angle, center, false);
+        });
+    appendPlacedItemEditCmds(mContext.undoStack, query,
+                             [&angle, &center](CmdPanelPlacedItemEdit& cmd) {
+                               cmd.rotate(angle, center, false);
+                             });
     if (!query.getBoardInstances().isEmpty()) {
       // Any directly-selected V-cut that was itself bound to one of these
       // boards was already unbound by the #query.getVCuts() loop above (model
@@ -2860,16 +2746,12 @@ bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
     // preview changes back to their original position & size (same
     // mechanism as ::librepcb::editor::CmdDeviceInstanceEdit's destructor).
     mDragCmds.clear();
-    mDragHoleCmds.clear();
-    mDragFiducialCmds.clear();
-    mDragStrokeTextCmds.clear();
+    mDragItemCmds.clear();
     mDragTabCmd.reset();
     mDragVCutCmds.clear();
     mDragFollowerVCutCmds.clear();
     mDragPasteOffsets.clear();
-    mDragHolePasteOffsets.clear();
-    mDragFiducialPasteOffsets.clear();
-    mDragStrokeTextPasteOffsets.clear();
+    mDragItemPasteOffsets.clear();
     mDragHadLockedVCutBreak = false;
     mResizeCmd.reset();
 

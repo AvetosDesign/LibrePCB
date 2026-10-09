@@ -23,7 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../undocommand.h"
+#include "cmdpanelplaceditemedit.h"
 
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/length.h>
@@ -61,7 +61,7 @@ namespace editor {
  * so a group Rotate can spin a fiducial about a shared pivot exactly like
  * ::librepcb::editor::CmdPanelBoardInstanceEdit does for a board instance.
  */
-class CmdPanelFiducialEdit final : public UndoCommand {
+class CmdPanelFiducialEdit final : public CmdPanelPlacedItemEdit {
 public:
   // Constructors / Destructor
   CmdPanelFiducialEdit() = delete;
@@ -70,14 +70,14 @@ public:
   ~CmdPanelFiducialEdit() noexcept override;
 
   // General Methods
-  void setPosition(const Point& pos, bool immediate) noexcept;
-  void translate(const Point& deltaPos, bool immediate) noexcept;
+  void setPosition(const Point& pos, bool immediate) noexcept override;
+  void translate(const Point& deltaPos, bool immediate) noexcept override;
   void setDiameter(const PositiveLength& diameter, bool immediate) noexcept;
   void setCopperClearance(const UnsignedLength& clearance,
                           bool immediate) noexcept;
   void setFlipped(bool flipped, bool immediate) noexcept;
   void setRotation(const Angle& angle, bool immediate) noexcept;
-  void setLocked(bool locked, bool immediate) noexcept;
+  void setLocked(bool locked, bool immediate) noexcept override;
 
   /**
    * @brief Flip the fiducial to the other side of the board
@@ -93,7 +93,7 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void flip(const Point& center, bool immediate) noexcept;
+  void flip(const Point& center, bool immediate) noexcept override;
 
   /**
    * @brief Rotate the fiducial's position and rotation about a pivot
@@ -108,10 +108,11 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center,
+              bool immediate) noexcept override;
 
   // Getters
-  const Point& getPosition() const noexcept { return mNewPos; }
+  const Point& getPosition() const noexcept override { return mNewPos; }
 
   // Operator Overloadings
   CmdPanelFiducialEdit& operator=(const CmdPanelFiducialEdit& rhs) = delete;

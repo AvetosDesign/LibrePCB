@@ -39,7 +39,7 @@ namespace editor {
 
 CmdPanelBoardInstanceEdit::CmdPanelBoardInstanceEdit(
     PI_BoardInstance& instance) noexcept
-  : UndoCommand(tr("Edit board placement")),
+  : CmdPanelPlacedItemEdit(tr("Edit board placement")),
     mInstance(instance),
     mOldPos(mInstance.getPosition()),
     mNewPos(mOldPos),

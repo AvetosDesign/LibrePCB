@@ -38,7 +38,7 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelFiducialEdit::CmdPanelFiducialEdit(PI_Fiducial& fiducial) noexcept
-  : UndoCommand(tr("Edit fiducial")),
+  : CmdPanelPlacedItemEdit(tr("Edit fiducial")),
     mFiducial(fiducial),
     mOldPos(mFiducial.getPosition()),
     mNewPos(mOldPos),

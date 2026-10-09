@@ -862,24 +862,36 @@ void BoardGerberExport::drawPanelStrokeTexts(GerberGenerator& gen,
     return;  // Not a panel export.
   }
 
-  // Same attributes as for Board texts (see drawLayerExceptDevices()). Texts
-  // are already in panel coordinates, so no placement transform is needed.
-  GerberGenerator::Function textFunction = std::nullopt;
-  std::optional<QString> textNet = std::nullopt;
-  if (layer.isCopper()) {
-    textFunction = GerberAttribute::ApertureFunction::NonConductor;
-    textNet = "";  // Not connected to any net.
-  }
+  // Texts are already in panel coordinates, so no placement transform is
+  // needed.
   for (const auto& text : mPanel->getStrokeTexts()) {
     Q_ASSERT(text);
-    if (layer == text->getData().getLayer()) {
-      const UnsignedLength lineWidth =
-          calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
-      const Transform transform(text->getData());
-      foreach (const Path& path, transform.map(text->getPaths())) {
-        gen.drawPathOutline(path, lineWidth, textFunction, textNet, QString());
-      }
-    }
+    drawStrokeText(gen, layer, text->getData(), text->getPaths(), Transform(),
+                   QString());
+  }
+}
+
+void BoardGerberExport::drawStrokeText(GerberGenerator& gen, const Layer& layer,
+                                       const BoardStrokeTextData& data,
+                                       const QVector<Path>& paths,
+                                       const Transform& xf,
+                                       const QString& component) const {
+  if (!(layer == data.getLayer())) {
+    return;
+  }
+
+  // Same attributes for board, device and panel texts.
+  GerberGenerator::Function function = std::nullopt;
+  std::optional<QString> net = std::nullopt;
+  if (layer.isCopper()) {
+    function = GerberAttribute::ApertureFunction::NonConductor;
+    net = "";  // Not connected to any net.
+  }
+  const UnsignedLength lineWidth =
+      calcWidthOfLayer(data.getStrokeWidth(), layer);
+  const Transform transform(data);
+  foreach (const Path& path, xf.map(transform.map(paths))) {
+    gen.drawPathOutline(path, lineWidth, function, net, component);
   }
 }
 
@@ -973,21 +985,10 @@ void BoardGerberExport::drawLayerExceptDevices(
   }
 
   // draw stroke texts
-  GerberGenerator::Function textFunction = std::nullopt;
-  if (layer.isCopper()) {
-    textFunction = GerberAttribute::ApertureFunction::NonConductor;
-  }
   foreach (const BI_StrokeText* text, board.getStrokeTexts()) {
     Q_ASSERT(text);
-    if (layer == text->getData().getLayer()) {
-      UnsignedLength lineWidth =
-          calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
-      const Transform transform(text->getData());
-      foreach (Path path, xf.map(transform.map(text->getPaths()))) {
-        gen.drawPathOutline(path, lineWidth, textFunction, graphicsNet,
-                            QString());
-      }
-    }
+    drawStrokeText(gen, layer, text->getData(), text->getPaths(), xf,
+                   QString());
   }
 
   // Draw holes.
@@ -1087,20 +1088,9 @@ void BoardGerberExport::drawDevice(GerberGenerator& gen,
   }
 
   // draw stroke texts (from footprint instance, *NOT* from library footprint!)
-  GerberGenerator::Function textFunction = std::nullopt;
-  if (layer.isCopper()) {
-    textFunction = GerberAttribute::ApertureFunction::NonConductor;
-  }
   foreach (const BI_StrokeText* text, device.getStrokeTexts()) {
-    if (layer == text->getData().getLayer()) {
-      UnsignedLength lineWidth =
-          calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
-      Transform transform(text->getData());
-      foreach (Path path, xf.map(transform.map(text->getPaths()))) {
-        gen.drawPathOutline(path, lineWidth, textFunction, graphicsNet,
-                            component);
-      }
-    }
+    drawStrokeText(gen, layer, text->getData(), text->getPaths(), xf,
+                   component);
   }
 
   // Draw holes.

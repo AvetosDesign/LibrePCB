@@ -79,7 +79,7 @@ CmdLockSelectedPanelItems::CmdLockSelectedPanelItems(PanelGraphicsScene& scene,
   foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
     std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
         new CmdPanelStrokeTextEdit(*text));
-    cmd->setLocked(locked);
+    cmd->setLocked(locked, false);
     appendChild(cmd.release());
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {

@@ -37,7 +37,7 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelHoleEdit::CmdPanelHoleEdit(PI_Hole& hole) noexcept
-  : UndoCommand(tr("Edit hole")),
+  : CmdPanelPlacedItemEdit(tr("Edit hole")),
     mHole(hole),
     mOldPos(mHole.getPosition()),
     mNewPos(mOldPos),

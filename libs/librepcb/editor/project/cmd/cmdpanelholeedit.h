@@ -23,7 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../undocommand.h"
+#include "cmdpanelplaceditemedit.h"
 
 #include <librepcb/core/types/angle.h>
 #include <librepcb/core/types/length.h>
@@ -52,7 +52,7 @@ namespace editor {
  * Select-tool integration (drag/rotate/cut/copy/paste) are still deferred
  * to a follow-up.
  */
-class CmdPanelHoleEdit final : public UndoCommand {
+class CmdPanelHoleEdit final : public CmdPanelPlacedItemEdit {
 public:
   // Constructors / Destructor
   CmdPanelHoleEdit() = delete;
@@ -61,10 +61,10 @@ public:
   ~CmdPanelHoleEdit() noexcept override;
 
   // General Methods
-  void setPosition(const Point& pos, bool immediate) noexcept;
-  void translate(const Point& deltaPos, bool immediate) noexcept;
+  void setPosition(const Point& pos, bool immediate) noexcept override;
+  void translate(const Point& deltaPos, bool immediate) noexcept override;
   void setDiameter(const PositiveLength& diameter, bool immediate) noexcept;
-  void setLocked(bool locked, bool immediate) noexcept;
+  void setLocked(bool locked, bool immediate) noexcept override;
 
   /**
    * @brief Mirror the hole's position about a flip pivot
@@ -83,7 +83,7 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void flip(const Point& center, bool immediate) noexcept;
+  void flip(const Point& center, bool immediate) noexcept override;
 
   /**
    * @brief Rotate the hole's position about a pivot
@@ -98,10 +98,11 @@ public:
    * @param immediate  Whether to apply the change to the model right away
    *                  (for a live preview) - see #setPosition().
    */
-  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center,
+              bool immediate) noexcept override;
 
   // Getters
-  const Point& getPosition() const noexcept { return mNewPos; }
+  const Point& getPosition() const noexcept override { return mNewPos; }
 
   // Operator Overloadings
   CmdPanelHoleEdit& operator=(const CmdPanelHoleEdit& rhs) = delete;

@@ -39,7 +39,7 @@ namespace editor {
  ******************************************************************************/
 
 CmdPanelStrokeTextEdit::CmdPanelStrokeTextEdit(PI_StrokeText& text) noexcept
-  : UndoCommand(tr("Modify Stroke Text")),
+  : CmdPanelPlacedItemEdit(tr("Modify Stroke Text")),
     mText(text),
     mOldData(text.getData()),
     mNewData(mOldData) {
@@ -201,9 +201,11 @@ void CmdPanelStrokeTextEdit::setAutoRotate(bool autoRotate,
   }
 }
 
-void CmdPanelStrokeTextEdit::setLocked(bool locked) noexcept {
+void CmdPanelStrokeTextEdit::setLocked(bool locked, bool immediate) noexcept {
   Q_ASSERT(!wasEverExecuted());
-  mNewData.setLocked(locked);
+  if (mNewData.setLocked(locked) && immediate) {
+    mText.setLocked(locked);
+  }
 }
 
 /*******************************************************************************

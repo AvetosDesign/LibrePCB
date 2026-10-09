@@ -377,7 +377,7 @@ private:
   bool mSnapPanel;  ///< "Snap to Panel" toggle, see fsmGetSnapPanelEnabled()
   bool mTabToolActive;  ///< Whether the Add Tab tool is active
   bool mVCutToolActive;  ///< Whether the Add V-Cut tool is active
-  bool mShowOutlinePreview;  ///< "Panel Outline Preview" display toggle
+  bool mShowOutlinePreview;  ///< "Panel Cuts Preview" display toggle
   bool mOutlinePreviewSuspended;  ///< Preview suspended by the Add Board tool
   bool mBoardOutlinesHiddenByPreview;  ///< See updateBoardOutlinesForPreview()
   bool mBoardOutlinesBeforePreview;  ///< See updateBoardOutlinesForPreview()

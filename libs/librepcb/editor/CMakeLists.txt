@@ -672,6 +672,7 @@ add_library(
   project/cmd/cmdpanelholeedit.h
   project/cmd/cmdpanelholeremove.cpp
   project/cmd/cmdpanelholeremove.h
+  project/cmd/cmdpanelplaceditemedit.h
   project/cmd/cmdpanelremove.cpp
   project/cmd/cmdpanelremove.h
   project/cmd/cmdpanelstroketextadd.cpp
@@ -784,6 +785,7 @@ add_library(
   project/cmd/cmdsymbolinstancetextremove.h
   project/cmd/cmdsymbolinstancetextsreset.cpp
   project/cmd/cmdsymbolinstancetextsreset.h
+  project/commongeometrylayers.h
   project/componentassemblyoptionlisteditorwidget.cpp
   project/componentassemblyoptionlisteditorwidget.h
   project/library/projectlibrarymodel.cpp

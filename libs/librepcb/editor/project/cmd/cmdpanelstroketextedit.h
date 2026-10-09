@@ -23,7 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
-#include "../../undocommand.h"
+#include "cmdpanelplaceditemedit.h"
 
 #include <librepcb/core/project/board/boardstroketextdata.h>
 
@@ -48,7 +48,7 @@ namespace editor {
  * Panel counterpart of ::librepcb::editor::CmdBoardStrokeTextEdit with the
  * same API, plus flip() as a convenience for the Select tool.
  */
-class CmdPanelStrokeTextEdit final : public UndoCommand {
+class CmdPanelStrokeTextEdit final : public CmdPanelPlacedItemEdit {
 public:
   // Constructors / Destructor
   explicit CmdPanelStrokeTextEdit(PI_StrokeText& text) noexcept;
@@ -56,7 +56,9 @@ public:
 
   // Getters
   PI_StrokeText& getObj() const noexcept { return mText; }
-  const Point& getPosition() const noexcept { return mNewData.getPosition(); }
+  const Point& getPosition() const noexcept override {
+    return mNewData.getPosition();
+  }
 
   // Setters
   void setLayer(const Layer& layer, bool immediate) noexcept;
@@ -69,11 +71,12 @@ public:
   void setLineSpacing(const StrokeTextSpacing& spacing,
                       bool immediate) noexcept;
   void setAlignment(const Alignment& align, bool immediate) noexcept;
-  void setPosition(const Point& pos, bool immediate) noexcept;
-  void translate(const Point& delta, bool immediate) noexcept;
+  void setPosition(const Point& pos, bool immediate) noexcept override;
+  void translate(const Point& delta, bool immediate) noexcept override;
   void snapToGrid(const PositiveLength& gridInterval, bool immediate) noexcept;
   void setRotation(const Angle& angle, bool immediate) noexcept;
-  void rotate(const Angle& angle, const Point& center, bool immediate) noexcept;
+  void rotate(const Angle& angle, const Point& center,
+              bool immediate) noexcept override;
   void setMirrored(bool mirrored, bool immediate) noexcept;
   void mirrorGeometry(Qt::Orientation orientation, const Point& center,
                       bool immediate) noexcept;
@@ -87,10 +90,10 @@ public:
    * Mirrors the position about @p center, then mirrors the layer (using the
    * panel's inner layer count) and glyph orientation, like Board's "Flip".
    */
-  void flip(const Point& center, bool immediate) noexcept;
+  void flip(const Point& center, bool immediate) noexcept override;
 
   void setAutoRotate(bool autoRotate, bool immediate) noexcept;
-  void setLocked(bool locked) noexcept;
+  void setLocked(bool locked, bool immediate) noexcept override;
 
 private:  // Methods
   /// @copydoc ::librepcb::editor::UndoCommand::performExecute()

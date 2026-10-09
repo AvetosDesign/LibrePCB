@@ -23,6 +23,7 @@
 #include "paneleditorstate.h"
 
 #include "../../../undostack.h"
+#include "../../commongeometrylayers.h"
 #include "../graphicsitems/pgi_boardinstance.h"
 #include "../panelgraphicsscene.h"
 
@@ -66,32 +67,7 @@ PanelGraphicsScene* PanelEditorState::getActivePanelScene() noexcept {
 }
 
 QSet<const Layer*> PanelEditorState::getAllowedTextLayers() const noexcept {
-  static const QSet<const Layer*> commonLayers = {
-      &Layer::boardSheetFrames(),
-      &Layer::boardOutlines(),
-      &Layer::boardCutouts(),
-      &Layer::boardPlatedCutouts(),
-      &Layer::boardMeasures(),
-      &Layer::boardAlignment(),
-      &Layer::boardDocumentation(),
-      &Layer::boardComments(),
-      &Layer::boardGuide(),
-      &Layer::topNames(),
-      &Layer::topValues(),
-      &Layer::topLegend(),
-      &Layer::topDocumentation(),
-      &Layer::topGlue(),
-      &Layer::topSolderPaste(),
-      &Layer::topStopMask(),
-      &Layer::botNames(),
-      &Layer::botValues(),
-      &Layer::botLegend(),
-      &Layer::botDocumentation(),
-      &Layer::botGlue(),
-      &Layer::botSolderPaste(),
-      &Layer::botStopMask(),
-  };
-  return commonLayers | mContext.panel.getCopperLayers();
+  return getCommonGeometryLayers() | mContext.panel.getCopperLayers();
 }
 
 void PanelEditorState::makeLayerVisible(const ColorRole& role) noexcept {
