@@ -40,11 +40,18 @@ namespace editor {
  ******************************************************************************/
 
 PanelClipboardData::PanelClipboardData() noexcept
-  : mInstances(), mHoles(), mFiducials(), mTabs() {
+  : mInstances(), mHoles(), mFiducials(), mStrokeTexts(), mTabs() {
 }
 
 PanelClipboardData::PanelClipboardData(const SExpression& node)
-  : mInstances(node), mHoles(node), mFiducials(node), mTabs(node) {
+  : mInstances(node),
+    mHoles(node),
+    mFiducials(node),
+    mStrokeTexts(),
+    mTabs(node) {
+  foreach (const SExpression* child, node.getChildren("stroke_text")) {
+    mStrokeTexts.append(BoardStrokeTextData(*child));
+  }
 }
 
 PanelClipboardData::~PanelClipboardData() noexcept {
@@ -64,6 +71,10 @@ std::unique_ptr<QMimeData> PanelClipboardData::toMimeData() {
   root->ensureLineBreak();
   mFiducials.serialize(*root);
   root->ensureLineBreak();
+  for (const BoardStrokeTextData& text : mStrokeTexts) {
+    text.serialize(root->appendList("stroke_text"));
+    root->ensureLineBreak();
+  }
   mTabs.serialize(*root);
   root->ensureLineBreak();
 

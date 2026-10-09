@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include <librepcb/core/project/board/boardstroketextdata.h>
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
@@ -101,6 +102,10 @@ public:
   const PI_HoleList& getHoles() const noexcept { return mHoles; }
   PI_FiducialList& getFiducials() noexcept { return mFiducials; }
   const PI_FiducialList& getFiducials() const noexcept { return mFiducials; }
+  QList<BoardStrokeTextData>& getStrokeTexts() noexcept { return mStrokeTexts; }
+  const QList<BoardStrokeTextData>& getStrokeTexts() const noexcept {
+    return mStrokeTexts;
+  }
   PI_TabList& getTabs() noexcept { return mTabs; }
   const PI_TabList& getTabs() const noexcept { return mTabs; }
 
@@ -111,7 +116,7 @@ public:
    */
   bool isEmpty() const noexcept {
     return mInstances.isEmpty() && mHoles.isEmpty() && mFiducials.isEmpty() &&
-        mTabs.isEmpty();
+        mStrokeTexts.isEmpty() && mTabs.isEmpty();
   }
 
   // General Methods
@@ -130,6 +135,7 @@ private:  // Data
   PI_BoardInstanceList mInstances;
   PI_HoleList mHoles;
   PI_FiducialList mFiducials;
+  QList<BoardStrokeTextData> mStrokeTexts;
   PI_TabList mTabs;
 };
 

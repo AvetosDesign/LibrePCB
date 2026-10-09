@@ -26,6 +26,7 @@
 #include "graphicsitems/pgi_fiducial.h"
 #include "graphicsitems/pgi_hole.h"
 #include "graphicsitems/pgi_outline.h"
+#include "graphicsitems/pgi_stroketext.h"
 #include "graphicsitems/pgi_tab.h"
 #include "graphicsitems/pgi_vcut.h"
 
@@ -105,6 +106,9 @@ PanelGraphicsScene::PanelGraphicsScene(
       addFiducialItem(fiducial);
     }
   }
+  foreach (const auto& text, mPanel.getStrokeTexts()) {
+    addStrokeTextItem(text);
+  }
   updateTabItems();
   mPanel.getTabs().onElementEdited.attach(mOnTabListEditedSlot);
   mPanel.getBoardInstances().onElementEdited.attach(
@@ -129,6 +133,10 @@ PanelGraphicsScene::PanelGraphicsScene(
           &PanelGraphicsScene::fiducialAdded);
   connect(&mPanel, &Panel::fiducialRemoved, this,
           &PanelGraphicsScene::fiducialRemoved);
+  connect(&mPanel, &Panel::strokeTextAdded, this,
+          &PanelGraphicsScene::strokeTextAdded);
+  connect(&mPanel, &Panel::strokeTextRemoved, this,
+          &PanelGraphicsScene::strokeTextRemoved);
   connect(&mPanel, &Panel::tabAdded, this, &PanelGraphicsScene::tabAdded);
   connect(&mPanel, &Panel::tabRemoved, this, &PanelGraphicsScene::tabRemoved);
   connect(&mPanel, &Panel::vCutAdded, this, &PanelGraphicsScene::vCutAdded);
@@ -166,6 +174,9 @@ PanelGraphicsScene::~PanelGraphicsScene() noexcept {
   foreach (const Uuid& uuid, mFiducialItems.keys()) {
     removeFiducialItem(uuid);
   }
+  foreach (const Uuid& uuid, mStrokeTextItems.keys()) {
+    removeStrokeTextItem(uuid);
+  }
   for (const auto& item : mOutlineHighlightItems) {
     removeItem(*item);
   }
@@ -194,6 +205,9 @@ void PanelGraphicsScene::selectAll() noexcept {
   foreach (const auto& item, mFiducialItems) {
     if (item) item->setSelected(true);
   }
+  foreach (const auto& item, mStrokeTextItems) {
+    if (item) item->setSelected(true);
+  }
   foreach (const auto& item, mTabItems) {
     if (item && item->isVisible()) item->setSelected(true);
   }
@@ -217,6 +231,11 @@ void PanelGraphicsScene::selectItemsInRect(const Point& p1,
     }
   }
   foreach (const auto& item, mFiducialItems) {
+    if (item) {
+      item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    }
+  }
+  foreach (const auto& item, mStrokeTextItems) {
     if (item) {
       item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
     }
@@ -606,6 +625,36 @@ void PanelGraphicsScene::addHoleItem(std::shared_ptr<PI_Hole> hole) noexcept {
 
 void PanelGraphicsScene::removeHoleItem(const Uuid& uuid) noexcept {
   if (std::shared_ptr<PGI_Hole> item = mHoleItems.take(uuid)) {
+    removeItem(*item);
+  }
+}
+
+void PanelGraphicsScene::strokeTextAdded(
+    std::shared_ptr<PI_StrokeText> text) noexcept {
+  if (text && (!mStrokeTextItems.contains(text->getUuid()))) {
+    addStrokeTextItem(text);
+  }
+}
+
+void PanelGraphicsScene::strokeTextRemoved(
+    std::shared_ptr<PI_StrokeText> text) noexcept {
+  if (text) {
+    removeStrokeTextItem(text->getUuid());
+  }
+}
+
+void PanelGraphicsScene::addStrokeTextItem(
+    std::shared_ptr<PI_StrokeText> text) noexcept {
+  Q_ASSERT(text);
+  Q_ASSERT(!mStrokeTextItems.contains(text->getUuid()));
+  std::shared_ptr<PGI_StrokeText> item =
+      std::make_shared<PGI_StrokeText>(text, mLayers);
+  addItem(*item);
+  mStrokeTextItems.insert(text->getUuid(), item);
+}
+
+void PanelGraphicsScene::removeStrokeTextItem(const Uuid& uuid) noexcept {
+  if (std::shared_ptr<PGI_StrokeText> item = mStrokeTextItems.take(uuid)) {
     removeItem(*item);
   }
 }

@@ -104,10 +104,10 @@ bool ShortcutsReferenceGenerator::generatePdf(const FilePath& fp) {
       &mCommands.categoryWindowManagement,  //
       &mCommands.categoryImportExport,  //
       &mCommands.categoryModify,  // long
-      &mCommands.categoryTextInput,  //
+      &mCommands.categoryComponents,  //
       &mCommands.categoryView,  //
       &mCommands.categoryTools,  // long
-      &mCommands.categoryComponents,  //
+      &mCommands.categoryTextInput,  //
       &mCommands.categoryDocks,  //
       &mCommands.categoryCommands,  // long
       &mCommands.categoryHelp,  //

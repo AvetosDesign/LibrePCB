@@ -35,6 +35,7 @@
  ******************************************************************************/
 namespace librepcb {
 
+class ColorRole;
 class Uuid;
 
 namespace editor {
@@ -43,6 +44,7 @@ class PanelEditorState_AddBoard;
 class PanelEditorState_AddFiducial;
 class PanelEditorState_AddHole;
 class PanelEditorState_AddTab;
+class PanelEditorState_AddText;
 class PanelEditorState_AddVCut;
 class PanelEditorState_Select;
 class PanelGraphicsScene;
@@ -106,6 +108,16 @@ public:
   virtual void fsmSetFeatures(Features features) noexcept = 0;
 
   /**
+   * @brief Make the graphics layer of a color role visible
+   *
+   * Used by the Add Text tool, so a text placed on a currently hidden layer
+   * does not vanish. Does nothing if the layer is not enabled.
+   *
+   * @param role  Color role of the layer to show.
+   */
+  virtual void fsmMakeLayerVisible(const ColorRole& role) noexcept = 0;
+
+  /**
    * @brief Set the text of the info box shown on the canvas
    *
    * Mirrors ::librepcb::editor::BoardEditorFsmAdapter::
@@ -158,6 +170,7 @@ public:
   virtual void fsmToolEnter(PanelEditorState_AddBoard& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddHole& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept = 0;
+  virtual void fsmToolEnter(PanelEditorState_AddText& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddTab& state) noexcept = 0;
   virtual void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept = 0;
 };

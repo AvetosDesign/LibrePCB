@@ -78,8 +78,10 @@ add_executable(
   core/project/board/boardspecctraexporttest.cpp
   core/project/outputjobrunnertest.cpp
   core/project/panel/boardedgesnaptest.cpp
+  core/project/panel/panelgerberexporttest.cpp
   core/project/panel/panelplacementtest.cpp
   core/project/panel/panelsnaptest.cpp
+  core/project/panel/pistroketexttest.cpp
   core/project/panel/pivcuttest.cpp
   core/project/projectjsonexporttest.cpp
   core/project/projectlibrarytest.cpp

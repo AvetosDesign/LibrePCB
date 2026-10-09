@@ -1,6 +1,7 @@
 import { AddFiducialToolBar } from "addfiducialtoolbar.slint";
 import { AddHoleToolBar } from "addholetoolbar.slint";
 import { AddTabToolBar } from "addtabtoolbar.slint";
+import { AddTextToolBar } from "addtexttoolbar.slint";
 import { AddVCutToolBar } from "addvcuttoolbar.slint";
 import { Tab } from "../../tab.slint";
 import {
@@ -153,6 +154,15 @@ export component PanelTab inherits Tab {
                     Backend.trigger-tab(section-index, index, TabAction.tool-panel-vcut);
                 }
             }
+
+            tool-text-btn := ToolButton {
+                cmd: Cmd.tool-text;
+                checked: tabs[index].tool == EditorTool.text;
+
+                clicked => {
+                    Backend.trigger-tab(section-index, index, TabAction.tool-text);
+                }
+            }
         }
 
         toolbar-r := ToolBar {
@@ -166,6 +176,11 @@ export component PanelTab inherits Tab {
             }
 
             if tabs[index].tool == EditorTool.hole: hole-toolbar := AddHoleToolBar {
+                section-index: section-index;
+                section: section;
+            }
+
+            if tabs[index].tool == EditorTool.text: text-toolbar := AddTextToolBar {
                 section-index: section-index;
                 section: section;
             }

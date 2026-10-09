@@ -674,6 +674,12 @@ add_library(
   project/cmd/cmdpanelholeremove.h
   project/cmd/cmdpanelremove.cpp
   project/cmd/cmdpanelremove.h
+  project/cmd/cmdpanelstroketextadd.cpp
+  project/cmd/cmdpanelstroketextadd.h
+  project/cmd/cmdpanelstroketextedit.cpp
+  project/cmd/cmdpanelstroketextedit.h
+  project/cmd/cmdpanelstroketextremove.cpp
+  project/cmd/cmdpanelstroketextremove.h
   project/cmd/cmdpaneltabadd.cpp
   project/cmd/cmdpaneltabadd.h
   project/cmd/cmdpaneltabedit.cpp
@@ -856,6 +862,8 @@ add_library(
   project/panel/fsm/paneleditorstate_addhole.h
   project/panel/fsm/paneleditorstate_addtab.cpp
   project/panel/fsm/paneleditorstate_addtab.h
+  project/panel/fsm/paneleditorstate_addtext.cpp
+  project/panel/fsm/paneleditorstate_addtext.h
   project/panel/fsm/paneleditorstate_addvcut.cpp
   project/panel/fsm/paneleditorstate_addvcut.h
   project/panel/fsm/paneleditorstate_select.cpp
@@ -870,6 +878,8 @@ add_library(
   project/panel/graphicsitems/pgi_hole.h
   project/panel/graphicsitems/pgi_outline.cpp
   project/panel/graphicsitems/pgi_outline.h
+  project/panel/graphicsitems/pgi_stroketext.cpp
+  project/panel/graphicsitems/pgi_stroketext.h
   project/panel/graphicsitems/pgi_tab.cpp
   project/panel/graphicsitems/pgi_tab.h
   project/panel/graphicsitems/pgi_vcut.cpp

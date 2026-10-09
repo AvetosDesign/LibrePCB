@@ -22,6 +22,7 @@
  ******************************************************************************/
 #include "paneleditorstate_select.h"
 
+#include "../../../dialogs/stroketextpropertiesdialog.h"
 #include "../../../editorcommandset.h"
 #include "../../../undostack.h"
 #include "../../../utils/menubuilder.h"
@@ -33,6 +34,8 @@
 #include "../../cmd/cmdpanelfiducialedit.h"
 #include "../../cmd/cmdpanelholeadd.h"
 #include "../../cmd/cmdpanelholeedit.h"
+#include "../../cmd/cmdpanelstroketextadd.h"
+#include "../../cmd/cmdpanelstroketextedit.h"
 #include "../../cmd/cmdpaneltabadd.h"
 #include "../../cmd/cmdpaneltabedit.h"
 #include "../../cmd/cmdpanelvcutedit.h"
@@ -41,6 +44,7 @@
 #include "../graphicsitems/pgi_edge.h"
 #include "../graphicsitems/pgi_fiducial.h"
 #include "../graphicsitems/pgi_hole.h"
+#include "../graphicsitems/pgi_stroketext.h"
 #include "../graphicsitems/pgi_tab.h"
 #include "../graphicsitems/pgi_vcut.h"
 #include "../panelclipboarddata.h"
@@ -51,6 +55,7 @@
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/items/pi_stroketext.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/project/panel/items/pi_vcut.h>
 #include <librepcb/core/project/panel/panel.h>
@@ -172,7 +177,9 @@ bool PanelEditorState_Select::processSetLocked(bool locked) noexcept {
 
 bool PanelEditorState_Select::processRotate(const Angle& rotation) noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be rotated.
-  if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()))) {
+  if (mIsUndoCmdActive &&
+      ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()) ||
+       (!mDragStrokeTextCmds.empty()))) {
     // A drag is in progress - rotate the live preview, same as
     // right-click-during-drag (see
     // processGraphicsSceneRightMouseButtonReleased()).
@@ -186,7 +193,7 @@ bool PanelEditorState_Select::processFlip() noexcept {
   if (mDragTabCmd) return false;  // Tab markers can't be flipped.
   if (mIsUndoCmdActive &&
       ((!mDragCmds.empty()) || (!mDragHoleCmds.empty()) ||
-       (!mDragFiducialCmds.empty()))) {
+       (!mDragFiducialCmds.empty()) || (!mDragStrokeTextCmds.empty()))) {
     // A drag is in progress - flip the live preview, same as
     // right-click-during-drag rotate (see #processRotate()/
     // #rotateSelection()).
@@ -252,7 +259,7 @@ bool PanelEditorState_Select::processPaste() noexcept {
   if ((!data) || data->isEmpty()) return false;
   // Tabs are only ever pasted along with their board placement.
   if (data->getInstances().isEmpty() && data->getHoles().isEmpty() &&
-      data->getFiducials().isEmpty()) {
+      data->getFiducials().isEmpty() && data->getStrokeTexts().isEmpty()) {
     return false;
   }
 
@@ -267,8 +274,10 @@ bool PanelEditorState_Select::processPaste() noexcept {
     referencePos = data->getInstances().first()->getPosition();
   } else if (!data->getHoles().isEmpty()) {
     referencePos = data->getHoles().first()->getPosition();
-  } else {
+  } else if (!data->getFiducials().isEmpty()) {
     referencePos = data->getFiducials().first()->getPosition();
+  } else {
+    referencePos = data->getStrokeTexts().first().getPosition();
   }
   const Point offset =
       (startPos - referencePos).mappedToGrid(getGridInterval());
@@ -340,6 +349,21 @@ bool PanelEditorState_Select::processPaste() noexcept {
       }
     }
 
+    for (const BoardStrokeTextData& src : data->getStrokeTexts()) {
+      BoardStrokeTextData pastedData(Uuid::createRandom(), src);
+      pastedData.setPosition(src.getPosition() + offset);
+      auto text = std::make_shared<PI_StrokeText>(mContext.panel, pastedData);
+      mContext.undoStack.appendToCmdGroup(
+          new CmdPanelStrokeTextAdd(mContext.panel, text));  // can throw
+
+      mDragStrokeTextCmds.push_back(
+          std::make_unique<CmdPanelStrokeTextEdit>(*text));
+      mDragStrokeTextPasteOffsets.push_back(src.getPosition() - referencePos);
+      if (auto item = scene->getStrokeTextItem(text->getUuid())) {
+        item->setSelected(true);
+      }
+    }
+
     // Tabs belong to the board design, so the pasted copies already show
     // the design's tabs of this panel. The copied tabs are only added where
     // this panel doesn't have them yet (e.g. pasting into another panel of
@@ -369,12 +393,13 @@ bool PanelEditorState_Select::processPaste() noexcept {
     }
 
     if (mDragCmds.empty() && mDragHoleCmds.empty() &&
-        mDragFiducialCmds.empty()) {
+        mDragFiducialCmds.empty() && mDragStrokeTextCmds.empty()) {
       mContext.undoStack.abortCmdGroup();  // can throw
       mIsUndoCmdActive = false;
       mDragPasteOffsets.clear();
       mDragHolePasteOffsets.clear();
       mDragFiducialPasteOffsets.clear();
+      mDragStrokeTextPasteOffsets.clear();
       if (skippedUnknownBoard) {
         mAdapter.fsmSetStatusBarMessage(
             tr("Pasting boards from another project is not supported yet."),
@@ -547,12 +572,13 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
   }
 
   if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragVCutCmds.empty()) {
+      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
   if (!mDragPasteOffsets.empty() || !mDragHolePasteOffsets.empty() ||
-      !mDragFiducialPasteOffsets.empty()) {
+      !mDragFiducialPasteOffsets.empty() ||
+      !mDragStrokeTextPasteOffsets.empty()) {
     // Paste-placement drag: always snap to an absolute position derived
     // from the current cursor position, rather than accumulating
     // incremental deltas starting from wherever the cursor was when
@@ -584,6 +610,11 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
       mDragFiducialCmds[i]->setPosition(
           pos + mDragFiducialPasteOffsets[i] + snap, true);
     }
+    Q_ASSERT(mDragStrokeTextPasteOffsets.size() == mDragStrokeTextCmds.size());
+    for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
+      mDragStrokeTextCmds[i]->setPosition(
+          pos + mDragStrokeTextPasteOffsets[i] + snap, true);
+    }
     mDragLastPos = pos;
     return true;
   }
@@ -603,6 +634,8 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
       anchor = mDragHoleCmds.front()->getPosition();
     } else if (!mDragFiducialCmds.empty()) {
       anchor = mDragFiducialCmds.front()->getPosition();
+    } else if (!mDragStrokeTextCmds.empty()) {
+      anchor = mDragStrokeTextCmds.front()->getPosition();
     }
     if (anchor) {
       delta += anchor->mappedToGrid(getGridInterval()) - *anchor;
@@ -629,6 +662,10 @@ bool PanelEditorState_Select::processGraphicsSceneMouseMoved(
       cmd->translate(delta, true);
     }
     for (const std::unique_ptr<CmdPanelFiducialEdit>& cmd : mDragFiducialCmds) {
+      cmd->translate(delta, true);
+    }
+    for (const std::unique_ptr<CmdPanelStrokeTextEdit>& cmd :
+         mDragStrokeTextCmds) {
       cmd->translate(delta, true);
     }
     for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
@@ -674,9 +711,26 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonPressed(
   foreach (QGraphicsItem* item, itemsAtPos) {
     if (dynamic_cast<PGI_BoardInstance*>(item) ||
         dynamic_cast<PGI_Hole*>(item) || dynamic_cast<PGI_Fiducial*>(item) ||
-        dynamic_cast<PGI_Tab*>(item) || dynamic_cast<PGI_VCut*>(item)) {
+        dynamic_cast<PGI_StrokeText*>(item) || dynamic_cast<PGI_Tab*>(item) ||
+        dynamic_cast<PGI_VCut*>(item)) {
       clickedItem = item;
       break;
+    }
+  }
+
+  // Text glyphs are thin strokes which are hard to hit exactly, so (like
+  // Board) a text is also picked within a few screen pixels of its glyphs.
+  // Such a hit wins over a board placement below it, but not over the other
+  // small items, which were already hit exactly above.
+  if ((!clickedItem) || dynamic_cast<PGI_BoardInstance*>(clickedItem)) {
+    const QList<QGraphicsItem*> nearItems =
+        scene->items(mAdapter.fsmCalcPosWithTolerance(e.scenePos),
+                     Qt::IntersectsItemShape, Qt::DescendingOrder);
+    foreach (QGraphicsItem* item, nearItems) {
+      if (dynamic_cast<PGI_StrokeText*>(item)) {
+        clickedItem = item;
+        break;
+      }
     }
   }
 
@@ -774,6 +828,10 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
       mDragFiducialCmds.clear();
+      for (std::unique_ptr<CmdPanelStrokeTextEdit>& cmd : mDragStrokeTextCmds) {
+        mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+      }
+      mDragStrokeTextCmds.clear();
       for (std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
         mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
       }
@@ -791,6 +849,7 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
       mDragPasteOffsets.clear();
       mDragHolePasteOffsets.clear();
       mDragFiducialPasteOffsets.clear();
+      mDragStrokeTextPasteOffsets.clear();
     }
     mContext.undoStack.commitCmdGroup();  // can throw
     mIsUndoCmdActive = false;
@@ -814,7 +873,22 @@ bool PanelEditorState_Select::processGraphicsSceneLeftMouseButtonDoubleClicked(
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
-  // Only a tab marker has a properties dialog, so far.
+  // A text is hit within a few screen pixels of its glyphs (see
+  // processGraphicsSceneLeftMouseButtonPressed()).
+  foreach (QGraphicsItem* item,
+           scene->items(mAdapter.fsmCalcPosWithTolerance(e.scenePos),
+                        Qt::IntersectsItemShape, Qt::DescendingOrder)) {
+    if (PGI_StrokeText* textItem = dynamic_cast<PGI_StrokeText*>(item)) {
+      if (!textItem->isSelected()) {
+        scene->clearSelection();
+        textItem->setSelected(true);
+      }
+      updateSelectionProperties();
+      return processEditProperties();
+    }
+  }
+
+  // Tab markers and texts have a properties dialog, so far.
   foreach (QGraphicsItem* item, scene->items(e.scenePos.toPxQPointF())) {
     if (PGI_Tab* tabItem = dynamic_cast<PGI_Tab*>(item)) {
       if (!tabItem->isSelected()) {
@@ -1144,7 +1218,8 @@ void PanelEditorState_Select::rebindVCut(CmdPanelVCutEdit& cmd,
 
 bool PanelEditorState_Select::isSingleVCutDrag() const noexcept {
   return (mDragVCutCmds.size() == 1) && mDragCmds.empty() &&
-      mDragHoleCmds.empty() && mDragFiducialCmds.empty();
+      mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
+      mDragStrokeTextCmds.empty();
 }
 
 void PanelEditorState_Select::dragVCutWithSnap(
@@ -1269,6 +1344,15 @@ bool PanelEditorState_Select::processEditProperties() noexcept {
     dialog.exec();
     return true;
   }
+  if (const std::shared_ptr<PI_StrokeText> text =
+          getSingleSelectedStrokeText()) {
+    StrokeTextPropertiesDialog dialog(
+        *text, mContext.undoStack, getAllowedTextLayers(),
+        mContext.panel.getGridUnit(), "panel_editor/stroke_text_properties",
+        parentWidget());
+    dialog.exec();
+    return true;
+  }
   return false;
 }
 
@@ -1281,7 +1365,9 @@ bool PanelEditorState_Select::processGraphicsSceneRightMouseButtonReleased(
 
   scheduleUpdateAvailableFeatures();
 
-  if (mIsUndoCmdActive && ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()))) {
+  if (mIsUndoCmdActive &&
+      ((!mDragCmds.empty()) || (!mDragVCutCmds.empty()) ||
+       (!mDragStrokeTextCmds.empty()))) {
     return rotateSelection(Angle::deg90());
   }
   if (mIsUndoCmdActive) {
@@ -1476,6 +1562,7 @@ bool PanelEditorState_Select::startMovingSelection(
   Q_ASSERT(mDragCmds.empty());
   Q_ASSERT(mDragHoleCmds.empty());
   Q_ASSERT(mDragFiducialCmds.empty());
+  Q_ASSERT(mDragStrokeTextCmds.empty());
   Q_ASSERT(mDragVCutCmds.empty());
   Q_ASSERT(mDragFollowerVCutCmds.empty());
 
@@ -1493,6 +1580,7 @@ bool PanelEditorState_Select::startMovingSelection(
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   query.addSelectedVCuts();
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
            query.getBoardInstances()) {
@@ -1504,6 +1592,10 @@ bool PanelEditorState_Select::startMovingSelection(
   foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     mDragFiducialCmds.push_back(
         std::make_unique<CmdPanelFiducialEdit>(*fiducial));
+  }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    mDragStrokeTextCmds.push_back(
+        std::make_unique<CmdPanelStrokeTextEdit>(*text));
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
     mDragVCutCmds.push_back(std::make_unique<CmdPanelVCutEdit>(*vcut));
@@ -1534,7 +1626,7 @@ bool PanelEditorState_Select::startMovingSelection(
   }
 
   if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragVCutCmds.empty()) {
+      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -1546,6 +1638,7 @@ bool PanelEditorState_Select::startMovingSelection(
     mDragCmds.clear();
     mDragHoleCmds.clear();
     mDragFiducialCmds.clear();
+    mDragStrokeTextCmds.clear();
     mDragVCutCmds.clear();
     mDragFollowerVCutCmds.clear();
     return false;
@@ -1615,6 +1708,11 @@ Point PanelEditorState_Select::dragGroupCenter(int& count) noexcept {
     center += cmd->getPosition();
     count++;
   }
+  for (const std::unique_ptr<CmdPanelStrokeTextEdit>& cmd :
+       mDragStrokeTextCmds) {
+    center += cmd->getPosition();
+    count++;
+  }
   if (count > 0) {
     center /= static_cast<int64_t>(count);
   }
@@ -1623,7 +1721,7 @@ Point PanelEditorState_Select::dragGroupCenter(int& count) noexcept {
 
 bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
   if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
-      mDragVCutCmds.empty()) {
+      mDragStrokeTextCmds.empty() && mDragVCutCmds.empty()) {
     return false;
   }
 
@@ -1642,12 +1740,9 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
     center = mDragLastPos;
   }
 
-  // V-cuts only support multiples of 90°; CmdPanelVCutEdit::rotate() ignores
-  // anything else. Rotating while dragging always unbinds a bound V-cut
-  // silently, without #confirmUnbindForRotate()'s confirmation dialog -
-  // interrupting an active drag with a modal dialog would be disruptive,
-  // so this is a deliberate simplification vs. rotateSelectedItems()/
-  // setVCutVertical() (see #confirmUnbindForRotate()'s doc comment).
+  // V-cuts only support cardinal orientations. CmdPanelVCutEdit::rotate()
+  // ignores anything else. Rotating while dragging always unbinds a bound
+  // V-cut silently, without #confirmUnbindForRotate()'s confirmation dialog.
   for (const std::unique_ptr<CmdPanelVCutEdit>& cmd : mDragVCutCmds) {
     const bool wasBound = cmd->getVCut().isBound();
     cmd->rotate(angle, center, true);
@@ -1670,13 +1765,12 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
     }
   }
   // Live drag-preview following, same as the ordinary-move step in
-  // processGraphicsSceneMouseMoved() - must run after the boards' own
-  // rotate() above. Unlike the #mDragVCutCmds loop above, a follower is
-  // never itself directly bound-and-rotated here (it's not the thing
-  // being rotated, its board is), so there's no silent-unbind-on-rotate
-  // case to mirror - #updateDragFollowerVCuts() unbinds a follower if its
-  // board's new rotation is non-orthogonal, or if the follower is locked
-  // (unless locks are ignored).
+  // processGraphicsSceneMouseMoved(). This must run after the boards' own
+  // rotate(), above. Unlike the #mDragVCutCmds loop, a follower is
+  // never itself directly bound-and-rotated here, so there's no
+  // silent-unbind-on-rotate case to mirror. #updateDragFollowerVCuts() unbinds
+  // a follower if its board's new rotation is non-orthogonal, or if the
+  // follower is locked (unless locks are ignored).
   updateDragFollowerVCuts(true);
   // The group's bounds changed: whatever was snapped is gone (smart snap).
   resetDragSnap();
@@ -1693,23 +1787,32 @@ bool PanelEditorState_Select::rotateSelection(const Angle& angle) noexcept {
           mDragFiducialCmds[i]->getPosition() - mDragLastPos;
     }
   }
+  // A text spins about its own origin as well (like a fiducial), see
+  // CmdPanelStrokeTextEdit::rotate().
+  for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
+    mDragStrokeTextCmds[i]->rotate(angle, center, true);
+    if (i < mDragStrokeTextPasteOffsets.size()) {
+      mDragStrokeTextPasteOffsets[i] =
+          mDragStrokeTextCmds[i]->getPosition() - mDragLastPos;
+    }
+  }
   return true;
 }
 
 bool PanelEditorState_Select::flipSelection() noexcept {
-  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty()) {
+  if (mDragCmds.empty() && mDragHoleCmds.empty() && mDragFiducialCmds.empty() &&
+      mDragStrokeTextCmds.empty()) {
     return false;
   }
 
-  // In-drag counterpart to #flipSelectedItems() (the standalone, not-
-  // dragging Flip command), mirroring how #rotateSelection() is the
+  // In-drag counterpart to #flipSelectedItems(), mirroring how
+  // #rotateSelection() is the
   // in-drag counterpart to #rotateSelectedItems(). Mirrors the whole
   // dragged group (boards, holes, fiducials) about its combined geometric
-  // center - see #dragGroupCenter() (shared with #rotateSelection()) for
+  // center.  See #dragGroupCenter() (shared with #rotateSelection()) for
   // the averaging itself. V-cuts are never part of a flip, in or out of a
-  // drag (see #flipSelectedItems()'s identical exclusion - flip has no
-  // meaning for a horizontal/vertical-only V-cut's own orientation), so
-  // any V-cuts in #mDragVCutCmds are left untouched here; a V-cut *bound*
+  // drag (see #flipSelectedItems()'s identity exclusion), so
+  // any V-cuts in #mDragVCutCmds are left untouched here. A V-cut *bound*
   // to a flipped board still updates live via #updateDragFollowerVCuts()
   // below, same as it does for a move or an in-drag rotate.
   int centerCount = 0;
@@ -1744,6 +1847,13 @@ bool PanelEditorState_Select::flipSelection() noexcept {
           mDragFiducialCmds[i]->getPosition() - mDragLastPos;
     }
   }
+  for (std::size_t i = 0; i < mDragStrokeTextCmds.size(); ++i) {
+    mDragStrokeTextCmds[i]->flip(center, true);
+    if (i < mDragStrokeTextPasteOffsets.size()) {
+      mDragStrokeTextPasteOffsets[i] =
+          mDragStrokeTextCmds[i]->getPosition() - mDragLastPos;
+    }
+  }
   mAdapter.fsmSetViewInfoBoxText(buildInfoBoxText());
   return true;
 }
@@ -1753,16 +1863,12 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   if (!scene) return false;
 
   // Collect the currently selected board placements, holes, and fiducials.
-  // Unlike rotateSelection(), this is a standalone, one-shot action -- the
-  // selected items' current model positions are read directly.
+  // Unlike rotateSelection(), this is a standalone, one-shot action.
   //
   // A hole has no board side to toggle (see CmdPanelHoleEdit::flip()'s
-  // Doxygen comment), so it's still included here - its position is
-  // mirrored as part of the rigid-group flip alongside everything else,
-  // and it also counts toward the pivot center average below - but
-  // flipping a SINGLE selected hole is still a no-op: with only one item
-  // selected, the pivot center is that hole's own position, and mirroring
-  // a point about itself doesn't move it.
+  // Doxygen comment), so it's still included here. Its position is
+  // mirrored as part of the rigid-group flip,
+  // and it also counts toward the pivot center average below.
   // Locked items are excluded from flipping unless the per-tab "ignore
   // locks" override is active - see startMovingSelection()'s identical
   // convention.
@@ -1771,21 +1877,17 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
-      query.getFiducials().isEmpty()) {
+      query.getFiducials().isEmpty() && query.getStrokeTexts().isEmpty()) {
     return false;
   }
 
   // Flip the whole selection as one rigid group about its combined
-  // geometric center - same convention as rotateSelection() for a
-  // multi-item selection, and the same rotation pivot: each board's real
-  // outline center is averaged, not its origin, so an off-center outline
-  // doesn't visibly "orbit" around a point that isn't actually its center.
-  // A hole's or fiducial's own position already is its center (both are
-  // symmetric circles), so no equivalent lookup is needed for them - for a
-  // single selected item, this makes center equal to its own position, so
-  // flip() either doesn't move it at all (hole) or only toggles its board
-  // side in place without moving it (fiducial).
+  // geometric center (the same convention as rotateSelection()). Each board's
+  // real outline center is averaged, not its origin. A hole's or fiducial's own
+  // position already is its center (both are symmetric circles), so no
+  // equivalent lookup is needed for them.
   Point center(0, 0);
   int centerCount = 0;
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
@@ -1802,11 +1904,14 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
     center += fiducial->getPosition();
     centerCount++;
   }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    center += text->getData().getPosition();
+    centerCount++;
+  }
   center /= static_cast<int64_t>(centerCount);
 
   // A locked V-cut bound to one of the boards about to be flipped (not
-  // itself directly selected - Flip never includes V-cuts in its own
-  // selection, see the doc comment above) - see
+  // itself directly selected) - see
   // #confirmUnbindLockedBoardVCuts()'s doc comment.
   if (!query.getBoardInstances().isEmpty()) {
     QSet<Uuid> boardsToFlip;
@@ -1840,6 +1945,13 @@ bool PanelEditorState_Select::flipSelectedItems() noexcept {
       cmd->flip(center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
+    foreach (const std::shared_ptr<PI_StrokeText>& text,
+             query.getStrokeTexts()) {
+      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
+          new CmdPanelStrokeTextEdit(*text));
+      cmd->flip(center, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
     if (!query.getBoardInstances().isEmpty()) {
       QSet<Uuid> flippedBoards;
       foreach (const std::shared_ptr<PI_BoardInstance>& instance,
@@ -1862,21 +1974,20 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
   PanelGraphicsScene* scene = getActivePanelScene();
   if (!scene) return false;
 
-  // Same selection-gathering pattern as flipSelectedItems()/
-  // rotateSelectedItems(), but - unlike Flip, which has no meaning for a
-  // V-cut's own horizontal/vertical orientation - a plain move applies to a
-  // V-cut just as well as to a board/hole/fiducial
-  // (::librepcb::editor::CmdPanelVCutEdit::translate() already only applies
-  // the relevant single-axis component of an arbitrary 2D delta), so V-cuts
-  // are included here.
+  // We use the same selection-gathering pattern as flipSelectedItems()/
+  // rotateSelectedItems(), noting that a plain move applies to a
+  // V-cut just as well as to a board/hole/fiducial, so V-cuts are included
+  // here.
   const bool ignoreLocks = getIgnoreLocks();
   PanelSelectionQuery query(*scene, mContext.panel, ignoreLocks);
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   query.addSelectedVCuts();
   if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
-      query.getFiducials().isEmpty() && query.getVCuts().isEmpty()) {
+      query.getFiducials().isEmpty() && query.getStrokeTexts().isEmpty() &&
+      query.getVCuts().isEmpty()) {
     return false;
   }
 
@@ -1898,6 +2009,13 @@ bool PanelEditorState_Select::moveSelectedItems(const Point& delta) noexcept {
              query.getFiducials()) {
       std::unique_ptr<CmdPanelFiducialEdit> cmd(
           new CmdPanelFiducialEdit(*fiducial));
+      cmd->translate(delta, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
+    foreach (const std::shared_ptr<PI_StrokeText>& text,
+             query.getStrokeTexts()) {
+      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
+          new CmdPanelStrokeTextEdit(*text));
       cmd->translate(delta, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
@@ -1969,9 +2087,11 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   query.addSelectedVCuts();
   if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
-      query.getFiducials().isEmpty() && query.getVCuts().isEmpty()) {
+      query.getFiducials().isEmpty() && query.getStrokeTexts().isEmpty() &&
+      query.getVCuts().isEmpty()) {
     return false;
   }
 
@@ -1996,6 +2116,10 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
   }
   foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     center += fiducial->getPosition();
+    centerCount++;
+  }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    center += text->getData().getPosition();
     centerCount++;
   }
   if (centerCount > 0) {
@@ -2057,6 +2181,13 @@ bool PanelEditorState_Select::rotateSelectedItems(const Angle& angle) noexcept {
       cmd->rotate(angle, center, false);
       mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
     }
+    foreach (const std::shared_ptr<PI_StrokeText>& text,
+             query.getStrokeTexts()) {
+      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
+          new CmdPanelStrokeTextEdit(*text));
+      cmd->rotate(angle, center, false);
+      mContext.undoStack.appendToCmdGroup(cmd.release());  // can throw
+    }
     if (!query.getBoardInstances().isEmpty()) {
       // Any directly-selected V-cut that was itself bound to one of these
       // boards was already unbound by the #query.getVCuts() loop above (model
@@ -2091,8 +2222,9 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   if (query.getBoardInstances().isEmpty() && query.getHoles().isEmpty() &&
-      query.getFiducials().isEmpty()) {
+      query.getFiducials().isEmpty() && query.getStrokeTexts().isEmpty()) {
     return false;
   }
 
@@ -2119,6 +2251,10 @@ bool PanelEditorState_Select::copySelectedItemsToClipboard() noexcept {
              query.getFiducials()) {
       data.getFiducials().append(std::make_shared<PI_Fiducial>(*fiducial));
     }
+    foreach (const std::shared_ptr<PI_StrokeText>& text,
+             query.getStrokeTexts()) {
+      data.getStrokeTexts().append(text->getData());
+    }
     qApp->clipboard()->setMimeData(data.toMimeData().release());
     mAdapter.fsmSetStatusBarMessage(tr("Copied to clipboard!"), 2000);
   } catch (const Exception& e) {
@@ -2141,6 +2277,7 @@ std::shared_ptr<PI_Tab>
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   query.addSelectedVCuts();
   if (!query.isResultEmpty()) {
     return nullptr;
@@ -2156,6 +2293,24 @@ std::shared_ptr<PI_Tab>
     }
   }
   return result;
+}
+
+std::shared_ptr<PI_StrokeText>
+    PanelEditorState_Select::getSingleSelectedStrokeText() noexcept {
+  PanelGraphicsScene* scene = getActivePanelScene();
+  if (!scene) return nullptr;
+
+  PanelSelectionQuery query(*scene, mContext.panel, true);
+  query.addSelectedBoardInstances();
+  query.addSelectedHoles();
+  query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
+  query.addSelectedVCuts();
+  query.addSelectedTabs();
+  if ((query.getResultCount() == 1) && (query.getStrokeTexts().count() == 1)) {
+    return query.getStrokeTexts().first();
+  }
+  return nullptr;
 }
 
 void PanelEditorState_Select::updateAvailableFeatures() noexcept {
@@ -2200,6 +2355,7 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
     query.addSelectedBoardInstances();
     query.addSelectedHoles();
     query.addSelectedFiducials();
+    query.addSelectedStrokeTexts();
     query.addSelectedVCuts();
     query.addSelectedTabs();
     auto noteLocked = [&hasLocked, &hasUnlocked](bool locked) {
@@ -2220,6 +2376,17 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
     foreach (const auto& fiducial, query.getFiducials()) {
       noteLocked(fiducial->isLocked());
     }
+    // Selected texts support the same actions as holes and fiducials.
+    foreach (const auto& text, query.getStrokeTexts()) {
+      features |= PanelEditorFsmAdapter::Feature::Remove;
+      features |= PanelEditorFsmAdapter::Feature::Cut;
+      features |= PanelEditorFsmAdapter::Feature::Copy;
+      features |= PanelEditorFsmAdapter::Feature::Flip;
+      if (getIgnoreLocks() || (!text->getData().isLocked())) {
+        features |= PanelEditorFsmAdapter::Feature::Rotate;
+      }
+      noteLocked(text->getData().isLocked());
+    }
     if (!query.getTabs().isEmpty()) {
       features |= PanelEditorFsmAdapter::Feature::Remove;
     }
@@ -2231,7 +2398,8 @@ void PanelEditorState_Select::updateAvailableFeatures() noexcept {
       noteLocked(vcut->isLocked());
     }
   }
-  if ((!isBusy()) && getSingleSelectedTab()) {
+  if ((!isBusy()) &&
+      (getSingleSelectedTab() || getSingleSelectedStrokeText())) {
     features |= PanelEditorFsmAdapter::Feature::EditProperties;
   }
   if (hasSelection) {
@@ -2266,7 +2434,8 @@ QString PanelEditorState_Select::buildInfoBoxText() noexcept {
   };
   if (anySelected(scene->getBoardInstanceItems()) ||
       anySelected(scene->getHoleItems()) ||
-      anySelected(scene->getFiducialItems())) {
+      anySelected(scene->getFiducialItems()) ||
+      anySelected(scene->getStrokeTextItems())) {
     return QString();
   }
   QVector<PGI_Tab*> tabItems;
@@ -2423,11 +2592,12 @@ void PanelEditorState_Select::updateSelectionProperties() noexcept {
     query.addSelectedBoardInstances();
     query.addSelectedHoles();
     query.addSelectedFiducials();
+    query.addSelectedStrokeTexts();
     query.addSelectedVCuts();
     query.addSelectedTabs();
-    // A selected board or tab marker makes the selection mixed too.
-    const bool anyBoardSelected =
-        (!query.getBoardInstances().isEmpty()) || (!query.getTabs().isEmpty());
+    // A selected board, text or tab marker makes the selection mixed too.
+    const bool anyBoardSelected = (!query.getBoardInstances().isEmpty()) ||
+        (!query.getStrokeTexts().isEmpty()) || (!query.getTabs().isEmpty());
     const auto& selectedVCuts = query.getVCuts();
     const auto& selectedHoles = query.getHoles();
     const auto& selectedFiducials = query.getFiducials();
@@ -2692,12 +2862,14 @@ bool PanelEditorState_Select::abortCommand(bool showErrMsgBox) noexcept {
     mDragCmds.clear();
     mDragHoleCmds.clear();
     mDragFiducialCmds.clear();
+    mDragStrokeTextCmds.clear();
     mDragTabCmd.reset();
     mDragVCutCmds.clear();
     mDragFollowerVCutCmds.clear();
     mDragPasteOffsets.clear();
     mDragHolePasteOffsets.clear();
     mDragFiducialPasteOffsets.clear();
+    mDragStrokeTextPasteOffsets.clear();
     mDragHadLockedVCutBreak = false;
     mResizeCmd.reset();
 

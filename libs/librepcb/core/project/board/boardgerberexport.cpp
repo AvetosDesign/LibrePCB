@@ -36,6 +36,7 @@
 #include "../circuit/componentinstance.h"
 #include "../circuit/componentsignalinstance.h"
 #include "../circuit/netsignal.h"
+#include "../panel/items/pi_stroketext.h"
 #include "../panel/panel.h"
 #include "../project.h"
 #include "../projectattributelookup.h"
@@ -453,6 +454,11 @@ void BoardGerberExport::exportLayerBoardOutlines(
                   GerberAttribute::ApertureFunction::Profile, std::nullopt,
                   QString());
     }
+    // Panel text on the outline layers go to the same file, following
+    // Board's precedent.
+    drawPanelStrokeTexts(gen, Layer::boardOutlines());
+    drawPanelStrokeTexts(gen, Layer::boardCutouts());
+    drawPanelStrokeTexts(gen, Layer::boardPlatedCutouts());
   } else {
     drawLayer(gen, Layer::boardOutlines());
     drawLayer(gen, Layer::boardCutouts());
@@ -787,11 +793,13 @@ void BoardGerberExport::drawPanelItems(GerberGenerator& gen,
     return;  // Not a panel export.
   }
 
+  drawPanelStrokeTexts(gen, layer);
+
   // A panel has no design rules of its own, so the automatic stop mask
   // clearance is taken from the (first) placed board, like the layer stack.
-  auto getMaskOffset = [this](const MaskConfig& config,
-                              const PositiveLength& diameter)
-      -> std::optional<Length> {
+  auto getMaskOffset =
+      [this](const MaskConfig& config,
+             const PositiveLength& diameter) -> std::optional<Length> {
     if (!config.isEnabled()) {
       return std::nullopt;
     } else if (auto manualOffset = config.getOffset()) {
@@ -843,6 +851,33 @@ void BoardGerberExport::drawPanelItems(GerberGenerator& gen,
                             QString());
           }
         }
+      }
+    }
+  }
+}
+
+void BoardGerberExport::drawPanelStrokeTexts(GerberGenerator& gen,
+                                             const Layer& layer) const {
+  if (!mPanel) {
+    return;  // Not a panel export.
+  }
+
+  // Same attributes as for Board texts (see drawLayerExceptDevices()). Texts
+  // are already in panel coordinates, so no placement transform is needed.
+  GerberGenerator::Function textFunction = std::nullopt;
+  std::optional<QString> textNet = std::nullopt;
+  if (layer.isCopper()) {
+    textFunction = GerberAttribute::ApertureFunction::NonConductor;
+    textNet = "";  // Not connected to any net.
+  }
+  for (const auto& text : mPanel->getStrokeTexts()) {
+    Q_ASSERT(text);
+    if (layer == text->getData().getLayer()) {
+      const UnsignedLength lineWidth =
+          calcWidthOfLayer(text->getData().getStrokeWidth(), layer);
+      const Transform transform(text->getData());
+      foreach (const Path& path, transform.map(text->getPaths())) {
+        gen.drawPathOutline(path, lineWidth, textFunction, textNet, QString());
       }
     }
   }

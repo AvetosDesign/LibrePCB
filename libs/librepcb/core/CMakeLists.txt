@@ -433,6 +433,8 @@ add_library(
   project/panel/items/pi_fiducial.h
   project/panel/items/pi_hole.cpp
   project/panel/items/pi_hole.h
+  project/panel/items/pi_stroketext.cpp
+  project/panel/items/pi_stroketext.h
   project/panel/items/pi_tab.cpp
   project/panel/items/pi_tab.h
   project/panel/items/pi_vcut.cpp

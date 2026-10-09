@@ -858,19 +858,13 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
                            deserialize<ElementName>(root->getChild("name/@0")));
   p.addPanel(*panel);
 
-  // Rectangular outline size. Older panel.lp files (from before this
-  // feature existed) have no "size" node at all - Panel's constructor
-  // already defaulted mWidth/mHeight to Panel::defaultWidth/defaultHeight,
-  // so there's nothing more to do for those.
+  // Rectangular outline size.
   if (const SExpression* size = root->tryGetChild("size")) {
     panel->setWidth(deserialize<PositiveLength>(size->getChild("width/@0")));
     panel->setHeight(deserialize<PositiveLength>(size->getChild("height/@0")));
   }
 
-  // Grid interval/unit for the panel editor. Older panel.lp files (from
-  // before this feature existed) have no "grid" node at all - Panel's
-  // constructor already defaulted mGridInterval/mGridUnit, so there's
-  // nothing more to do for those.
+  // Grid interval/unit for the panel editor.
   if (const SExpression* grid = root->tryGetChild("grid")) {
     panel->setGridInterval(
         deserialize<PositiveLength>(grid->getChild("interval/@0")));
@@ -881,16 +875,11 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
   // their placement).
   panel->getBoardInstances().loadFromSExpression(*root);
 
-  // Holes and fiducials placed directly on the panel. Older panel.lp
-  // files (from before this feature existed) simply have no "hole"/
-  // "fiducial" entries at all - loadFromSExpression() on an empty list
-  // is a no-op, so no migration code is needed.
+  // Holes and fiducials placed directly on the panel.
   panel->getHoles().loadFromSExpression(*root);
   panel->getFiducials().loadFromSExpression(*root);
 
-  // Panel-wide tab defaults. Older panel.lp files have no "tab_defaults"
-  // node, or no mouse bite entries in it - the Panel constructor already
-  // initialized all defaults.
+  // Panel-wide tab defaults.
   if (const SExpression* tabDefaults = root->tryGetChild("tab_defaults")) {
     panel->setDefaultTabWidth(
         deserialize<PositiveLength>(tabDefaults->getChild("width/@0")));
@@ -912,8 +901,7 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
     }
   }
 
-  // Routing settings. Older panel.lp files have no "routing" node - the
-  // Panel constructor already initialized them.
+  // Routing settings.
   if (const SExpression* routing = root->tryGetChild("routing")) {
     if (routing->tryGetChild("style")) {
       panel->setRoutingStyle(
@@ -937,26 +925,14 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
     }
   }
 
-  // Panel's own Gerber/drill fabrication output settings. Older panel.lp
-  // files (from before this feature existed) have no
-  // "fabrication_output_settings" node at all - Panel's constructor already
-  // default-constructed one, so there's nothing more to do for those.
+  // Panel's own Gerber/drill fabrication output settings.
   if (const SExpression* fabOut =
           root->tryGetChild("fabrication_output_settings")) {
     panel->getFabricationOutputSettings() =
         BoardFabricationOutputSettings(*fabOut);
   }
 
-  // Note: panel.lp files from development builds may contain a
-  // "vcut_defaults" node (minimum V-cut to panel edge distance). That
-  // setting was removed since it's a DRC rule, so the node is ignored.
-
   // Tab markers, one set per board design (shared by all its placed copies).
-  // Same as above, older panel.lp files just have no "tab" entries. Tabs
-  // from development builds before this change were attached to a single
-  // placed copy ("board_instance") instead of a board ("board"): they are
-  // converted to that copy's board, and duplicates (same board and
-  // position, i.e. the same tab placed on several copies) are dropped.
   foreach (const SExpression* node, root->getChildren("tab")) {
     if (node->tryGetChild("board")) {
       panel->addTab(std::make_shared<PI_Tab>(*node));  // can throw
@@ -986,9 +962,14 @@ void ProjectLoader::loadPanel(Project& p, const QString& relativeFilePath) {
     }
   }
 
-  // V-cut lines. Same as above, older panel.lp files have no "vcut"
-  // entries.
+  // V-cut lines.
   panel->getVCuts().loadFromSExpression(*root);
+
+  // Stroke texts.
+  foreach (const SExpression* node, root->getChildren("stroke_text")) {
+    panel->addStrokeText(std::make_shared<PI_StrokeText>(
+        *panel, BoardStrokeTextData(*node)));  // can throw
+  }
 
   // Board checksums, keyed by referenced board UUID (not by instance).
   if (const SExpression* checksums = root->tryGetChild("checksums")) {

@@ -25,6 +25,7 @@
 #include <librepcb/core/fileio/fileutils.h>
 #include <librepcb/core/fileio/transactionalfilesystem.h>
 #include <librepcb/core/job/graphicsoutputjob.h>
+#include <librepcb/core/project/panel/panel.h>
 #include <librepcb/core/project/project.h>
 #include <librepcb/core/project/projectloader.h>
 
@@ -294,6 +295,34 @@ TEST_F(ProjectTest, testSettersGetters) {
   EXPECT_EQ(name, project->getName());
   EXPECT_EQ(author, project->getAuthor());
   EXPECT_EQ(version, project->getVersion());
+}
+
+TEST_F(ProjectTest, testPanelsIndexOnlyWrittenIfNeeded) {
+  const FilePath indexFile = mProjectDir.getPathTo("panels/panels.lp");
+
+  // A project without panels must not get a panels index.
+  std::unique_ptr<Project> project =
+      Project::create(createDir(), mProjectFile.getFilename());
+  project->save();
+  project->getDirectory().getFileSystem()->save();
+  EXPECT_FALSE(indexFile.isExistingFile());
+
+  // As soon as there is a panel, the index must be written.
+  Panel* panel = new Panel(*project, std::make_unique<TransactionalDirectory>(),
+                           "panel", Uuid::createRandom(), ElementName("Panel"));
+  project->addPanel(*panel);
+  project->save();
+  project->getDirectory().getFileSystem()->save();
+  EXPECT_TRUE(indexFile.isExistingFile());
+  EXPECT_TRUE(FileUtils::readFile(indexFile).contains("panels/panel/panel.lp"));
+
+  // After removing the last panel, the index must be updated (not left stale).
+  project->removePanel(*panel);
+  project->save();
+  project->getDirectory().getFileSystem()->save();
+  EXPECT_TRUE(indexFile.isExistingFile());
+  EXPECT_FALSE(
+      FileUtils::readFile(indexFile).contains("panels/panel/panel.lp"));
 }
 
 /*******************************************************************************

@@ -74,6 +74,8 @@ public:
     ADD_HOLE,
     /// ::librepcb::editor::PanelEditorState_AddFiducial
     ADD_FIDUCIAL,
+    /// ::librepcb::editor::PanelEditorState_AddText
+    ADD_TEXT,
     /// ::librepcb::editor::PanelEditorState_AddTab
     ADD_TAB,
     /// ::librepcb::editor::PanelEditorState_AddVCut
@@ -103,6 +105,7 @@ public:
   bool processAddBoard(Board& board) noexcept;
   bool processAddHole() noexcept;
   bool processAddFiducial() noexcept;
+  bool processAddText() noexcept;
   bool processAddTab() noexcept;
   bool processAddVCut() noexcept;
   bool processRotate(const Angle& rotation) noexcept;

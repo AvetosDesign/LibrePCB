@@ -41,6 +41,8 @@
 namespace librepcb {
 
 class Board;
+class ColorRole;
+class Layer;
 class PI_BoardInstance;
 class Point;
 class Uuid;
@@ -281,6 +283,16 @@ protected:  // Methods
   void endSnap() noexcept;
 
   bool getIgnoreLocks() const noexcept;
+
+  /**
+   * @brief Get the layers a panel text can be placed on
+   *
+   * Uses Board's text layers. See ::librepcb::Panel::getCopperLayers().
+   *
+   * @return The allowed layers, in no particular order.
+   */
+  QSet<const Layer*> getAllowedTextLayers() const noexcept;
+  void makeLayerVisible(const ColorRole& role) noexcept;
   void abortBlockingToolsInOtherEditors() noexcept;
   void openBoardEditor(const Uuid& boardUuid) noexcept;
   bool execCmd(UndoCommand* cmd);

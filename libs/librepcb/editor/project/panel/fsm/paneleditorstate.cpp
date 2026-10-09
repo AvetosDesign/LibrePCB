@@ -28,6 +28,7 @@
 
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/panel.h>
+#include <librepcb/core/types/layer.h>
 
 #include <QtCore>
 
@@ -62,6 +63,39 @@ PanelEditorState::~PanelEditorState() noexcept {
 
 PanelGraphicsScene* PanelEditorState::getActivePanelScene() noexcept {
   return mAdapter.fsmGetGraphicsScene();
+}
+
+QSet<const Layer*> PanelEditorState::getAllowedTextLayers() const noexcept {
+  static const QSet<const Layer*> commonLayers = {
+      &Layer::boardSheetFrames(),
+      &Layer::boardOutlines(),
+      &Layer::boardCutouts(),
+      &Layer::boardPlatedCutouts(),
+      &Layer::boardMeasures(),
+      &Layer::boardAlignment(),
+      &Layer::boardDocumentation(),
+      &Layer::boardComments(),
+      &Layer::boardGuide(),
+      &Layer::topNames(),
+      &Layer::topValues(),
+      &Layer::topLegend(),
+      &Layer::topDocumentation(),
+      &Layer::topGlue(),
+      &Layer::topSolderPaste(),
+      &Layer::topStopMask(),
+      &Layer::botNames(),
+      &Layer::botValues(),
+      &Layer::botLegend(),
+      &Layer::botDocumentation(),
+      &Layer::botGlue(),
+      &Layer::botSolderPaste(),
+      &Layer::botStopMask(),
+  };
+  return commonLayers | mContext.panel.getCopperLayers();
+}
+
+void PanelEditorState::makeLayerVisible(const ColorRole& role) noexcept {
+  mAdapter.fsmMakeLayerVisible(role);
 }
 
 PositiveLength PanelEditorState::getGridInterval() const noexcept {

@@ -34,6 +34,7 @@ namespace librepcb {
 class BI_StrokeText;
 class Layer;
 class LengthUnit;
+class PI_StrokeText;
 class StrokeFont;
 class StrokeText;
 
@@ -69,6 +70,11 @@ public:
                              const LengthUnit& lengthUnit,
                              const QString& settingsPrefix,
                              QWidget* parent = nullptr) noexcept;
+  StrokeTextPropertiesDialog(PI_StrokeText& text, UndoStack& undoStack,
+                             const QSet<const Layer*>& layers,
+                             const LengthUnit& lengthUnit,
+                             const QString& settingsPrefix,
+                             QWidget* parent = nullptr) noexcept;
   ~StrokeTextPropertiesDialog() noexcept override;
 
   // Setters
@@ -80,7 +86,7 @@ public:
 
 private:  // Methods
   StrokeTextPropertiesDialog(StrokeText* libObj, BI_StrokeText* boardObj,
-                             UndoStack& undoStack,
+                             PI_StrokeText* panelObj, UndoStack& undoStack,
                              const QSet<const Layer*>& layers,
                              const LengthUnit& lengthUnit,
                              const QString& settingsPrefix,
@@ -95,6 +101,7 @@ private:  // Methods
 private:  // Data
   StrokeText* mLibraryObj;
   BI_StrokeText* mBoardObj;
+  PI_StrokeText* mPanelObj;
   UndoStack& mUndoStack;
   QScopedPointer<Ui::StrokeTextPropertiesDialog> mUi;
 };

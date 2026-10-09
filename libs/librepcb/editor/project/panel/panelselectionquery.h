@@ -26,6 +26,7 @@
 #include <librepcb/core/project/panel/items/pi_boardinstance.h>
 #include <librepcb/core/project/panel/items/pi_fiducial.h>
 #include <librepcb/core/project/panel/items/pi_hole.h>
+#include <librepcb/core/project/panel/items/pi_stroketext.h>
 #include <librepcb/core/project/panel/items/pi_tab.h>
 #include <librepcb/core/project/panel/items/pi_vcut.h>
 
@@ -105,6 +106,10 @@ public:
   const QVector<std::shared_ptr<PI_Fiducial>>& getFiducials() const noexcept {
     return mResultFiducials;
   }
+  const QVector<std::shared_ptr<PI_StrokeText>>& getStrokeTexts()
+      const noexcept {
+    return mResultStrokeTexts;
+  }
   const QVector<std::shared_ptr<PI_VCut>>& getVCuts() const noexcept {
     return mResultVCuts;
   }
@@ -126,6 +131,7 @@ public:
   void addSelectedBoardInstances() noexcept;
   void addSelectedHoles() noexcept;
   void addSelectedFiducials() noexcept;
+  void addSelectedStrokeTexts() noexcept;
   void addSelectedVCuts() noexcept;
   void addSelectedTabs() noexcept;
 
@@ -141,6 +147,7 @@ private:  // Data
   QVector<std::shared_ptr<PI_BoardInstance>> mResultBoardInstances;
   QVector<std::shared_ptr<PI_Hole>> mResultHoles;
   QVector<std::shared_ptr<PI_Fiducial>> mResultFiducials;
+  QVector<std::shared_ptr<PI_StrokeText>> mResultStrokeTexts;
   QVector<std::shared_ptr<PI_VCut>> mResultVCuts;
   QVector<std::shared_ptr<PI_Tab>> mResultTabs;
 };

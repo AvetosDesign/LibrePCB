@@ -26,6 +26,7 @@
 #include "cmdpanelboardinstanceremove.h"
 #include "cmdpanelfiducialremove.h"
 #include "cmdpanelholeremove.h"
+#include "cmdpanelstroketextremove.h"
 #include "cmdpaneltabremove.h"
 #include "cmdpanelvcutremove.h"
 
@@ -51,6 +52,7 @@ CmdRemoveSelectedPanelItems::CmdRemoveSelectedPanelItems(
   query.addSelectedVCuts();
   query.addSelectedFiducials();
   query.addSelectedHoles();
+  query.addSelectedStrokeTexts();
   query.addSelectedTabs();
 
   // Tabs belong to the board design and are kept when board placements are
@@ -68,6 +70,9 @@ CmdRemoveSelectedPanelItems::CmdRemoveSelectedPanelItems(
   }
   foreach (const std::shared_ptr<PI_Fiducial>& fiducial, query.getFiducials()) {
     appendChild(new CmdPanelFiducialRemove(panel, fiducial));
+  }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    appendChild(new CmdPanelStrokeTextRemove(panel, text));
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {
     appendChild(new CmdPanelVCutRemove(panel, vcut));

@@ -43,6 +43,7 @@
 namespace librepcb {
 
 class PI_BoardInstance;
+class PI_StrokeText;
 class PI_Tab;
 class PI_VCut;
 
@@ -52,6 +53,7 @@ class CmdPanelBoardInstanceEdit;
 class CmdPanelEdit;
 class CmdPanelFiducialEdit;
 class CmdPanelHoleEdit;
+class CmdPanelStrokeTextEdit;
 class CmdPanelTabEdit;
 class CmdPanelVCutEdit;
 class PGI_Edge;
@@ -645,6 +647,14 @@ private:
    *         other items, or has several different tabs.
    */
   std::shared_ptr<PI_Tab> getSingleSelectedTab() noexcept;
+
+  /**
+   * @brief Get the selected text, if it is the only selected item
+   *
+   * @return The selected text, or `nullptr` if the selection is empty, has
+   *         other items, or has several texts.
+   */
+  std::shared_ptr<PI_StrokeText> getSingleSelectedStrokeText() noexcept;
   bool startMovingSelection(const Point& startPos) noexcept;
   bool startMovingTab(PGI_Tab& item) noexcept;
   bool startResizingOutline(PGI_Outline::ResizeHandle handle,
@@ -763,6 +773,7 @@ private:
   std::vector<std::unique_ptr<CmdPanelBoardInstanceEdit>> mDragCmds;
   std::vector<std::unique_ptr<CmdPanelHoleEdit>> mDragHoleCmds;
   std::vector<std::unique_ptr<CmdPanelFiducialEdit>> mDragFiducialCmds;
+  std::vector<std::unique_ptr<CmdPanelStrokeTextEdit>> mDragStrokeTextCmds;
   /// Non-null only while dragging a tab marker along the board edges -
   /// mutually exclusive with the other drag commands.
   std::unique_ptr<CmdPanelTabEdit> mDragTabCmd;
@@ -782,6 +793,7 @@ private:
   std::vector<Point> mDragPasteOffsets;
   std::vector<Point> mDragHolePasteOffsets;
   std::vector<Point> mDragFiducialPasteOffsets;
+  std::vector<Point> mDragStrokeTextPasteOffsets;
   /// Non-null only while dragging one of PGI_Outline's resize
   /// handles - mutually exclusive with #mDragCmds being non-empty.
   std::unique_ptr<CmdPanelEdit> mResizeCmd;

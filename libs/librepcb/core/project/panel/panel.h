@@ -33,6 +33,7 @@
 #include "items/pi_boardinstance.h"
 #include "items/pi_fiducial.h"
 #include "items/pi_hole.h"
+#include "items/pi_stroketext.h"
 #include "items/pi_tab.h"
 #include "items/pi_vcut.h"
 
@@ -47,6 +48,7 @@
 namespace librepcb {
 
 class BoardFabricationOutputSettings;
+class Layer;
 class Project;
 
 /*******************************************************************************
@@ -485,6 +487,18 @@ public:
   void addFiducial(std::shared_ptr<PI_Fiducial> fiducial);
   void removeFiducial(std::shared_ptr<PI_Fiducial> fiducial);
 
+  // Stroke Text Methods
+  const QMap<Uuid, std::shared_ptr<PI_StrokeText>>& getStrokeTexts()
+      const noexcept {
+    return mStrokeTexts;
+  }
+  std::shared_ptr<PI_StrokeText> getStrokeText(
+      const Uuid& uuid) const noexcept {
+    return mStrokeTexts.value(uuid);
+  }
+  void addStrokeText(std::shared_ptr<PI_StrokeText> text);
+  void removeStrokeText(std::shared_ptr<PI_StrokeText> text);
+
   // Tab Methods
   PI_TabList& getTabs() noexcept { return mTabs; }
   const PI_TabList& getTabs() const noexcept { return mTabs; }
@@ -632,6 +646,27 @@ public:
    */
   QSet<Uuid> getReferencedBoards() const noexcept;
 
+  /**
+   * @brief Get the number of inner copper layers of the panel
+   *
+   * A panel has no copper stack of its own. We must retrieve layer count from
+   * the referenced board designs.
+   *
+   * @return Inner copper layer count.
+   */
+  int getInnerLayerCount() const noexcept;
+
+  /**
+   * @brief Get the copper layers available on the panel
+   *
+   * Always the top and bottom copper layers, plus the inner copper layers up
+   * to #getInnerLayerCount(). The analogue of
+   * ::librepcb::Board::getCopperLayers().
+   *
+   * @return Set of copper layers.
+   */
+  QSet<const Layer*> getCopperLayers() const noexcept;
+
   // Board Checksum Methods
   /**
    * @brief Get the last-known checksum of a referenced board design
@@ -669,6 +704,8 @@ signals:
   void holeRemoved(int index);
   void fiducialAdded(int index);
   void fiducialRemoved(int index);
+  void strokeTextAdded(std::shared_ptr<PI_StrokeText> text);
+  void strokeTextRemoved(std::shared_ptr<PI_StrokeText> text);
   void tabAdded(int index);
   void tabRemoved(int index);
   void vCutAdded(int index);
@@ -727,6 +764,9 @@ private:  // Data
   // Content placed directly on the panel (not board references).
   PI_HoleList mHoles;
   PI_FiducialList mFiducials;
+
+  // Stroke texts. See PI_StrokeText.
+  QMap<Uuid, std::shared_ptr<PI_StrokeText>> mStrokeTexts;
 
   // Tab markers, each attached to one of mBoardInstances (board-local
   // position, see PI_Tab).

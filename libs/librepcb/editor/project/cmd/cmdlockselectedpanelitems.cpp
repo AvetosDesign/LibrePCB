@@ -26,6 +26,7 @@
 #include "cmdpanelboardinstanceedit.h"
 #include "cmdpanelfiducialedit.h"
 #include "cmdpanelholeedit.h"
+#include "cmdpanelstroketextedit.h"
 #include "cmdpanelvcutedit.h"
 
 #include <QtCore>
@@ -54,6 +55,7 @@ CmdLockSelectedPanelItems::CmdLockSelectedPanelItems(PanelGraphicsScene& scene,
   query.addSelectedBoardInstances();
   query.addSelectedHoles();
   query.addSelectedFiducials();
+  query.addSelectedStrokeTexts();
   query.addSelectedVCuts();
 
   foreach (const std::shared_ptr<PI_BoardInstance>& instance,
@@ -72,6 +74,12 @@ CmdLockSelectedPanelItems::CmdLockSelectedPanelItems(PanelGraphicsScene& scene,
     std::unique_ptr<CmdPanelFiducialEdit> cmd(
         new CmdPanelFiducialEdit(*fiducial));
     cmd->setLocked(locked, false);
+    appendChild(cmd.release());
+  }
+  foreach (const std::shared_ptr<PI_StrokeText>& text, query.getStrokeTexts()) {
+    std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
+        new CmdPanelStrokeTextEdit(*text));
+    cmd->setLocked(locked);
     appendChild(cmd.release());
   }
   foreach (const std::shared_ptr<PI_VCut>& vcut, query.getVCuts()) {

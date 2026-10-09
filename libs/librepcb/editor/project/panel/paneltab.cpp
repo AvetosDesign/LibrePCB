@@ -31,6 +31,7 @@
 #include "../../guiapplication.h"
 #include "../../mainwindow.h"
 #include "../../undostack.h"
+#include "../../utils/editortoolbox.h"
 #include "../../utils/slinthelpers.h"
 #include "../../utils/uihelpers.h"
 #include "../board/boardeditor.h"
@@ -40,6 +41,7 @@
 #include "fsm/paneleditorstate_addfiducial.h"
 #include "fsm/paneleditorstate_addhole.h"
 #include "fsm/paneleditorstate_addtab.h"
+#include "fsm/paneleditorstate_addtext.h"
 #include "fsm/paneleditorstate_addvcut.h"
 #include "fsm/paneleditorstate_select.h"
 #include "graphicsitems/pgi_outline.h"
@@ -112,6 +114,14 @@ PanelTab::PanelTab(GuiApplication& app, PanelEditor& editor,
     mToolTabMouseBites(true),
     mToolFlipped(false),
     mToolVCutVertical(false),
+    mToolLayersQt(),
+    mToolLayers(std::make_shared<slint::VectorModel<slint::SharedString>>()),
+    mToolLayer(nullptr),
+    mToolSize(app.getWorkspace().getSettings()),
+    mToolMirrored(false),
+    mToolValue(),
+    mToolValueSuggestions(
+        std::make_shared<slint::VectorModel<slint::SharedString>>()),
     mSelectHole(false),
     mSelectFiducial(false),
     mSelectVCut(false),
@@ -318,6 +328,20 @@ ui::PanelTabData PanelTab::getDerivedUiData() const noexcept {
       mToolTabMouseBites,  // Tool tab mouse bites
       mToolTabBiteDiameter.getUiData(),  // Tool tab mouse bite diameter
       mToolTabBiteSpacing.getUiData(),  // Tool tab mouse bite spacing
+      ui::ComboBoxData{
+          // Tool layer
+          mToolLayers,  // Items
+          static_cast<int>(mToolLayersQt.indexOf(mToolLayer)),  // Current
+      },
+      mToolSize.getUiData(),  // Tool size
+      mToolMirrored,  // Tool mirrored
+      ui::LineEditData{
+          // Tool value
+          true,  // Enabled
+          q2s(EditorToolbox::toSingleLine(mToolValue)),  // Text
+          slint::SharedString(),  // Placeholder
+          mToolValueSuggestions,  // Suggestions
+      },
       mSelectHole,  // Select hole
       mSelectFiducial,  // Select fiducial
       mSelectVCut,  // Select V-cut
@@ -340,6 +364,16 @@ void PanelTab::setDerivedUiData(const ui::PanelTabData& data) noexcept {
   mToolVCutSnapOffset.setUiData(data.tool_vcut_snap_offset);
   mToolTabBiteDiameter.setUiData(data.tool_tab_bite_diameter);
   mToolTabBiteSpacing.setUiData(data.tool_tab_bite_spacing);
+  mToolSize.setUiData(data.tool_size);
+
+  // Add Text tools: layer, mirror and text. Like Board2dTab, these are
+  // emitted on every round-trip. They only have an effect while the Add Text
+  // tool is active (the signals are only connected then).
+  if (const Layer* layer = mToolLayersQt.value(data.tool_layer.current_index)) {
+    emit layerRequested(*layer);
+  }
+  emit mirroredRequested(data.tool_mirrored);
+  emit valueRequested(EditorToolbox::toMultiLine(s2q(data.tool_value.text)));
   if (data.tool_tab_mouse_bites != mToolTabMouseBites) {
     mToolTabMouseBites = data.tool_tab_mouse_bites;
     emit tabMouseBitesRequested(mToolTabMouseBites);
@@ -546,6 +580,10 @@ void PanelTab::trigger(ui::TabAction a) noexcept {
     }
     case ui::TabAction::ToolHole: {
       mFsm->processAddHole();
+      break;
+    }
+    case ui::TabAction::ToolText: {
+      mFsm->processAddText();
       break;
     }
     case ui::TabAction::ToolFiducial: {
@@ -859,6 +897,14 @@ Length PanelTab::fsmGetVCutSnapOffset() const noexcept {
   return mToolVCutSnapOffset.getValue();
 }
 
+void PanelTab::fsmMakeLayerVisible(const ColorRole& role) noexcept {
+  if (std::shared_ptr<GraphicsLayer> layer = mLayers->get(role)) {
+    if (layer->isEnabled()) {
+      layer->setVisible(true);
+    }
+  }
+}
+
 void PanelTab::fsmToolLeave() noexcept {
   while (!mFsmStateConnections.isEmpty()) {
     disconnect(mFsmStateConnections.takeLast());
@@ -977,6 +1023,69 @@ void PanelTab::fsmToolEnter(PanelEditorState_AddHole& state) noexcept {
   mFsmStateConnections.append(
       connect(&mToolDiameter, &LengthEditContext::valueChangedPositive, &state,
               &PanelEditorState_AddHole::setDiameter));
+
+  onDerivedUiDataChanged.notify();
+}
+
+void PanelTab::fsmToolEnter(PanelEditorState_AddText& state) noexcept {
+  mTool = ui::EditorTool::Text;
+
+  // Layers
+  mToolLayersQt = Layer::sorted(state.getAvailableLayers());
+  mToolLayers->clear();
+  for (const Layer* layer : std::as_const(mToolLayersQt)) {
+    mToolLayers->push_back(q2s(layer->getNameTr()));
+  }
+
+  // Layer
+  auto setLayer = [this](const Layer& layer) {
+    mToolLayer = &layer;
+    onDerivedUiDataChanged.notify();
+  };
+  setLayer(state.getLayer());
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddText::layerChanged, this, setLayer));
+  mFsmStateConnections.append(connect(this, &PanelTab::layerRequested, &state,
+                                      &PanelEditorState_AddText::setLayer));
+
+  // Height
+  mToolSize.configure(state.getHeight(), LengthEditContext::Steps::textHeight(),
+                      "panel_editor/add_text/size");
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddText::heightChanged, &mToolSize,
+              &LengthEditContext::setValuePositive));
+  mFsmStateConnections.append(
+      connect(&mToolSize, &LengthEditContext::valueChangedPositive, &state,
+              &PanelEditorState_AddText::setHeight));
+
+  // Text
+  auto setText = [this](const QString& text) {
+    mToolValue = text;
+    onDerivedUiDataChanged.notify();
+  };
+  setText(state.getText());
+  mFsmStateConnections.append(
+      connect(&state, &PanelEditorState_AddText::textChanged, this, setText));
+  mFsmStateConnections.append(connect(this, &PanelTab::valueRequested, &state,
+                                      &PanelEditorState_AddText::setText));
+
+  // Text suggestions
+  mToolValueSuggestions->clear();
+  for (const QString& v : state.getTextSuggestions()) {
+    mToolValueSuggestions->push_back(q2s(v));
+  }
+
+  // Mirrored
+  auto setMirrored = [this](bool mirrored) {
+    mToolMirrored = mirrored;
+    onDerivedUiDataChanged.notify();
+  };
+  setMirrored(state.getMirrored());
+  mFsmStateConnections.append(connect(
+      &state, &PanelEditorState_AddText::mirroredChanged, this, setMirrored));
+  mFsmStateConnections.append(connect(this, &PanelTab::mirroredRequested,
+                                      &state,
+                                      &PanelEditorState_AddText::setMirrored));
 
   onDerivedUiDataChanged.notify();
 }

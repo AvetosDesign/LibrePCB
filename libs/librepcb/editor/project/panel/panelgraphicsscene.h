@@ -54,6 +54,7 @@ class Board;
 class PI_BoardInstance;
 class PI_Fiducial;
 class PI_Hole;
+class PI_StrokeText;
 class PI_Tab;
 class PI_VCut;
 class Panel;
@@ -68,6 +69,7 @@ class PGI_Edge;
 class PGI_Fiducial;
 class PGI_Hole;
 class PGI_Outline;
+class PGI_StrokeText;
 class PGI_Tab;
 class PGI_VCut;
 
@@ -126,6 +128,14 @@ public:
   }
   const QHash<Uuid, std::shared_ptr<PGI_Hole>>& getHoleItems() const noexcept {
     return mHoleItems;
+  }
+  std::shared_ptr<PGI_StrokeText> getStrokeTextItem(
+      const Uuid& uuid) const noexcept {
+    return mStrokeTextItems.value(uuid);
+  }
+  const QHash<Uuid, std::shared_ptr<PGI_StrokeText>>& getStrokeTextItems()
+      const noexcept {
+    return mStrokeTextItems;
   }
   std::shared_ptr<PGI_Fiducial> getFiducialItem(
       const Uuid& uuid) const noexcept {
@@ -187,13 +197,12 @@ public:
    *
    * Follows ::librepcb::editor::BoardGraphicsScene::selectItemsInRect()'s
    * exact shape: draws the rectangle itself via the inherited
-   * GraphicsScene::setSelectionRect(), then recomputes every board
-   * instance/hole/fiducial/tab/V-cut item's selected state from scratch on
-   * each call (so shrinking or moving the rectangle correctly deselects an
-   * item that is no longer inside it, not just adds newly-covered ones).
-   * Called
-   * continuously from PanelEditorState_Select::processGraphicsSceneMouseMoved()
-   * while a left-button drag over empty panel space is in progress.
+   * GraphicsScene::setSelectionRect(), then recomputes the selected state
+   * from scratch on each call. This ensures shrinking or moving the rectangle
+   * correctly deselects an item that is no longer inside it, not just adds
+   * newly-covered ones). Called continuously from
+   * PanelEditorState_Select::processGraphicsSceneMouseMoved() while a
+   * left-button drag over empty panel space is in progress.
    *
    * @param p1  One corner of the rectangle (typically the drag's start
    *           position).
@@ -471,6 +480,10 @@ private:  // Methods
   void fiducialRemoved(int index) noexcept;
   void addFiducialItem(std::shared_ptr<PI_Fiducial> fiducial) noexcept;
   void removeFiducialItem(const Uuid& uuid) noexcept;
+  void strokeTextAdded(std::shared_ptr<PI_StrokeText> text) noexcept;
+  void strokeTextRemoved(std::shared_ptr<PI_StrokeText> text) noexcept;
+  void addStrokeTextItem(std::shared_ptr<PI_StrokeText> text) noexcept;
+  void removeStrokeTextItem(const Uuid& uuid) noexcept;
   void tabAdded(int index) noexcept;
   void tabRemoved(int index) noexcept;
   /**
@@ -543,6 +556,7 @@ private:  // Data
   QHash<Uuid, std::shared_ptr<PGI_BoardInstance>> mBoardInstanceItems;
   QHash<Uuid, std::shared_ptr<PGI_Hole>> mHoleItems;
   QHash<Uuid, std::shared_ptr<PGI_Fiducial>> mFiducialItems;
+  QHash<Uuid, std::shared_ptr<PGI_StrokeText>> mStrokeTextItems;
   QList<std::shared_ptr<PGI_Tab>> mTabItems;  ///< See #getTabItems()
   QHash<Uuid, std::shared_ptr<PGI_VCut>> mVCutItems;
 

@@ -79,6 +79,9 @@ class Project;
  * copper pads plus (if enabled) stop mask openings on their respective
  * board side.
  *
+ * Panel texts (::librepcb::PI_StrokeText) are exported on the same layers and
+ * the same way as Board texts.
+ *
  * Known limitations of the multi-placement mode (not yet handled):
  *   - All placements are assumed to share the same layer stack (inner layer
  *     count, solder resist, enabled silkscreen layers, etc.) - these
@@ -88,7 +91,8 @@ class Project;
  *     *first* placement's board, since a panel has no design rules of its own.
  *   - The copper clearance of a panel fiducial is not applied to any copper
  *     planes yet (panels have no copper of their own, and fiducials are not
- *     expected to overlap a placed board's copper pours).
+ *     expected to overlap a placed board's copper pours). The same applies
+ *     to panel stroke texts on copper layers.
  *   - exportGlueLayer() / exportComponentLayer() (used by the pick-and-place/
  *     glue output jobs, not by exportPcbLayers()) are not yet placement-aware
  *     and still only consider the first placement's board.
@@ -231,6 +235,7 @@ private:
       getBlindBuriedVias() const;
   void drawLayer(GerberGenerator& gen, const Layer& layer) const;
   void drawPanelItems(GerberGenerator& gen, const Layer& layer) const;
+  void drawPanelStrokeTexts(GerberGenerator& gen, const Layer& layer) const;
   void drawGlueLayer(GerberGenerator& gen, const Layer& layer,
                      const Uuid& assemblyVariant) const;
   void drawLayerExceptDevices(GerberGenerator& gen, const Layer& layer,

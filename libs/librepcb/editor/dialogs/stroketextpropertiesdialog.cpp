@@ -24,6 +24,7 @@
 
 #include "../cmd/cmdstroketextedit.h"
 #include "../project/cmd/cmdboardstroketextedit.h"
+#include "../project/cmd/cmdpanelstroketextedit.h"
 #include "../undostack.h"
 #include "ui_stroketextpropertiesdialog.h"
 
@@ -31,6 +32,7 @@
 #include <librepcb/core/font/strokefont.h>
 #include <librepcb/core/geometry/stroketext.h>
 #include <librepcb/core/project/board/items/bi_stroketext.h>
+#include <librepcb/core/project/panel/items/pi_stroketext.h>
 
 #include <QtCore>
 #include <QtWidgets>
@@ -42,12 +44,14 @@ namespace librepcb {
 namespace editor {
 
 StrokeTextPropertiesDialog::StrokeTextPropertiesDialog(
-    StrokeText* libObj, BI_StrokeText* boardObj, UndoStack& undoStack,
-    const QSet<const Layer*>& layers, const LengthUnit& lengthUnit,
-    const QString& settingsPrefix, QWidget* parent) noexcept
+    StrokeText* libObj, BI_StrokeText* boardObj, PI_StrokeText* panelObj,
+    UndoStack& undoStack, const QSet<const Layer*>& layers,
+    const LengthUnit& lengthUnit, const QString& settingsPrefix,
+    QWidget* parent) noexcept
   : QDialog(parent),
     mLibraryObj(libObj),
     mBoardObj(boardObj),
+    mPanelObj(panelObj),
     mUndoStack(undoStack),
     mUi(new Ui::StrokeTextPropertiesDialog) {
   mUi->setupUi(this);
@@ -74,8 +78,8 @@ StrokeTextPropertiesDialog::StrokeTextPropertiesDialog(
     StrokeText& text, UndoStack& undoStack, const QSet<const Layer*>& layers,
     const LengthUnit& lengthUnit, const QString& settingsPrefix,
     QWidget* parent) noexcept
-  : StrokeTextPropertiesDialog(&text, nullptr, undoStack, layers, lengthUnit,
-                               settingsPrefix, parent) {
+  : StrokeTextPropertiesDialog(&text, nullptr, nullptr, undoStack, layers,
+                               lengthUnit, settingsPrefix, parent) {
   load(text, Application::getDefaultStrokeFont());
   mUi->cbxLock->hide();
 }
@@ -84,8 +88,18 @@ StrokeTextPropertiesDialog::StrokeTextPropertiesDialog(
     BI_StrokeText& text, UndoStack& undoStack, const QSet<const Layer*>& layers,
     const LengthUnit& lengthUnit, const QString& settingsPrefix,
     QWidget* parent) noexcept
-  : StrokeTextPropertiesDialog(nullptr, &text, undoStack, layers, lengthUnit,
-                               settingsPrefix, parent) {
+  : StrokeTextPropertiesDialog(nullptr, &text, nullptr, undoStack, layers,
+                               lengthUnit, settingsPrefix, parent) {
+  load(text.getData(), text.getFont());
+  mUi->cbxLock->setChecked(text.getData().isLocked());
+}
+
+StrokeTextPropertiesDialog::StrokeTextPropertiesDialog(
+    PI_StrokeText& text, UndoStack& undoStack, const QSet<const Layer*>& layers,
+    const LengthUnit& lengthUnit, const QString& settingsPrefix,
+    QWidget* parent) noexcept
+  : StrokeTextPropertiesDialog(nullptr, nullptr, &text, undoStack, layers,
+                               lengthUnit, settingsPrefix, parent) {
   load(text.getData(), text.getFont());
   mUi->cbxLock->setChecked(text.getData().isLocked());
 }
@@ -194,6 +208,13 @@ bool StrokeTextPropertiesDialog::applyChanges() noexcept {
     if (mBoardObj) {
       std::unique_ptr<CmdBoardStrokeTextEdit> cmd(
           new CmdBoardStrokeTextEdit(*mBoardObj));
+      applyChanges(*cmd);
+      cmd->setLocked(mUi->cbxLock->isChecked());
+      mUndoStack.execCmd(cmd.release());  // can throw
+    }
+    if (mPanelObj) {
+      std::unique_ptr<CmdPanelStrokeTextEdit> cmd(
+          new CmdPanelStrokeTextEdit(*mPanelObj));
       applyChanges(*cmd);
       cmd->setLocked(mUi->cbxLock->isChecked());
       mUndoStack.execCmd(cmd.release());  // can throw

@@ -608,8 +608,10 @@ void Project::save() {
     mDirectory->write("boards/boards.lp", root->toByteArray());
   }
 
-  // Panels.
-  {
+  // Panels. The index is only written if there are panels, or if the index
+  // already exists (so removing the last panel updates it).  Projects without
+  // panels are saved exactly as before the panels feature existed.
+  if ((!mPanels.isEmpty()) || mDirectory->fileExists("panels/panels.lp")) {
     std::unique_ptr<SExpression> root =
         SExpression::createList("librepcb_panels");
     foreach (Panel* panel, mPanels) {

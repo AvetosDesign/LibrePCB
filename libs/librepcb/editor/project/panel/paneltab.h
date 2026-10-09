@@ -42,6 +42,7 @@
  ******************************************************************************/
 namespace librepcb {
 
+class Layer;
 class Panel;
 class Project;
 class Uuid;
@@ -56,6 +57,7 @@ class PanelEditorFsm;
 class PanelEditorState_AddFiducial;
 class PanelEditorState_AddHole;
 class PanelEditorState_AddTab;
+class PanelEditorState_AddText;
 class PanelEditorState_AddVCut;
 class PanelGraphicsScene;
 class ProjectEditor;
@@ -150,6 +152,7 @@ public:
   void fsmSetStatusBarMessage(const QString& message,
                               int timeoutMs = -1) noexcept override;
   void fsmSetFeatures(Features features) noexcept override;
+  void fsmMakeLayerVisible(const ColorRole& role) noexcept override;
   void fsmSetViewInfoBoxText(const QString& text) noexcept override;
   bool fsmGetIgnoreLocks() const noexcept override;
   bool fsmGetSnapBoardsEnabled() const noexcept override;
@@ -161,6 +164,7 @@ public:
   void fsmToolEnter(PanelEditorState_AddHole& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddFiducial& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddTab& state) noexcept override;
+  void fsmToolEnter(PanelEditorState_AddText& state) noexcept override;
   void fsmToolEnter(PanelEditorState_AddVCut& state) noexcept override;
 
   // Operator Overloadings
@@ -170,6 +174,9 @@ signals:
   void flippedRequested(bool flipped);
   void vCutVerticalRequested(bool vertical);
   void tabMouseBitesRequested(bool enabled);
+  void layerRequested(const Layer& layer);
+  void valueRequested(const QString& value);
+  void mirroredRequested(bool mirrored);
 
 private:
   void applyWorkspaceSettings() noexcept;
@@ -354,6 +361,14 @@ private:
   bool mToolTabMouseBites;  ///< Add Tab tool: include mouse bites
   bool mToolFlipped;
   bool mToolVCutVertical;  ///< Add V-Cut tool's orientation
+  QVector<const Layer*> mToolLayersQt;  ///< Add Text tool: available layers
+  std::shared_ptr<slint::VectorModel<slint::SharedString>> mToolLayers;
+  const Layer* mToolLayer;  ///< Add Text tool: current layer
+  LengthEditContext mToolSize;  ///< Add Text tool: text height
+  bool mToolMirrored;  ///< Add Text tool: mirror the text
+  QString mToolValue;  ///< Add Text tool: text
+  std::shared_ptr<slint::VectorModel<slint::SharedString>>
+      mToolValueSuggestions;
   bool mSelectHole;
   bool mSelectFiducial;
   bool mSelectVCut;  ///< Select tool: selection is all V-cuts

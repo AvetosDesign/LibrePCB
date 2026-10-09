@@ -25,6 +25,7 @@
 #include "graphicsitems/pgi_boardinstance.h"
 #include "graphicsitems/pgi_fiducial.h"
 #include "graphicsitems/pgi_hole.h"
+#include "graphicsitems/pgi_stroketext.h"
 #include "graphicsitems/pgi_tab.h"
 #include "graphicsitems/pgi_vcut.h"
 #include "panelgraphicsscene.h"
@@ -61,7 +62,8 @@ PanelSelectionQuery::~PanelSelectionQuery() noexcept {
 
 int PanelSelectionQuery::getResultCount() const noexcept {
   return mResultBoardInstances.count() + mResultHoles.count() +
-      mResultFiducials.count() + mResultVCuts.count() + mResultTabs.count();
+      mResultFiducials.count() + mResultStrokeTexts.count() +
+      mResultVCuts.count() + mResultTabs.count();
 }
 
 /*******************************************************************************
@@ -101,6 +103,19 @@ void PanelSelectionQuery::addSelectedFiducials() noexcept {
       if (auto fiducial = mPanel.getFiducials().find(it.key())) {
         if (mIncludeLockedItems || (!fiducial->isLocked())) {
           mResultFiducials.append(fiducial);
+        }
+      }
+    }
+  }
+}
+
+void PanelSelectionQuery::addSelectedStrokeTexts() noexcept {
+  const auto& items = mScene.getStrokeTextItems();
+  for (auto it = items.begin(); it != items.end(); it++) {
+    if (it.value() && it.value()->isSelected()) {
+      if (auto text = mPanel.getStrokeText(it.key())) {
+        if (mIncludeLockedItems || (!text->getData().isLocked())) {
+          mResultStrokeTexts.append(text);
         }
       }
     }

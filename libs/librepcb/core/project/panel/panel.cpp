@@ -25,6 +25,8 @@
 #include "../../application.h"
 #include "../../exceptions.h"
 #include "../../serialization/sexpression.h"
+#include "../../types/layer.h"
+#include "../board/board.h"
 #include "../board/boardfabricationoutputsettings.h"
 #include "../project.h"
 
@@ -130,7 +132,8 @@ Panel::~Panel() noexcept {
 
 bool Panel::isEmpty() const noexcept {
   return mBoardInstances.isEmpty() && mHoles.isEmpty() &&
-      mFiducials.isEmpty() && mTabs.isEmpty() && mVCuts.isEmpty();
+      mFiducials.isEmpty() && mStrokeTexts.isEmpty() && mTabs.isEmpty() &&
+      mVCuts.isEmpty();
 }
 
 /*******************************************************************************
@@ -264,6 +267,27 @@ QSet<Uuid> Panel::getReferencedBoards() const noexcept {
   return boards;
 }
 
+int Panel::getInnerLayerCount() const noexcept {
+  int count = 0;
+  for (const Uuid& uuid : getReferencedBoards()) {
+    if (const Board* board = mProject.getBoardByUuid(uuid)) {
+      count = std::max(count, board->getInnerLayerCount());
+    }
+  }
+  return count;
+}
+
+QSet<const Layer*> Panel::getCopperLayers() const noexcept {
+  QSet<const Layer*> layers = {&Layer::topCopper(), &Layer::botCopper()};
+  const int innerCount = getInnerLayerCount();
+  for (int i = 1; i <= innerCount; ++i) {
+    if (const Layer* layer = Layer::innerCopper(i)) {
+      layers.insert(layer);
+    }
+  }
+  return layers;
+}
+
 /*******************************************************************************
  *  Hole Methods
  ******************************************************************************/
@@ -309,6 +333,32 @@ void Panel::removeFiducial(std::shared_ptr<PI_Fiducial> fiducial) {
     throw LogicError(__FILE__, __LINE__);
   }
   mFiducials.remove(fiducial->getUuid());
+}
+
+/*******************************************************************************
+ *  Stroke Text Methods
+ ******************************************************************************/
+
+void Panel::addStrokeText(std::shared_ptr<PI_StrokeText> text) {
+  if ((!text) || (&text->getPanel() != this)) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  if (mStrokeTexts.contains(text->getUuid())) {
+    throw RuntimeError(
+        __FILE__, __LINE__,
+        QString("There is already a stroke text with the UUID \"%1\"!")
+            .arg(text->getUuid().toStr()));
+  }
+  mStrokeTexts.insert(text->getUuid(), text);
+  emit strokeTextAdded(text);
+}
+
+void Panel::removeStrokeText(std::shared_ptr<PI_StrokeText> text) {
+  if ((!text) || (mStrokeTexts.value(text->getUuid()) != text)) {
+    throw LogicError(__FILE__, __LINE__);
+  }
+  mStrokeTexts.remove(text->getUuid());
+  emit strokeTextRemoved(text);
 }
 
 /*******************************************************************************
@@ -552,6 +602,11 @@ void Panel::save() {
   mTabs.serialize(*root);
   root->ensureLineBreak();
   mVCuts.serialize(*root);
+  root->ensureLineBreak();
+  for (const auto& obj : std::as_const(mStrokeTexts)) {
+    root->ensureLineBreak();
+    obj->getData().serialize(root->appendList("stroke_text"));
+  }
   root->ensureLineBreak();
 
   // Board checksums, sorted by UUID for deterministic file content.
