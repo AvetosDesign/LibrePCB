@@ -1227,6 +1227,58 @@ export global Shortcuts {
         false
     }
 
+    public function process-panel-tab-shortcuts(event: KeyEvent) -> bool {
+        // Tool-specific shortcuts
+        if Data.current-section.panel-tabs[tab].tool == EditorTool.hole {
+            if Backend.is-shortcut(event, Cmd.drill-increase) {
+                Data.current-section.panel-tabs[tab].tool-diameter.increase = true;
+                return true;
+            } else if Backend.is-shortcut(event, Cmd.drill-decrease) && Data.current-section.panel-tabs[tab].tool-diameter.can-decrease {
+                Data.current-section.panel-tabs[tab].tool-diameter.decrease = true;
+                return true;
+            }
+        } else if Data.current-section.panel-tabs[tab].tool == EditorTool.text {
+            if Backend.is-shortcut(event, Cmd.layer-up) && (Data.current-section.panel-tabs[tab].tool-layer.current-index > 0) {
+                Data.current-section.panel-tabs[tab].tool-layer.current-index -= 1;
+                return true;
+            } else if Backend.is-shortcut(event, Cmd.layer-down) && (Data.current-section.panel-tabs[tab].tool-layer.current-index < (Data.current-section.panel-tabs[tab].tool-layer.items.length - 1)) {
+                Data.current-section.panel-tabs[tab].tool-layer.current-index += 1;
+                return true;
+            } else if Backend.is-shortcut(event, Cmd.size-increase) {
+                Data.current-section.panel-tabs[tab].tool-size.increase = true;
+                return true;
+            } else if Backend.is-shortcut(event, Cmd.size-decrease) && Data.current-section.panel-tabs[tab].tool-size.can-decrease {
+                Data.current-section.panel-tabs[tab].tool-size.decrease = true;
+                return true;
+            }
+        }
+
+        // Common shortcuts
+        if Backend.is-shortcut(event, Cmd.ignore-locks) {
+            Data.current-section.panel-tabs[tab].ignore-placement-locks = !Data.current-section.panel-tabs[tab].ignore-placement-locks;
+            return true;
+        } else if Backend.is-shortcut(event, Cmd.tool-select) {
+            Backend.trigger-tab(section, tab, TabAction.tool-select);
+            return true;
+        } else if Backend.is-shortcut(event, Cmd.tool-text) {
+            Backend.trigger-tab(section, tab, TabAction.tool-text);
+            return true;
+        } else if Backend.is-shortcut(event, Cmd.tool-hole) {
+            Backend.trigger-tab(section, tab, TabAction.tool-hole);
+            return true;
+        } else if Backend.is-shortcut(event, Cmd.abort) {
+            Backend.trigger-tab(section, tab, TabAction.abort);
+            return true;
+        } else if process-tab-shortcuts(event) {
+            return true;
+        } else if Backend.scene-key-pressed(section, event) {
+            return true;
+        } else if process-project-shortcuts(Data.current-panel-tab.project-index, event) {
+            return true;
+        }
+        false
+    }
+
     public function process-board-3d-tab-shortcuts(event: KeyEvent) -> bool {
         if Backend.is-shortcut(event, Cmd.zoom-fit-content) {
             Backend.trigger-tab(section, tab, TabAction.zoom-fit);
@@ -1276,6 +1328,10 @@ export global Shortcuts {
             }
         } else if Data.current-tab.type == TabType.board-3d {
             if process-board-3d-tab-shortcuts(event) {
+                return true;
+            }
+        } else if Data.current-tab.type == TabType.panel {
+            if process-panel-tab-shortcuts(event) {
                 return true;
             }
         } else if process-tab-shortcuts(event) {
