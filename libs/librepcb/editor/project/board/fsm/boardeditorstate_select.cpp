@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by Avetos Design on 2026-09-18.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -161,12 +158,9 @@ bool BoardEditorState_Select::entry() noexcept {
   connect(mLockedItemHintTimer.get(), &QTimer::timeout, this,
           &BoardEditorState_Select::hideLockedItemHints);
 
-  // Recompute the locked-item hint whenever the selection itself changes,
-  // however that happens -- click, Ctrl-toggle, Shift-cycle, rubber-band,
-  // Select All, or a programmatic clearSelection().  This avoids having
-  // every mouse/keyboard handler having to remember to call this explicitly.
-  // This *should* succeed on every entry except possibly the very first
-  // (see also #connectSceneSelectionUpdate()).
+  // Reconnect on entry. #connectSceneSelectionUpdate() also gets called
+  // from the mouse handlers to cover the one entry where the scene doesn't
+  // exist yet.
   mSceneSelectionUpdateConnected = false;
   if (BoardGraphicsScene* scene = getActiveBoardScene()) {
     connectSceneSelectionUpdate(*scene);
@@ -187,10 +181,9 @@ bool BoardEditorState_Select::exit() noexcept {
 
   hideLockedItemHints();
 
-  // Unlike in hideLockedItemHints(), we DO drop the cached positions here:
-  // the state (and its selectionChanged() connection) is going away, so
-  // there's no longer anything keeping them in sync with the actual
-  // selection.
+  // The cached positions are dropped here: the state (and its
+  // selection-update connection) is going away, so nothing will keep them
+  // in sync anymore.
   mLockedSelectedItemPositions.clear();
 
   mUpdateAvailableFeaturesTimer.reset();
@@ -570,10 +563,8 @@ bool BoardEditorState_Select::processGraphicsSceneMouseMoved(
     // dragging items.
     scene->getBoard().triggerAirWiresRebuild();
 
-    // Keep the locked-item hints visible while the mouse is moving. They
-    // will fade out if the mouse is held still for a moment. The selection
-    // (and thus the locked-item set) can't change mid-drag, so this just
-    // needs to refresh the timer.
+    // The locked-item set can't change mid-drag, so just refresh the
+    // display/timer.
     showLockedItemHints();
     return true;
   } else if (mSelectedPolygon && mCmdPolygonEdit) {
@@ -723,8 +714,7 @@ bool BoardEditorState_Select::processGraphicsSceneLeftMouseButtonReleased(
   BoardGraphicsScene* scene = getActiveBoardScene();
   if (!scene) return false;
 
-  // Whatever gesture was in progress (drag, vertex edit, or rubber-band
-  // select) is ending now, so hide the locked-item hint overlay.
+  // Whatever gesture was in progress is ending, so hide the hint overlay.
   hideLockedItemHints();
 
   if ((!mIsUndoCmdActive) && mSelectedItemsDragCommand) {
@@ -1322,9 +1312,6 @@ bool BoardEditorState_Select::processChangedSelection() noexcept {
  ******************************************************************************/
 
 void BoardEditorState_Select::hideLockedItemHints() noexcept {
-  // Deliberately does not clear #mLockedSelectedItemPositions:  Ending a
-  // gesture does not itself change the selection, so the cached positions
-  // are still valid for a later #showLockedItemHints() call.
   if (mLockedItemHintTimer) {
     mLockedItemHintTimer->stop();
   }
@@ -1335,6 +1322,9 @@ void BoardEditorState_Select::hideLockedItemHints() noexcept {
 
 void BoardEditorState_Select::connectSceneSelectionUpdate(
     BoardGraphicsScene& scene) noexcept {
+  // entry() runs before Board2dTab::activate() creates the scene the very
+  // first time, so this is also called from the mouse handlers once a
+  // scene exists.
   if (mSceneSelectionUpdateConnected) {
     return;
   }
@@ -1344,8 +1334,6 @@ void BoardEditorState_Select::connectSceneSelectionUpdate(
 }
 
 void BoardEditorState_Select::rebuildLockedItemList() noexcept {
-  // Connected to the active scene's selectionChanged() signal in entry(),
-  // so this runs whenever the selection itself changes.
   mLockedSelectedItemPositions.clear();
 
   if (BoardGraphicsScene* scene = getActiveBoardScene()) {
@@ -1416,12 +1404,7 @@ void BoardEditorState_Select::rebuildLockedItemList() noexcept {
 }
 
 void BoardEditorState_Select::showLockedItemHints() noexcept {
-  // Show whatever #rebuildLockedItemList() last computed, then
-  // (re)start the timer. This doesn't recompute anything, so it's cheap
-  // to call after every shortcut-triggered move/rotate/flip and on/ every
-  // mouse-move during an active drag (none of which change the
-  // selection).  Only the "ignore locks" override can change what actually
-  // gets displayed.
+  // The "ignore locks" override is applied here, at display time.
   if (getIgnoreLocks() || mLockedSelectedItemPositions.isEmpty()) {
     hideLockedItemHints();
     return;

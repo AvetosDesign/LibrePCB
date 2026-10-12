@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// It was last reviewed by a human on 2026-09-18.
-
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -138,10 +135,8 @@ void GraphicsScene::setLockedItemHints(
     if ((!mLockedItemHintIconRenderer) && (!positions.isEmpty())) {
       // Lazily load & colorize the icon on first use. Font Awesome icons
       // ship with no "fill" attribute (default SVG fill is black), so add
-      // one - same technique as EditorToolbox::svgIcon()/
-      // MonochromeSvgIconEngine, but hard-coded red instead of following
-      // the theme's text color, since this is a warning indicator, not a
-      // normal icon.
+      // one, hard-coded red instead of following the theme's text color,
+      // since this is a warning indicator.
       QFile file(":/fa/solid/lock.svg");
       if (file.open(QFile::ReadOnly)) {
         QByteArray svgContent = file.readAll();

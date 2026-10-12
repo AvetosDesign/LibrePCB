@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the writing of this file.
-// It was last reviewed by a human on 2026-09-18.
-
 #ifndef LIBREPCB_EDITOR_BOARDEDITORSTATE_SELECT_H
 #define LIBREPCB_EDITOR_BOARDEDITORSTATE_SELECT_H
 
@@ -129,55 +126,40 @@ private:  // Methods
   /**
    * @brief Hide the locked-item hint overlay
    *
-   * Stops #mLockedItemHintTimer and hides whatever is currently painted.
-   * Deliberately does *not* touch #mLockedSelectedItemPositions. Ending a
-   * gesture (mouse release, Escape) does not itself change the selection.
-   * Thus, the cached locked-item positions are still valid and a later
-   * #showLockedItemHints() call will still display them. See also
-   * #showLockedItemHints().
+   * Clears the displayed hint without discarding
+   * #mLockedSelectedItemPositions, since ending a gesture does not itself
+   * change the selection the cache reflects.
    */
   void hideLockedItemHints() noexcept;
 
   /**
-   * @brief Recompute which selected items are locked and display
+   * @brief Recompute which selected items are locked, and display the hint
    *
-   * Parses the current selection, storing the scene position of every
-   * selected item that is locked into #mLockedSelectedItemPositions. It
-   * then calls #showLockedItemHints() so that the hints show up during the
-   * selection process. This function is invoked by the active scene's
-   * QGraphicsScene::selectionChanged() signal in #entry(), so it fires for
-   * all selection methods.
+   * Keeps #mLockedSelectedItemPositions current with the selection,
+   * independent of how the selection changed, by being driven off the
+   * scene's selectionChanged() signal rather than called explicitly.
    *
-   * Deliberately does *not* also check the "ignore locks" override itself;
-   * #mLockedSelectedItemPositions always reflects "which selected items are
-   * locked" regardless of that override.
+   * Does not factor in the "ignore locks" override; that is a display-time
+   * concern, not a selection fact.
    */
   void rebuildLockedItemList() noexcept;
 
   /**
-   * @brief Connect #rebuildLockedItemList() to the scene selection update
+   * @brief Ensure #rebuildLockedItemList() is wired to the scene's selection
    *
-   * This function gets called before Board2dTab::activate() has created the
-   * board's BoardGraphicsScene. Thus, #entry() alone cannot reliably wire up
-   * the QGraphicsScene::selectionChanged() connection (see
-   * #rebuildLockedItemList()), as #getActiveBoardScene() may still return
-   * nullptr at that point. We must also call this from the start of each
-   * mouse event handler, where a valid scene is guaranteed.  It operates as
-   * a cheap no-op once #mSceneSelectionUpdateConnected is already true.
+   * The board's BoardGraphicsScene is not always available yet when this
+   * state is entered, so this is idempotent and may be called repeatedly
+   * from wherever a valid scene is at hand, to guarantee the connection
+   * eventually gets made.
    */
   void connectSceneSelectionUpdate(BoardGraphicsScene& scene) noexcept;
 
   /**
    * @brief Display the locked-item hints for a short period of time
    *
-   * Shows "locked item" hints at all locations stored in
-   * #mLockedSelectedItemPositions, then (re)starts
-   * #mLockedItemHintTimer to hide them again after
-   * #sLockedItemHintFlashMs (if not called again before then). Does *not*
-   * recompute #mLockedSelectedItemPositions (see #rebuildLockedItemList() for
-   * that) so it's cheap to call on every mouse-move of an active drag and
-   * after every shortcut-triggered move/rotate/flip, none of which change the
-   * selection itself.
+   * Surfaces #mLockedSelectedItemPositions and times its own auto-hide.
+   * Deliberately decoupled from recomputing that data, so it stays cheap
+   * enough to call from every drag/rotate/flip step.
    */
   void showLockedItemHints() noexcept;
 
@@ -267,20 +249,13 @@ private:  // Data
   /// See #showLockedItemHints().
   static constexpr int sLockedItemHintFlashMs = 750;
 
-  /// Scene positions of the currently-selected locked items, recomputed by
-  /// #rebuildLockedItemList() whenever the selection changes.  Used by
-  /// #showLockedItemHints() to display "item locked" hints. This has the same
-  /// scope/lifetime as the selection itself conceptually;
-  /// #rebuildLockedItemList() is connected directly to the active
-  /// scene's QGraphicsScene::selectionChanged() signal (see
-  /// #connectSceneSelectionUpdate()).  This *should* stay in sync with the
-  /// selection as it changes (via click, Ctrl/Shift, rubber-band,
-  /// Select All, a programmatic clearSelection(), etc).
+  /// Scene positions of the currently-selected locked items. Has the same
+  /// scope/lifetime as the selection itself; kept current by
+  /// #rebuildLockedItemList().
   QVector<Point> mLockedSelectedItemPositions;
 
-  /// Whether #rebuildLockedItemList() has been connected to the active
-  /// scene's selectionChanged() signal yet (see
-  /// #connectSceneSelectionUpdate()). Reset to false in #entry().
+  /// Whether the selection-update connection (see
+  /// #connectSceneSelectionUpdate()) has been made yet.
   bool mSceneSelectionUpdateConnected;
 
   /// The current polygon selected for editing (nullptr if none)

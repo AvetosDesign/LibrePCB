@@ -17,9 +17,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// AI DISCLAIMER: Claude AI assisted in the modification of this file.
-// It was reviewed by a human on 2026-09-18.
-
 #ifndef LIBREPCB_EDITOR_GRAPHICSSCENE_H
 #define LIBREPCB_EDITOR_GRAPHICSSCENE_H
 
@@ -96,9 +93,9 @@ public:
   /**
    * @brief Setup the marker for a specific scene rect
    *
-   * This is intended to mark a specific area in a scene, with a line starting
-   * from the top left of the view, so the user can easily locate the specified
-   * area, even if it is very small.
+   * This marks a specific area in a scene, with a line starting from the
+   * top-left of the view, so the user can easily locate the specified area,
+   * even if it is very small.
    *
    * @param rect    The rect to mark. Pass an empty rect to clear the marker.
    */
@@ -110,9 +107,7 @@ public:
    * @brief Set the positions at which to draw a "locked item" hint overlay
    *
    * Draws a small red "lock" icon at each given scene position, staying a
-   * fixed size on screen regardless of zoom. Intended to hint that an item
-   * at that position is locked while the user is actively trying to
-   * select/drag/rotate it.
+   * fixed size on screen regardless of zoom.
    *
    * @param positions   The scene positions to mark. Pass an empty vector to
    *                    clear all hints.
