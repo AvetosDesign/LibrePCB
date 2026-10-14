@@ -243,40 +243,42 @@ void BoardGraphicsScene::selectAll() noexcept {
   }
 }
 
-void BoardGraphicsScene::selectItemsInRect(const Point& p1,
-                                           const Point& p2) noexcept {
-  GraphicsScene::setSelectionRect(p1, p2);
-  const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+void BoardGraphicsScene::selectItemsInRect(const Point& p1, const Point& p2,
+                                           RectSelectionMode mode) noexcept {
+  setSelectionRect(p1, p2, mode);
+  const QRectF rectPx =
+      QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+
   // Items depending on the selection state of their device come after it.
   foreach (auto item, mDevices) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mPads) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mVias) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mNetPoints) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mNetLines) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mPlanes) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mZones) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mPolygons) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mStrokeTexts) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mHoles) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
 }
 

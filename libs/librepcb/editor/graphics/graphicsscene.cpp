@@ -151,14 +151,31 @@ void GraphicsScene::setSelectionRectColors(const QColor& line,
   mSelectionRectItem->setBrush(fill);
 }
 
-void GraphicsScene::setSelectionRect(const Point& p1,
-                                     const Point& p2) noexcept {
-  QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+void GraphicsScene::setSelectionRect(const Point& p1, const Point& p2,
+                                     RectSelectionMode mode) noexcept {
+  QPen pen = mSelectionRectItem->pen();
+  if (mode == RectSelectionMode::Window) {
+    pen.setStyle(Qt::SolidLine);
+  } else {
+    // A custom dash is clearer than Qt::DashLine.
+    pen.setStyle(Qt::CustomDashLine);
+    pen.setDashPattern({12, 6});
+  }
+  mSelectionRectItem->setPen(pen);
+
+  const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
   mSelectionRectItem->setRect(rectPx);
 }
 
 void GraphicsScene::clearSelectionRect() noexcept {
   mSelectionRectItem->setRect(QRectF());
+}
+
+void GraphicsScene::selectItemsInRect(const Point& p1, const Point& p2,
+                                      RectSelectionMode mode) noexcept {
+  Q_UNUSED(p1);
+  Q_UNUSED(p2);
+  Q_UNUSED(mode);
 }
 
 void GraphicsScene::setRulerPositions(

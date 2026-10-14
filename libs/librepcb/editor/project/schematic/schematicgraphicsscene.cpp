@@ -238,43 +238,45 @@ void SchematicGraphicsScene::selectAll() noexcept {
   }
 }
 
-void SchematicGraphicsScene::selectItemsInRect(const Point& p1,
-                                               const Point& p2) noexcept {
-  GraphicsScene::setSelectionRect(p1, p2);
-  const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+void SchematicGraphicsScene::selectItemsInRect(
+    const Point& p1, const Point& p2, RectSelectionMode mode) noexcept {
+  setSelectionRect(p1, p2, mode);
+  const QRectF rectPx =
+      QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+
   // Items depending on the selection state of their symbol come after it.
   foreach (auto item, mSymbols) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mSymbolPins) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mBusJunctions) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mBusLines) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mBusLabels) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mNetPoints) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mNetLines) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mNetLabels) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mPolygons) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mTexts) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
   foreach (auto item, mImages) {
-    item->selectIfHit(rectPx);
+    item->selectIfHit(rectPx, mode);
   }
 }
 

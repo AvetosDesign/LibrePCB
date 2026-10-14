@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "packageeditorstate.h"
 
 #include <librepcb/core/types/point.h>
@@ -139,7 +140,8 @@ private:  // Methods
                           const QVector<int> vertices) noexcept;
   void startAddingZoneVertex(std::shared_ptr<Zone> zone, int vertex,
                              const Point& pos) noexcept;
-  void setSelectionRect(const Point& p1, const Point& p2) noexcept;
+  void setSelectionRect(const Point& p1, const Point& p2,
+                        RectSelectionMode mode) noexcept;
   void clearSelectionRect(bool updateItemsSelectionState) noexcept;
   QList<std::shared_ptr<QGraphicsItem>> findItemsAtPosition(
       const Point& pos) noexcept;

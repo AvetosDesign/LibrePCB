@@ -293,14 +293,15 @@ void FootprintGraphicsItem::updateAllTexts() noexcept {
   }
 }
 
-void FootprintGraphicsItem::setSelectionRect(const QRectF rect) noexcept {
+void FootprintGraphicsItem::setSelectionRect(const QRectF rect,
+                                             RectSelectionMode mode) noexcept {
   const QRectF rectPx = mapRectToScene(rect);
-  auto apply = [&rect, &rectPx](const auto& items) {
+  auto apply = [&rect, &rectPx, mode](const auto& items) {
     for (const auto& ptr : items) {
       if (rect.isNull()) {
         ptr->setSelected(false);
       } else {
-        ptr->selectIfHit(rectPx);
+        ptr->selectIfHit(rectPx, mode);
       }
     }
   };

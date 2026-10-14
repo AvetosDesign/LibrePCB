@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "lpcbgraphicsitem.h"
+
 #include <librepcb/core/types/enums.h>
 #include <librepcb/core/types/lengthunit.h>
 #include <librepcb/core/types/point.h>
@@ -47,12 +49,30 @@ struct GraphicsSceneMouseEvent {
   Point downPos;
   Qt::MouseButtons buttons = Qt::MouseButtons();
   Qt::KeyboardModifiers modifiers = Qt::KeyboardModifiers();
+  RectSelectionMode rectSelectionMode = RectSelectionMode::Crossing;
 };
 
 struct GraphicsSceneKeyEvent {
   Qt::Key key = Qt::Key(0);
   Qt::KeyboardModifiers modifiers = Qt::KeyboardModifiers();
 };
+
+/**
+ * @brief Determine the rectangle selection mode from a mouse drag
+ *
+ * Dragging to the right selects only items entirely within the rectangle
+ * (window mode), dragging to the left selects all items touching it (crossing
+ * mode).
+ *
+ * @param downScreenPos   Screen position where the mouse button was pressed.
+ * @param screenPos       Current screen position of the mouse.
+ * @return The mode to apply.
+ */
+inline RectSelectionMode rectSelectionModeFromScreenDrag(
+    const QPointF& downScreenPos, const QPointF& screenPos) noexcept {
+  return (screenPos.x() > downScreenPos.x()) ? RectSelectionMode::Window
+                                             : RectSelectionMode::Crossing;
+}
 
 /*******************************************************************************
  *  Class GraphicsScene
@@ -85,8 +105,23 @@ public:
   void setGrayOut(bool grayOut) noexcept;
 
   // General Methods
-  void setSelectionRect(const Point& p1, const Point& p2) noexcept;
+  void setSelectionRect(const Point& p1, const Point& p2,
+                        RectSelectionMode mode) noexcept;
   void clearSelectionRect() noexcept;
+
+  /**
+   * @brief Select the items hit by a rectangle
+   *
+   * The default implementation does nothing. Overriding scenes also show the
+   * selection rectangle.
+   *
+   * @param p1    First corner of the rectangle.
+   * @param p2    Opposite corner of the rectangle.
+   * @param mode  Selection mode.
+   */
+  virtual void selectItemsInRect(const Point& p1, const Point& p2,
+                                 RectSelectionMode mode) noexcept;
+
   /**
    * @brief Setup the marker for a specific scene rect
    *

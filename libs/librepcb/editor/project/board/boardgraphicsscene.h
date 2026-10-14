@@ -183,7 +183,8 @@ public:
   void setFlipped(bool flip) noexcept;
   bool isFlipped() const noexcept { return mContext->flipView; }
   void selectAll() noexcept;
-  void selectItemsInRect(const Point& p1, const Point& p2) noexcept;
+  void selectItemsInRect(const Point& p1, const Point& p2,
+                         RectSelectionMode mode) noexcept override;
   void selectNetSegment(BI_NetSegment& netSegment) noexcept;
   void clearSelection() noexcept;
   static qreal getZValueOfCopperLayer(const Layer& layer, bool flip) noexcept;
