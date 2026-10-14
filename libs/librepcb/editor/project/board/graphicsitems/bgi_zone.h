@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 
 #include <librepcb/core/geometry/zone.h>
@@ -47,7 +48,7 @@ class PrimitiveZoneGraphicsItem;
 /**
  * @brief The BGI_Zone class
  */
-class BGI_Zone final : public QGraphicsItemGroup {
+class BGI_Zone final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   BGI_Zone() = delete;

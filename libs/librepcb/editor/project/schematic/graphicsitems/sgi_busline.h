@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_busline.h>
@@ -45,7 +46,7 @@ namespace editor {
 /**
  * @brief The SGI_BusLine class
  */
-class SGI_BusLine final : public QGraphicsItem {
+class SGI_BusLine final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   SGI_BusLine() = delete;

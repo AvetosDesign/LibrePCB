@@ -49,7 +49,7 @@ namespace editor {
 SGI_NetLine::SGI_NetLine(
     SI_NetLine& netline, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mNetLine(netline),
     mContext(context),
     mLayer(layers.get(ColorRole::schematicWires())),

@@ -48,7 +48,7 @@ QRectF SGI_BusJunction::sBoundingRect;
 SGI_BusJunction::SGI_BusJunction(
     SI_BusJunction& netpoint, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mBusJunction(netpoint),
     mContext(context),
     mLayer(layers.get(ColorRole::schematicBuses())),

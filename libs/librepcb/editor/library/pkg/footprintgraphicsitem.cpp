@@ -294,32 +294,22 @@ void FootprintGraphicsItem::updateAllTexts() noexcept {
 }
 
 void FootprintGraphicsItem::setSelectionRect(const QRectF rect) noexcept {
-  QPainterPath path;
-  path.addRect(rect);
-  foreach (const auto& ptr, mPadGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
-  foreach (const auto& ptr, mCircleGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
-  foreach (const auto& ptr, mPolygonGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
-  foreach (const auto& ptr, mStrokeTextGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
-  foreach (const auto& ptr, mZoneGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
-  foreach (const auto& ptr, mHoleGraphicsItems) {
-    QPainterPath mappedPath = mapToItem(ptr.get(), path);
-    ptr->setSelected(ptr->shape().intersects(mappedPath));
-  }
+  const QRectF rectPx = mapRectToScene(rect);
+  auto apply = [&rect, &rectPx](const auto& items) {
+    for (const auto& ptr : items) {
+      if (rect.isNull()) {
+        ptr->setSelected(false);
+      } else {
+        ptr->selectIfHit(rectPx);
+      }
+    }
+  };
+  apply(mPadGraphicsItems);
+  apply(mCircleGraphicsItems);
+  apply(mPolygonGraphicsItems);
+  apply(mStrokeTextGraphicsItems);
+  apply(mZoneGraphicsItems);
+  apply(mHoleGraphicsItems);
 }
 
 /*******************************************************************************

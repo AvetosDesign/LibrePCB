@@ -44,7 +44,7 @@ namespace editor {
 
 PrimitiveZoneGraphicsItem::PrimitiveZoneGraphicsItem(
     const GraphicsLayerList& layers, QGraphicsItem* parent) noexcept
-  : QGraphicsItem(parent),
+  : LpcbGraphicsItem<QGraphicsItem>(parent),
     mLayers(layers),
     mOutline(),
     mEditable(false),

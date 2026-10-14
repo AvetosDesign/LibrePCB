@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 #include "bgi_device.h"
 
@@ -49,7 +50,7 @@ class PrimitivePathGraphicsItem;
 /**
  * @brief The BGI_StrokeText class
  */
-class BGI_StrokeText final : public QGraphicsItemGroup {
+class BGI_StrokeText final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   BGI_StrokeText() = delete;
@@ -66,6 +67,16 @@ public:
     return mDeviceGraphicsItem;
   }
   void updateContext() noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the text if its device is selected or the text itself is hit
+   *
+   * The device must have been processed before its texts.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;

@@ -44,7 +44,7 @@ StrokeTextGraphicsItem::StrokeTextGraphicsItem(StrokeText& text,
                                                const GraphicsLayerList& layers,
                                                const StrokeFont& font,
                                                QGraphicsItem* parent) noexcept
-  : QGraphicsItemGroup(parent),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(parent),
     mText(text),
     mLayers(layers),
     mFont(font),

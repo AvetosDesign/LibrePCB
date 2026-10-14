@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "../../../graphics/graphicslayer.h"
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 
 #include <librepcb/core/project/board/items/bi_netpoint.h>
@@ -46,7 +47,7 @@ class GraphicsLayerList;
 /**
  * @brief The BGI_NetPoint class
  */
-class BGI_NetPoint final : public QGraphicsItem {
+class BGI_NetPoint final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   BGI_NetPoint() = delete;

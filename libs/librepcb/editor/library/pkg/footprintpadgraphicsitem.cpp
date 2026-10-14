@@ -43,7 +43,7 @@ namespace editor {
 FootprintPadGraphicsItem::FootprintPadGraphicsItem(
     std::shared_ptr<FootprintPad> pad, const GraphicsLayerList& layers,
     const PackagePadList* packagePadList, QGraphicsItem* parent) noexcept
-  : QGraphicsItemGroup(parent),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(parent),
     mPad(pad),
     mPackagePadList(packagePadList),
     mGraphicsItem(

@@ -44,7 +44,7 @@ namespace editor {
 
 TextGraphicsItem::TextGraphicsItem(Text& text, const GraphicsLayerList& layers,
                                    QGraphicsItem* parent) noexcept
-  : QGraphicsItemGroup(parent),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(parent),
     mText(text),
     mLayers(layers),
     mTextOverride(std::nullopt),

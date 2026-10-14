@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "graphicslayer.h"
+#include "lpcbgraphicsitem.h"
 
 #include <librepcb/core/types/length.h>
 
@@ -47,7 +48,7 @@ namespace editor {
 /**
  * @brief The PrimitivePathGraphicsItem class
  */
-class PrimitivePathGraphicsItem : public QGraphicsItem {
+class PrimitivePathGraphicsItem : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   using QGraphicsItem::setRotation;
 

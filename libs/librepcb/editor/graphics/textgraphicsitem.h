@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "graphicslayer.h"
+#include "lpcbgraphicsitem.h"
 
 #include <librepcb/core/geometry/text.h>
 
@@ -48,7 +49,7 @@ class PrimitiveTextGraphicsItem;
  * @brief The TextGraphicsItem class is the graphical representation of a
  *        librepcb::Text
  */
-class TextGraphicsItem final : public QGraphicsItemGroup {
+class TextGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   TextGraphicsItem() = delete;

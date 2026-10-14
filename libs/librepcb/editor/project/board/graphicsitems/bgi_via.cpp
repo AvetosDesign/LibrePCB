@@ -54,7 +54,7 @@ namespace editor {
 BGI_Via::BGI_Via(
     BI_Via& via, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mVia(via),
     mLayers(layers),
     mContext(context),

@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 
 #include <librepcb/core/geometry/polygon.h>
@@ -47,7 +48,7 @@ class PolygonGraphicsItem;
 /**
  * @brief The BGI_Polygon class
  */
-class BGI_Polygon final : public QGraphicsItemGroup {
+class BGI_Polygon final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   BGI_Polygon() = delete;

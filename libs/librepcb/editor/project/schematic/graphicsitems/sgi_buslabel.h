@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_buslabel.h>
@@ -49,7 +50,7 @@ class PrimitiveTextGraphicsItem;
 /**
  * @brief The SGI_BusLabel class
  */
-class SGI_BusLabel final : public QGraphicsItemGroup {
+class SGI_BusLabel final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   SGI_BusLabel() = delete;

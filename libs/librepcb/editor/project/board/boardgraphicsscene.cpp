@@ -247,54 +247,36 @@ void BoardGraphicsScene::selectItemsInRect(const Point& p1,
                                            const Point& p2) noexcept {
   GraphicsScene::setSelectionRect(p1, p2);
   const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
-  // For now we select the shole device if one of its pads is within the
-  // selection rect, see https://github.com/LibrePCB/LibrePCB/pull/1533.
-  // In case this turns out to be problematic in some cases, we should
-  // reconsider this.
-  QSet<std::shared_ptr<BGI_Device>> selectedDevices;
-  foreach (auto item, mPads) {
-    if (auto device = item->getDeviceGraphicsItem().lock()) {
-      if ((!selectedDevices.contains(device)) &&
-          item->mapToScene(item->shape()).intersects(rectPx)) {
-        selectedDevices.insert(device);
-      }
-    } else {
-      item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
-    }
-  }
+  // Items depending on the selection state of their device come after it.
   foreach (auto item, mDevices) {
-    item->setSelected(selectedDevices.contains(item) ||
-                      item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
+  }
+  foreach (auto item, mPads) {
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mVias) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mNetPoints) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mNetLines) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mPlanes) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mZones) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mPolygons) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mStrokeTexts) {
-    // Propagate selection of devices to their stroke texts to allow moving
-    // selected devices including their texts. But also select just the text
-    // if it is within the selection rect, e.g. to allow selecting all texts
-    // on the values layer to delete them.
-    auto device = item->getDeviceGraphicsItem().lock();
-    item->setSelected((device && device->isSelected()) ||
-                      item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mHoles) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
 }
 
@@ -470,10 +452,16 @@ void BoardGraphicsScene::addPad(BI_Pad& pad,
       std::make_shared<BGI_Pad>(pad, device, mLayers, mContext);
   addItem(*item);
   mPads.insert(&pad, item);
+  if (auto deviceItem = device.lock()) {
+    deviceItem->registerPad(item);
+  }
 }
 
 void BoardGraphicsScene::removePad(BI_Pad& pad) noexcept {
   if (std::shared_ptr<BGI_Pad> item = mPads.take(&pad)) {
+    if (auto deviceItem = item->getDeviceGraphicsItem().lock()) {
+      deviceItem->unregisterPad(*item);
+    }
     removeItem(*item);
   } else {
     Q_ASSERT(false);

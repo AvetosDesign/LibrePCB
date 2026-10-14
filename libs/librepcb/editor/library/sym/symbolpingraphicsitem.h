@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../graphics/lpcbgraphicsitem.h"
+
 #include <librepcb/core/library/cmp/component.h>
 #include <librepcb/core/library/sym/symbolpin.h>
 
@@ -47,7 +49,7 @@ class PrimitiveTextGraphicsItem;
 /**
  * @brief The SymbolPinGraphicsItem class
  */
-class SymbolPinGraphicsItem final : public QGraphicsItemGroup {
+class SymbolPinGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   SymbolPinGraphicsItem() = delete;

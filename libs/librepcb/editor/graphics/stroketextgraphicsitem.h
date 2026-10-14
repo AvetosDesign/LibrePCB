@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "lpcbgraphicsitem.h"
+
 #include <librepcb/core/geometry/stroketext.h>
 
 #include <QtCore>
@@ -46,7 +48,7 @@ class PrimitivePathGraphicsItem;
  * @brief The StrokeTextGraphicsItem class is the graphical representation of a
  *        librepcb::StrokeText
  */
-class StrokeTextGraphicsItem final : public QGraphicsItemGroup {
+class StrokeTextGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   StrokeTextGraphicsItem() = delete;

@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "../../../graphics/graphicslayer.h"
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 
 #include <librepcb/core/project/board/items/bi_via.h>
@@ -52,7 +53,7 @@ class PrimitivePathGraphicsItem;
 /**
  * @brief The BGI_Via class
  */
-class BGI_Via final : public QGraphicsItem {
+class BGI_Via final : public LpcbGraphicsItem<QGraphicsItem> {
   Q_DECLARE_TR_FUNCTIONS(BGI_Via)
 
 public:

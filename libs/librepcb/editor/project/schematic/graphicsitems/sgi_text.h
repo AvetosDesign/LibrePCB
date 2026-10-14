@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 #include "sgi_symbol.h"
 
@@ -47,7 +48,7 @@ class TextGraphicsItem;
 /**
  * @brief The SGI_Text class
  */
-class SGI_Text final : public QGraphicsItemGroup {
+class SGI_Text final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   SGI_Text() = delete;
@@ -64,6 +65,17 @@ public:
     return mSymbolGraphicsItem;
   }
   void updateContext() noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the text if its symbol is selected or the text itself is hit
+   *
+   * A locked text is only selected together with its symbol. The symbol must
+   * have been processed before its texts.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;

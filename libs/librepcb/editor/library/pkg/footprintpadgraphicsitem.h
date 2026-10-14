@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../graphics/lpcbgraphicsitem.h"
+
 #include <librepcb/core/library/pkg/footprintpad.h>
 #include <librepcb/core/library/pkg/packagepad.h>
 
@@ -47,7 +49,7 @@ class PrimitiveFootprintPadGraphicsItem;
 /**
  * @brief The FootprintPadGraphicsItem class
  */
-class FootprintPadGraphicsItem final : public QGraphicsItemGroup {
+class FootprintPadGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   FootprintPadGraphicsItem() = delete;

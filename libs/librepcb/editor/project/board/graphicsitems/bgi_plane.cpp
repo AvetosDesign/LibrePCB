@@ -47,7 +47,7 @@ namespace editor {
 BGI_Plane::BGI_Plane(
     BI_Plane& plane, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mPlane(plane),
     mLayers(layers),
     mContext(context),

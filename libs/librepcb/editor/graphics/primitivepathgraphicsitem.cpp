@@ -39,7 +39,7 @@ namespace editor {
 
 PrimitivePathGraphicsItem::PrimitivePathGraphicsItem(
     QGraphicsItem* parent) noexcept
-  : QGraphicsItem(parent),
+  : LpcbGraphicsItem<QGraphicsItem>(parent),
     mMirror(false),
     mLineLayer(nullptr),
     mFillLayer(nullptr),

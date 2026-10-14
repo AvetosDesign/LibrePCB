@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_netline.h>
@@ -45,7 +46,7 @@ namespace editor {
 /**
  * @brief The SGI_NetLine class
  */
-class SGI_NetLine final : public QGraphicsItem {
+class SGI_NetLine final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   SGI_NetLine() = delete;

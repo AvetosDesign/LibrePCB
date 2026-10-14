@@ -45,7 +45,7 @@ ImageGraphicsItem::ImageGraphicsItem(const TransactionalDirectory& dir,
                                      const std::shared_ptr<Image>& text,
                                      const GraphicsLayerList& layers,
                                      QGraphicsItem* parent) noexcept
-  : QGraphicsItem(parent),
+  : LpcbGraphicsItem<QGraphicsItem>(parent),
     mDir(dir),
     mImage(text),
     mEditable(false),

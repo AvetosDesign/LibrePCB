@@ -39,7 +39,7 @@ namespace editor {
  ******************************************************************************/
 
 BGI_Hole::BGI_Hole(BI_Hole& hole, const GraphicsLayerList& layers) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mHole(hole),
     mGraphicsItem(new PrimitiveHoleGraphicsItem(layers, true, this)),
     mOnEditedSlot(*this, &BGI_Hole::holeEdited) {

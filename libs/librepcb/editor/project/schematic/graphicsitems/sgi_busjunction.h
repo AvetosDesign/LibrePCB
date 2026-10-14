@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_busjunction.h>
@@ -45,7 +46,7 @@ namespace editor {
 /**
  * @brief The SGI_BusJunction class
  */
-class SGI_BusJunction final : public QGraphicsItem {
+class SGI_BusJunction final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   SGI_BusJunction() = delete;

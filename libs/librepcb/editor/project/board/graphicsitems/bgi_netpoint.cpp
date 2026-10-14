@@ -45,7 +45,7 @@ namespace editor {
 BGI_NetPoint::BGI_NetPoint(
     BI_NetPoint& netpoint, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mNetPoint(netpoint),
     mLayers(layers),
     mContext(context),

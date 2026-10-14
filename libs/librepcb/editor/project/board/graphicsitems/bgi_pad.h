@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 #include "bgi_device.h"
 
@@ -52,7 +53,7 @@ class PrimitiveFootprintPadGraphicsItem;
 /**
  * @brief The BGI_Pad class
  */
-class BGI_Pad final : public QGraphicsItemGroup {
+class BGI_Pad final : public LpcbGraphicsItem<QGraphicsItemGroup> {
   Q_DECLARE_TR_FUNCTIONS(BGI_Pad)
 
 public:
@@ -70,6 +71,17 @@ public:
     return mDeviceGraphicsItem;
   }
   void updateContext() noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the pad if its device is selected
+   *
+   * A pad without device selects itself. The device must have been processed
+   * before its pads.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;

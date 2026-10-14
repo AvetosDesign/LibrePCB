@@ -51,7 +51,7 @@ namespace editor {
 SGI_BusLabel::SGI_BusLabel(
     SI_BusLabel& label, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mLabel(label),
     mContext(context),
     mTextGraphicsItem(new PrimitiveTextGraphicsItem(this)),

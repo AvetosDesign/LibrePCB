@@ -23,12 +23,15 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_symbol.h>
 
 #include <QtCore>
 #include <QtWidgets>
+
+#include <memory>
 
 /*******************************************************************************
  *  Namespace / Forward Declarations
@@ -43,6 +46,8 @@ class CircleGraphicsItem;
 class ImageGraphicsItem;
 class OriginCrossGraphicsItem;
 class PolygonGraphicsItem;
+class SGI_SymbolPin;
+class SGI_Text;
 
 /*******************************************************************************
  *  Class SGI_Symbol
@@ -51,7 +56,7 @@ class PolygonGraphicsItem;
 /**
  * @brief The SGI_Symbol class
  */
-class SGI_Symbol final : public QGraphicsItemGroup {
+class SGI_Symbol final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Signals
   enum class Event {
@@ -73,6 +78,38 @@ public:
   SI_Symbol& getSymbol() noexcept { return mSymbol; }
   void updateContext() noexcept;
 
+  /**
+   * @brief Add a pin to the symbol's footprint
+   */
+  void registerPin(const std::shared_ptr<SGI_SymbolPin>& pin) noexcept;
+
+  /**
+   * @brief Remove a pin from the symbol's footprint
+   */
+  void unregisterPin(const SGI_SymbolPin& pin) noexcept;
+
+  /**
+   * @brief Add a text to the symbol's footprint
+   *
+   * The text only contributes to the footprint while it is locked.
+   */
+  void registerText(const std::shared_ptr<SGI_Text>& text) noexcept;
+
+  /**
+   * @brief Remove a text from the symbol's footprint
+   */
+  void unregisterText(const SGI_Text& text) noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the symbol if its footprint is hit
+   *
+   * The footprint consists of the symbol itself, its pins and its locked texts.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
+
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override { return mShape; }
 
@@ -93,6 +130,8 @@ private:  // Data
   QVector<std::shared_ptr<CircleGraphicsItem>> mCircleGraphicsItems;
   QVector<std::shared_ptr<PolygonGraphicsItem>> mPolygonGraphicsItems;
   QVector<std::shared_ptr<ImageGraphicsItem>> mImageGraphicsItems;
+  QVector<std::weak_ptr<SGI_SymbolPin>> mPins;
+  QVector<std::weak_ptr<SGI_Text>> mTexts;
   QPainterPath mShape;
 
   // Slots

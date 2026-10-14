@@ -29,6 +29,8 @@
 #include "../../../graphics/origincrossgraphicsitem.h"
 #include "../../../graphics/polygongraphicsitem.h"
 #include "../schematicgraphicsscene.h"
+#include "sgi_symbolpin.h"
+#include "sgi_text.h"
 
 #include <librepcb/core/library/sym/symbol.h>
 #include <librepcb/core/project/project.h>
@@ -38,6 +40,8 @@
 
 #include <QtCore>
 #include <QtWidgets>
+
+#include <algorithm>
 
 /*******************************************************************************
  *  Namespace
@@ -52,7 +56,7 @@ namespace editor {
 SGI_Symbol::SGI_Symbol(
     SI_Symbol& symbol, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     onEdited(*this),
     mSymbol(symbol),
     mContext(context),
@@ -131,6 +135,56 @@ void SGI_Symbol::updateContext() noexcept {
   // foreach (const auto& i, mImageGraphicsItems) {
   //   i->setState(state); // Not supported yet
   // }
+}
+
+void SGI_Symbol::registerPin(
+    const std::shared_ptr<SGI_SymbolPin>& pin) noexcept {
+  mPins.append(pin);
+}
+
+void SGI_Symbol::unregisterPin(const SGI_SymbolPin& pin) noexcept {
+  mPins.erase(std::remove_if(mPins.begin(), mPins.end(),
+                             [&pin](const std::weak_ptr<SGI_SymbolPin>& p) {
+                               const auto ptr = p.lock();
+                               return (!ptr) || (ptr.get() == &pin);
+                             }),
+              mPins.end());
+}
+
+void SGI_Symbol::registerText(const std::shared_ptr<SGI_Text>& text) noexcept {
+  mTexts.append(text);
+}
+
+void SGI_Symbol::unregisterText(const SGI_Text& text) noexcept {
+  mTexts.erase(std::remove_if(mTexts.begin(), mTexts.end(),
+                              [&text](const std::weak_ptr<SGI_Text>& t) {
+                                const auto ptr = t.lock();
+                                return (!ptr) || (ptr.get() == &text);
+                              }),
+               mTexts.end());
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void SGI_Symbol::selectIfHit(const QRectF& rectPx,
+                             RectSelectionMode mode) noexcept {
+  QVector<QPainterPath> footprint{mapToScene(shape())};
+  for (const auto& weakPin : mPins) {
+    if (auto pin = weakPin.lock()) {
+      footprint.append(pin->mapToScene(pin->shape()));
+    }
+  }
+  if (!mContext->ignorePlacementLocks) {
+    for (const auto& weakText : mTexts) {
+      auto text = weakText.lock();
+      if (text && text->getText().getTextObj().isLocked()) {
+        footprint.append(text->mapToScene(text->shape()));
+      }
+    }
+  }
+  setSelected(hits(rectPx, mode, footprint));
 }
 
 /*******************************************************************************

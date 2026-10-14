@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 #include "sgi_symbol.h"
 
@@ -50,7 +51,7 @@ class PrimitiveTextGraphicsItem;
 /**
  * @brief The SGI_SymbolPin class
  */
-class SGI_SymbolPin final : public QGraphicsItemGroup {
+class SGI_SymbolPin final : public LpcbGraphicsItem<QGraphicsItemGroup> {
   Q_DECLARE_TR_FUNCTIONS(SGI_SymbolPin)
 
 public:
@@ -72,6 +73,17 @@ public:
     return mSymbolGraphicsItem;
   }
   void updateContext() noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the pin if its symbol is selected
+   *
+   * A pin is never selected independently of its symbol. The symbol must have
+   * been processed before its pins.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override { return mShape; }

@@ -242,63 +242,39 @@ void SchematicGraphicsScene::selectItemsInRect(const Point& p1,
                                                const Point& p2) noexcept {
   GraphicsScene::setSelectionRect(p1, p2);
   const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+  // Items depending on the selection state of their symbol come after it.
   foreach (auto item, mSymbols) {
-    bool selectSymbol = item->mapToScene(item->shape()).intersects(rectPx);
-    // Locked symbol texts shall act as an extended grab area for the symbol.
-    if ((!selectSymbol) && (!mContext->ignorePlacementLocks)) {
-      for (SI_Text* text : item->getSymbol().getTexts()) {
-        if (text->getTextObj().isLocked()) {
-          if (auto textItem = mTexts.value(text)) {
-            if (textItem->mapToScene(textItem->shape()).intersects(rectPx)) {
-              selectSymbol = true;
-              break;
-            }
-          }
-        }
-      }
-    }
-    item->setSelected(selectSymbol);
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mSymbolPins) {
-    bool symbolSelected = false;
-    if (auto symbol = item->getSymbolGraphicsItem().lock()) {
-      symbolSelected = symbol->isSelected();
-    }
-    item->setSelected(symbolSelected ||
-                      item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mBusJunctions) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mBusLines) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mBusLabels) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mNetPoints) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mNetLines) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mNetLabels) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mPolygons) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mTexts) {
-    auto symbol = item->getSymbolGraphicsItem().lock();
-    if (symbol && symbol->isSelected()) {
-      item->setSelected(true);
-    } else if ((!item->getText().getTextObj().isLocked()) ||
-               mContext->ignorePlacementLocks) {
-      item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
-    }
+    item->selectIfHit(rectPx);
   }
   foreach (auto item, mImages) {
-    item->setSelected(item->mapToScene(item->shape()).intersects(rectPx));
+    item->selectIfHit(rectPx);
   }
 }
 
@@ -419,10 +395,16 @@ void SchematicGraphicsScene::addSymbolPin(
       std::make_shared<SGI_SymbolPin>(pin, symbol, mLayers, mContext);
   addItem(*item);
   mSymbolPins.insert(&pin, item);
+  if (auto symbolItem = symbol.lock()) {
+    symbolItem->registerPin(item);
+  }
 }
 
 void SchematicGraphicsScene::removeSymbolPin(SI_SymbolPin& pin) noexcept {
   if (std::shared_ptr<SGI_SymbolPin> item = mSymbolPins.take(&pin)) {
+    if (auto symbolItem = item->getSymbolGraphicsItem().lock()) {
+      symbolItem->unregisterPin(*item);
+    }
     removeItem(*item);
   } else {
     Q_ASSERT(false);
@@ -674,10 +656,16 @@ void SchematicGraphicsScene::addText(SI_Text& text) noexcept {
       text, mSymbols.value(text.getSymbol()), mLayers, mContext);
   addItem(*item);
   mTexts.insert(&text, item);
+  if (auto symbolItem = item->getSymbolGraphicsItem().lock()) {
+    symbolItem->registerText(item);
+  }
 }
 
 void SchematicGraphicsScene::removeText(SI_Text& text) noexcept {
   if (std::shared_ptr<SGI_Text> item = mTexts.take(&text)) {
+    if (auto symbolItem = item->getSymbolGraphicsItem().lock()) {
+      symbolItem->unregisterText(*item);
+    }
     removeItem(*item);
   } else {
     Q_ASSERT(false);

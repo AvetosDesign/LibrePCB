@@ -53,7 +53,7 @@ SGI_SymbolPin::SGI_SymbolPin(
     SI_SymbolPin& pin, std::weak_ptr<SGI_Symbol> symbolItem,
     const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mPin(pin),
     mSymbolGraphicsItem(symbolItem),
     mLayers(layers),
@@ -132,6 +132,15 @@ void SGI_SymbolPin::updateContext() noexcept {
   mLineGraphicsItem->setState(state);
   mNameGraphicsItem->setState(state);
   mNumbersGraphicsItem->setState(state);
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void SGI_SymbolPin::selectIfHit(const QRectF&, RectSelectionMode) noexcept {
+  auto symbol = mSymbolGraphicsItem.lock();
+  setSelected(symbol && symbol->isSelected());
 }
 
 /*******************************************************************************

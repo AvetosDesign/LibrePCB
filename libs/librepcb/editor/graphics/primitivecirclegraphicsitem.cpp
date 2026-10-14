@@ -39,7 +39,7 @@ namespace editor {
 
 PrimitiveCircleGraphicsItem::PrimitiveCircleGraphicsItem(
     QGraphicsItem* parent) noexcept
-  : QGraphicsItem(parent),
+  : LpcbGraphicsItem<QGraphicsItem>(parent),
     mLineLayer(nullptr),
     mFillLayer(nullptr),
     mState(GraphicsLayer::State::Enabled),

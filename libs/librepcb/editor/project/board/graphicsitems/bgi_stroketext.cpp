@@ -48,7 +48,7 @@ BGI_StrokeText::BGI_StrokeText(
     BI_StrokeText& text, std::weak_ptr<BGI_Device> deviceItem,
     const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mText(text),
     mDeviceGraphicsItem(deviceItem),
     mLayers(layers),
@@ -94,6 +94,20 @@ void BGI_StrokeText::updateContext() noexcept {
   mPathGraphicsItem->setState(state);
   mOriginCrossGraphicsItem->setState(state);
   updateLayer();
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void BGI_StrokeText::selectIfHit(const QRectF& rectPx,
+                                 RectSelectionMode mode) noexcept {
+  // Propagate selection of devices to their stroke texts to allow moving
+  // selected devices including their texts. But also select just the text
+  // if it is within the selection rect, e.g. to allow selecting all texts
+  // on the values layer to delete them.
+  auto device = mDeviceGraphicsItem.lock();
+  setSelected((device && device->isSelected()) || isHit(rectPx, mode));
 }
 
 /*******************************************************************************

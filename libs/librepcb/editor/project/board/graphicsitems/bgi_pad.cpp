@@ -52,7 +52,7 @@ BGI_Pad::BGI_Pad(
     BI_Pad& pad, std::weak_ptr<BGI_Device> deviceItem,
     const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mPad(pad),
     mDeviceGraphicsItem(deviceItem),
     mContext(context),
@@ -99,6 +99,19 @@ void BGI_Pad::updateContext() noexcept {
   }
   mGraphicsItem->setState(state);
   mGraphicsItem->setTextMirrored(mContext->flipView);
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void BGI_Pad::selectIfHit(const QRectF& rectPx,
+                          RectSelectionMode mode) noexcept {
+  if (auto device = mDeviceGraphicsItem.lock()) {
+    setSelected(device->isSelected());
+  } else {
+    setSelected(isHit(rectPx, mode));
+  }
 }
 
 /*******************************************************************************

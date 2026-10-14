@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
+
 #include <librepcb/core/project/board/items/bi_hole.h>
 
 #include <QtCore>
@@ -44,7 +46,7 @@ class PrimitiveHoleGraphicsItem;
 /**
  * @brief The BGI_Hole class
  */
-class BGI_Hole final : public QGraphicsItemGroup {
+class BGI_Hole final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   BGI_Hole() = delete;

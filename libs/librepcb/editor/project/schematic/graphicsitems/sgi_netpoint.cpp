@@ -49,7 +49,7 @@ QRectF SGI_NetPoint::sBoundingRect;
 SGI_NetPoint::SGI_NetPoint(
     SI_NetPoint& netpoint, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mNetPoint(netpoint),
     mContext(context),
     mLayer(layers.get(ColorRole::schematicWires())),

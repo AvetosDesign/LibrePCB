@@ -97,6 +97,7 @@ add_library(
   graphics/imagegraphicsitem.h
   graphics/linegraphicsitem.cpp
   graphics/linegraphicsitem.h
+  graphics/lpcbgraphicsitem.h
   graphics/origincrossgraphicsitem.cpp
   graphics/origincrossgraphicsitem.h
   graphics/polygongraphicsitem.cpp

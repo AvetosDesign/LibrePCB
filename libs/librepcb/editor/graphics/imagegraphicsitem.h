@@ -23,6 +23,8 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "lpcbgraphicsitem.h"
+
 #include <librepcb/core/geometry/image.h>
 
 #include <QtCore>
@@ -49,7 +51,7 @@ class OriginCrossGraphicsItem;
  * @brief The ImageGraphicsItem class is the graphical representation of a
  *        ::librepcb::Image
  */
-class ImageGraphicsItem final : public QGraphicsItem {
+class ImageGraphicsItem final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   ImageGraphicsItem() = delete;

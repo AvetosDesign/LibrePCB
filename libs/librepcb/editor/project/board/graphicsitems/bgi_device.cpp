@@ -30,6 +30,7 @@
 #include "../../../graphics/primitivepathgraphicsitem.h"
 #include "../../../graphics/primitivezonegraphicsitem.h"
 #include "../boardgraphicsscene.h"
+#include "bgi_pad.h"
 
 #include <librepcb/core/library/pkg/footprint.h>
 #include <librepcb/core/project/board/board.h>
@@ -40,6 +41,8 @@
 
 #include <QtCore>
 #include <QtWidgets>
+
+#include <algorithm>
 
 /*******************************************************************************
  *  Namespace
@@ -54,7 +57,7 @@ namespace editor {
 BGI_Device::BGI_Device(
     BI_Device& device, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     onEdited(*this),
     mDevice(device),
     mLayers(layers),
@@ -143,6 +146,34 @@ void BGI_Device::updateContext() noexcept {
     i->setState(state);
   }
   updateBoardSide();
+}
+
+void BGI_Device::registerPad(const std::shared_ptr<BGI_Pad>& pad) noexcept {
+  mPads.append(pad);
+}
+
+void BGI_Device::unregisterPad(const BGI_Pad& pad) noexcept {
+  mPads.erase(std::remove_if(mPads.begin(), mPads.end(),
+                             [&pad](const std::weak_ptr<BGI_Pad>& p) {
+                               const auto ptr = p.lock();
+                               return (!ptr) || (ptr.get() == &pad);
+                             }),
+              mPads.end());
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void BGI_Device::selectIfHit(const QRectF& rectPx,
+                             RectSelectionMode mode) noexcept {
+  QVector<QPainterPath> footprint{mapToScene(shape())};
+  for (const auto& weakPad : mPads) {
+    if (auto pad = weakPad.lock()) {
+      footprint.append(pad->mapToScene(pad->shape()));
+    }
+  }
+  setSelected(hits(rectPx, mode, footprint));
 }
 
 /*******************************************************************************

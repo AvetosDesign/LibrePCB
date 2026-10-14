@@ -44,7 +44,7 @@ namespace editor {
 BGI_Zone::BGI_Zone(
     BI_Zone& zone, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mZone(zone),
     mContext(context),
     mGraphicsItem(new PrimitiveZoneGraphicsItem(layers, this)),

@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "../../../graphics/graphicslayer.h"
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../boardgraphicsscene.h"
 
 #include <librepcb/core/project/board/items/bi_device.h>
@@ -42,6 +43,7 @@ class Layer;
 
 namespace editor {
 
+class BGI_Pad;
 class GraphicsLayerList;
 class OriginCrossGraphicsItem;
 class PrimitiveCircleGraphicsItem;
@@ -56,7 +58,7 @@ class PrimitiveZoneGraphicsItem;
 /**
  * @brief The BGI_Device class
  */
-class BGI_Device final : public QGraphicsItemGroup {
+class BGI_Device final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Signals
   enum class Event {
@@ -77,6 +79,26 @@ public:
   // General Methods
   BI_Device& getDevice() noexcept { return mDevice; }
   void updateContext() noexcept;
+
+  /**
+   * @brief Add a pad to the device's footprint
+   */
+  void registerPad(const std::shared_ptr<BGI_Pad>& pad) noexcept;
+
+  /**
+   * @brief Remove a pad from the device's footprint
+   */
+  void unregisterPad(const BGI_Pad& pad) noexcept;
+
+  // Inherited from LpcbGraphicsItem
+  /**
+   * @brief Select the device if its footprint is hit
+   *
+   * The footprint consists of the device itself and its pads.
+   */
+  void selectIfHit(
+      const QRectF& rectPx,
+      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;
@@ -108,6 +130,7 @@ private:  // Data
   QVector<std::shared_ptr<PrimitivePathGraphicsItem>> mPolygonGraphicsItems;
   QVector<std::shared_ptr<PrimitiveZoneGraphicsItem>> mZoneGraphicsItems;
   QVector<std::shared_ptr<PrimitiveHoleGraphicsItem>> mHoleGraphicsItems;
+  QVector<std::weak_ptr<BGI_Pad>> mPads;
   QPainterPath mShape;
 
   // Slots

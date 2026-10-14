@@ -40,7 +40,7 @@ namespace editor {
 HoleGraphicsItem::HoleGraphicsItem(Hole& hole, const GraphicsLayerList& layers,
                                    bool originCrossesVisible,
                                    QGraphicsItem* parent) noexcept
-  : QGraphicsItemGroup(parent),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(parent),
     mHole(hole),
     mGraphicsItem(
         new PrimitiveHoleGraphicsItem(layers, originCrossesVisible, this)),

@@ -46,7 +46,7 @@ namespace editor {
 BGI_NetLine::BGI_NetLine(
     BI_NetLine& netline, const GraphicsLayerList& layers,
     std::shared_ptr<const BoardGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mNetLine(netline),
     mLayers(layers),
     mContext(context),

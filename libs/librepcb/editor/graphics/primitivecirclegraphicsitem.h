@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "graphicslayer.h"
+#include "lpcbgraphicsitem.h"
 
 #include <librepcb/core/types/length.h>
 
@@ -46,7 +47,7 @@ namespace editor {
 /**
  * @brief The PrimitiveCircleGraphicsItem class
  */
-class PrimitiveCircleGraphicsItem : public QGraphicsItem {
+class PrimitiveCircleGraphicsItem : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Types
   enum class ShapeMode {

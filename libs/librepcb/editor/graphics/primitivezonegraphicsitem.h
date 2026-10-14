@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "graphicslayer.h"
+#include "lpcbgraphicsitem.h"
 
 #include <librepcb/core/geometry/path.h>
 
@@ -48,7 +49,7 @@ class GraphicsLayerList;
 /**
  * @brief The PrimitiveZoneGraphicsItem class
  */
-class PrimitiveZoneGraphicsItem : public QGraphicsItem {
+class PrimitiveZoneGraphicsItem : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   PrimitiveZoneGraphicsItem() = delete;

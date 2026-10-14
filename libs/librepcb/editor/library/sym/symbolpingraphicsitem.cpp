@@ -52,7 +52,7 @@ SymbolPinGraphicsItem::SymbolPinGraphicsItem(
     QPointer<const Component> cmp,
     std::shared_ptr<const ComponentSymbolVariantItem> cmpItem,
     bool hideIfUnused, QGraphicsItem* parent) noexcept
-  : QGraphicsItemGroup(parent),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(parent),
     mPin(pin),
     mLayers(layers),
     mComponent(cmp),

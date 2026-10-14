@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_netpoint.h>
@@ -45,7 +46,7 @@ namespace editor {
 /**
  * @brief The SGI_NetPoint class
  */
-class SGI_NetPoint final : public QGraphicsItem {
+class SGI_NetPoint final : public LpcbGraphicsItem<QGraphicsItem> {
 public:
   // Constructors / Destructor
   SGI_NetPoint() = delete;

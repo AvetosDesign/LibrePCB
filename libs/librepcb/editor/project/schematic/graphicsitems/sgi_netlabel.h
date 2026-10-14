@@ -23,6 +23,7 @@
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../schematicgraphicsscene.h"
 
 #include <librepcb/core/project/schematic/items/si_netlabel.h>
@@ -49,7 +50,7 @@ class PrimitiveTextGraphicsItem;
 /**
  * @brief The SGI_NetLabel class
  */
-class SGI_NetLabel final : public QGraphicsItemGroup {
+class SGI_NetLabel final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   SGI_NetLabel() = delete;

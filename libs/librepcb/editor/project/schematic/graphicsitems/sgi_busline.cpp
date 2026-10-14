@@ -49,7 +49,7 @@ namespace editor {
 SGI_BusLine::SGI_BusLine(
     SI_BusLine& line, const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItem(),
+  : LpcbGraphicsItem<QGraphicsItem>(),
     mBusLine(line),
     mContext(context),
     mLayer(layers.get(ColorRole::schematicBuses())),

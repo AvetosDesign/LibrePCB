@@ -46,7 +46,7 @@ SGI_Text::SGI_Text(
     SI_Text& text, std::weak_ptr<SGI_Symbol> symbolItem,
     const GraphicsLayerList& layers,
     std::shared_ptr<const SchematicGraphicsScene::Context> context) noexcept
-  : QGraphicsItemGroup(),
+  : LpcbGraphicsItem<QGraphicsItemGroup>(),
     mText(text),
     mSymbolGraphicsItem(symbolItem),
     mLayers(layers),
@@ -83,6 +83,19 @@ void SGI_Text::updateContext() noexcept {
   const GraphicsLayer::State state = mContext->getLayerState(false);
   mTextGraphicsItem->setState(state);
   mAnchorGraphicsItem->setState(state);
+}
+
+/*******************************************************************************
+ *  Inherited from LpcbGraphicsItem
+ ******************************************************************************/
+
+void SGI_Text::selectIfHit(const QRectF& rectPx,
+                           RectSelectionMode mode) noexcept {
+  auto symbol = mSymbolGraphicsItem.lock();
+  const bool symbolSelected = symbol && symbol->isSelected();
+  const bool selectable =
+      (!mText.getTextObj().isLocked()) || mContext->ignorePlacementLocks;
+  setSelected(symbolSelected || (selectable && isHit(rectPx, mode)));
 }
 
 /*******************************************************************************

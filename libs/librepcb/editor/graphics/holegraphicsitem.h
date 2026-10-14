@@ -24,6 +24,7 @@
  *  Includes
  ******************************************************************************/
 #include "graphicslayer.h"
+#include "lpcbgraphicsitem.h"
 
 #include <librepcb/core/geometry/hole.h>
 
@@ -47,7 +48,7 @@ class PrimitiveHoleGraphicsItem;
  * @brief The HoleGraphicsItem class is the graphical representation of a
  *        librepcb::Hole
  */
-class HoleGraphicsItem final : public QGraphicsItemGroup {
+class HoleGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   HoleGraphicsItem() = delete;
