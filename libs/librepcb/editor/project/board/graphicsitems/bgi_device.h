@@ -96,9 +96,8 @@ public:
    *
    * The footprint consists of the device itself and its pads.
    */
-  void selectIfHit(
-      const QRectF& rectPx,
-      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
+  void selectIfHit(const QRectF& rectPx,
+                   RectSelectionMode mode) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;

@@ -110,19 +110,6 @@ public:
   void clearSelectionRect() noexcept;
 
   /**
-   * @brief Select the items hit by a rectangle
-   *
-   * The default implementation does nothing. Overriding scenes also show the
-   * selection rectangle.
-   *
-   * @param p1    First corner of the rectangle.
-   * @param p2    Opposite corner of the rectangle.
-   * @param mode  Selection mode.
-   */
-  virtual void selectItemsInRect(const Point& p1, const Point& p2,
-                                 RectSelectionMode mode) noexcept;
-
-  /**
    * @brief Setup the marker for a specific scene rect
    *
    * This is intended to mark a specific area in a scene, with a line starting

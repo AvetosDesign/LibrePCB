@@ -76,14 +76,12 @@ public:
 
   // Inherited from LpcbGraphicsItem
   /**
-   * @brief Select the pin if its symbol is selected
+   * @brief Select the pin if its symbol is selected or the pin itself is hit
    *
-   * A pin is never selected independently of its symbol. The symbol must have
-   * been processed before its pins.
+   * The symbol must have been processed before its pins.
    */
-  void selectIfHit(
-      const QRectF& rectPx,
-      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
+  void selectIfHit(const QRectF& rectPx,
+                   RectSelectionMode mode) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override { return mShape; }

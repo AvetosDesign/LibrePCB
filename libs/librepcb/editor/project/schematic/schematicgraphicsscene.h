@@ -181,7 +181,7 @@ public:
   void setSelfProbedState(GraphicsLayer::State state) noexcept;
   void selectAll() noexcept;
   void selectItemsInRect(const Point& p1, const Point& p2,
-                         RectSelectionMode mode) noexcept override;
+                         RectSelectionMode mode) noexcept;
   void clearSelection() noexcept;
 
   // Operator Overloadings

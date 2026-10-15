@@ -171,13 +171,6 @@ void GraphicsScene::clearSelectionRect() noexcept {
   mSelectionRectItem->setRect(QRectF());
 }
 
-void GraphicsScene::selectItemsInRect(const Point& p1, const Point& p2,
-                                      RectSelectionMode mode) noexcept {
-  Q_UNUSED(p1);
-  Q_UNUSED(p2);
-  Q_UNUSED(mode);
-}
-
 void GraphicsScene::setRulerPositions(
     const std::optional<std::pair<Point, Point>>& pos) noexcept {
   mRulerPositions = pos;

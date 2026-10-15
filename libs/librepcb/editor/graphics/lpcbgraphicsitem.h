@@ -78,9 +78,8 @@ public:
    * @param rectPx  Selection rectangle in scene coordinates (pixels).
    * @param mode    Selection mode.
    */
-  virtual void selectIfHit(
-      const QRectF& rectPx,
-      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept {
+  virtual void selectIfHit(const QRectF& rectPx,
+                           RectSelectionMode mode) noexcept {
     this->setSelected(isHit(rectPx, mode));
   }
 
@@ -173,9 +172,8 @@ inline QPainterPath getClickShape(const QGraphicsItem& item) noexcept {
   QPainterPath cross;
   if (auto i = dynamic_cast<const LpcbGraphicsItem<QGraphicsItem>*>(&item)) {
     cross = i->getOriginCrossShape();
-  } else if (auto g =
-                 dynamic_cast<const LpcbGraphicsItem<QGraphicsItemGroup>*>(
-                     &item)) {
+  } else if (auto g = dynamic_cast<const LpcbGraphicsItem<QGraphicsItemGroup>*>(
+                 &item)) {
     cross = g->getOriginCrossShape();
   }
   if (!cross.isEmpty()) {

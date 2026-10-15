@@ -104,11 +104,12 @@ public:
   /**
    * @brief Select the symbol if its footprint is hit
    *
-   * The footprint consists of the symbol itself, its pins and its locked texts.
+   * The footprint consists of the symbol itself and its locked texts. A symbol
+   * without grab areas is represented by its drawn outlines. In window mode,
+   * its pins are part of the footprint as well.
    */
-  void selectIfHit(
-      const QRectF& rectPx,
-      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
+  void selectIfHit(const QRectF& rectPx,
+                   RectSelectionMode mode) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override { return mShape; }

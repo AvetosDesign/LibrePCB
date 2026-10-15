@@ -74,9 +74,8 @@ public:
    *
    * The device must have been processed before its texts.
    */
-  void selectIfHit(
-      const QRectF& rectPx,
-      RectSelectionMode mode = RectSelectionMode::Crossing) noexcept override;
+  void selectIfHit(const QRectF& rectPx,
+                   RectSelectionMode mode) noexcept override;
 
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;

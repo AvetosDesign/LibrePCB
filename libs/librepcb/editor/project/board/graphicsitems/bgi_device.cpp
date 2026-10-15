@@ -182,7 +182,7 @@ void BGI_Device::selectIfHit(const QRectF& rectPx,
 
 QPainterPath BGI_Device::shape() const noexcept {
   return (mGrabAreaLayer && mGrabAreaLayer->isVisible()) ? mShape
-                                                        : QPainterPath();
+                                                         : QPainterPath();
 }
 
 /*******************************************************************************
