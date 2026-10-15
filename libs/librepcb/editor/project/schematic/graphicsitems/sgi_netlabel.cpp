@@ -108,8 +108,11 @@ void SGI_NetLabel::updateContext() noexcept {
  ******************************************************************************/
 
 QPainterPath SGI_NetLabel::shape() const noexcept {
-  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape()) |
-      mOriginCrossGraphicsItem->shape();
+  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape());
+}
+
+QPainterPath SGI_NetLabel::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant SGI_NetLabel::itemChange(GraphicsItemChange change,

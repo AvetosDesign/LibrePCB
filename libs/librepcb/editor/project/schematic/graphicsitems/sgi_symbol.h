@@ -113,6 +113,9 @@ public:
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override { return mShape; }
 
+  // Inherited from LpcbGraphicsItem
+  QPainterPath getOriginCrossShape() const noexcept override;
+
   // Operator Overloadings
   SGI_Symbol& operator=(const SGI_Symbol& rhs) = delete;
 

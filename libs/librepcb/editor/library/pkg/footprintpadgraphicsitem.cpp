@@ -97,6 +97,11 @@ QPainterPath FootprintPadGraphicsItem::shape() const noexcept {
   return mGraphicsItem->mapToParent(mGraphicsItem->shape());
 }
 
+QPainterPath FootprintPadGraphicsItem::getOriginCrossShape() const noexcept {
+  Q_ASSERT(mGraphicsItem);
+  return mGraphicsItem->mapToParent(mGraphicsItem->getOriginCrossShape());
+}
+
 QVariant FootprintPadGraphicsItem::itemChange(GraphicsItemChange change,
                                               const QVariant& value) noexcept {
   if ((change == ItemSelectedHasChanged) && mGraphicsItem) {

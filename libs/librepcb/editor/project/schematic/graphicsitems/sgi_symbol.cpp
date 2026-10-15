@@ -71,7 +71,6 @@ SGI_Symbol::SGI_Symbol(
       layers.get(ColorRole::schematicReferences()));
   // https://github.com/LibrePCB/LibrePCB/issues/1725
   mOriginCrossGraphicsItem->setVisible(isSelected());
-  mShape.addRect(mOriginCrossGraphicsItem->boundingRect());
 
   for (const auto& obj : mSymbol.getLibSymbol().getCircles()) {
     auto i = std::make_shared<CircleGraphicsItem>(const_cast<Circle&>(obj),
@@ -171,9 +170,20 @@ void SGI_Symbol::unregisterText(const SGI_Text& text) noexcept {
 void SGI_Symbol::selectIfHit(const QRectF& rectPx,
                              RectSelectionMode mode) noexcept {
   QVector<QPainterPath> footprint{mapToScene(shape())};
-  for (const auto& weakPin : mPins) {
-    if (auto pin = weakPin.lock()) {
-      footprint.append(pin->mapToScene(pin->shape()));
+  if (shape().isEmpty()) {
+    // Symbols without grab areas (e.g. GND) are hit by their drawn outlines.
+    for (const auto& i : mCircleGraphicsItems) {
+      footprint.append(mapToScene(i->mapToParent(i->shape())));
+    }
+    for (const auto& i : mPolygonGraphicsItems) {
+      footprint.append(mapToScene(i->mapToParent(i->shape())));
+    }
+  }
+  if (mode == RectSelectionMode::Window) {
+    for (const auto& weakPin : mPins) {
+      if (auto pin = weakPin.lock()) {
+        footprint.append(pin->mapToScene(pin->shape()));
+      }
     }
   }
   if (!mContext->ignorePlacementLocks) {
@@ -219,6 +229,15 @@ void SGI_Symbol::updateRotationAndMirrored() noexcept {
   t.rotate(-mSymbol.getRotation().toDeg());
   if (mSymbol.getMirrored()) t.scale(qreal(-1), qreal(1));
   setTransform(t);
+}
+
+QPainterPath SGI_Symbol::getOriginCrossShape() const noexcept {
+  QPainterPath p;
+  p.addRect(mOriginCrossGraphicsItem->boundingRect());
+  for (const auto& image : mImageGraphicsItems) {
+    p |= image->mapToParent(image->getOriginCrossShape());
+  }
+  return p;
 }
 
 QVariant SGI_Symbol::itemChange(GraphicsItemChange change,

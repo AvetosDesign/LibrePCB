@@ -123,6 +123,11 @@ QPainterPath BGI_Pad::shape() const noexcept {
   return mGraphicsItem->mapToParent(mGraphicsItem->shape());
 }
 
+QPainterPath BGI_Pad::getOriginCrossShape() const noexcept {
+  Q_ASSERT(mGraphicsItem);
+  return mGraphicsItem->mapToParent(mGraphicsItem->getOriginCrossShape());
+}
+
 QVariant BGI_Pad::itemChange(GraphicsItemChange change,
                              const QVariant& value) noexcept {
   if ((change == ItemSelectedHasChanged) && mGraphicsItem) {

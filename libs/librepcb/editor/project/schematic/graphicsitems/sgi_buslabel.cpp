@@ -108,8 +108,11 @@ void SGI_BusLabel::updateContext() noexcept {
  ******************************************************************************/
 
 QPainterPath SGI_BusLabel::shape() const noexcept {
-  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape()) |
-      mOriginCrossGraphicsItem->shape();
+  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape());
+}
+
+QPainterPath SGI_BusLabel::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant SGI_BusLabel::itemChange(GraphicsItemChange change,

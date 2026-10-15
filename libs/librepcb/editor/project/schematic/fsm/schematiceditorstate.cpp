@@ -23,6 +23,7 @@
 #include "schematiceditorstate.h"
 
 #include "../../../graphics/imagegraphicsitem.h"
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../../../graphics/polygongraphicsitem.h"
 #include "../../../undostack.h"
 #include "../../../widgets/graphicsview.h"
@@ -195,7 +196,7 @@ QList<std::shared_ptr<QGraphicsItem>> SchematicEditorState::findItemsAtPos(
     if (canSkip(prio)) {
       return false;
     }
-    const QPainterPath grabArea = item->mapToScene(item->shape());
+    const QPainterPath grabArea = item->mapToScene(getClickShape(*item));
     const UnsignedLength distance = (nearestPos - pos).getLength();
     if ((maxDistance) && (distance > (*maxDistance))) {
       return false;

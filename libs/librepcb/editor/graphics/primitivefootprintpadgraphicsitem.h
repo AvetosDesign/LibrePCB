@@ -80,6 +80,13 @@ public:
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;
 
+  /**
+   * @brief Get the shape of the origin cross
+   *
+   * The origin cross is not part of shape().
+   */
+  QPainterPath getOriginCrossShape() const noexcept;
+
   // Operator Overloadings
   PrimitiveFootprintPadGraphicsItem& operator=(
       const PrimitiveFootprintPadGraphicsItem& rhs) = delete;

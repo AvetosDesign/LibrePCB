@@ -103,9 +103,12 @@ void TextGraphicsItem::setState(GraphicsLayer::State state) noexcept {
  ******************************************************************************/
 
 QPainterPath TextGraphicsItem::shape() const noexcept {
-  Q_ASSERT(mTextGraphicsItem && mOriginCrossGraphicsItem);
-  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape()) |
-      mOriginCrossGraphicsItem->shape();
+  Q_ASSERT(mTextGraphicsItem);
+  return mTextGraphicsItem->mapToParent(mTextGraphicsItem->shape());
+}
+
+QPainterPath TextGraphicsItem::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant TextGraphicsItem::itemChange(GraphicsItemChange change,

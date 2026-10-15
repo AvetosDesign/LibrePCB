@@ -214,7 +214,7 @@ void PrimitiveFootprintPadGraphicsItem::setGeometries(
 
 QPainterPath PrimitiveFootprintPadGraphicsItem::shape() const noexcept {
   Q_ASSERT(mOriginCrossGraphicsItem);
-  QPainterPath p = mOriginCrossGraphicsItem->shape();
+  QPainterPath p;
   if (mCopperLayer && mCopperLayer->isVisible()) {
     for (auto it = mShapes.begin(); it != mShapes.end(); it++) {
       if (it.key()->isVisible()) {
@@ -226,6 +226,11 @@ QPainterPath PrimitiveFootprintPadGraphicsItem::shape() const noexcept {
     }
   }
   return p;
+}
+
+QPainterPath PrimitiveFootprintPadGraphicsItem::getOriginCrossShape()
+    const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant PrimitiveFootprintPadGraphicsItem::itemChange(

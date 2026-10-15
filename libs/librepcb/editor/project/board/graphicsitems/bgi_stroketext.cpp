@@ -115,9 +115,12 @@ void BGI_StrokeText::selectIfHit(const QRectF& rectPx,
  ******************************************************************************/
 
 QPainterPath BGI_StrokeText::shape() const noexcept {
-  Q_ASSERT(mPathGraphicsItem && mOriginCrossGraphicsItem);
-  return mPathGraphicsItem->mapToParent(mPathGraphicsItem->shape()) |
-      mOriginCrossGraphicsItem->shape();
+  Q_ASSERT(mPathGraphicsItem);
+  return mPathGraphicsItem->mapToParent(mPathGraphicsItem->shape());
+}
+
+QPainterPath BGI_StrokeText::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant BGI_StrokeText::itemChange(GraphicsItemChange change,

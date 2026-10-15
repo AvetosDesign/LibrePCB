@@ -198,7 +198,7 @@ QList<std::shared_ptr<QGraphicsItem>> FootprintGraphicsItem::findItemsAtPos(
                          const std::shared_ptr<QGraphicsItem>& item,
                          int priority, bool large) {
     Q_ASSERT(item);
-    const QPainterPath grabArea = mapFromItem(item.get(), item->shape());
+    const QPainterPath grabArea = mapFromItem(item.get(), getClickShape(*item));
     const QPointF center = grabArea.controlPointRect().center();
     const QPointF diff = center - pos;
     qreal distance = (diff.x() * diff.x()) + (diff.y() * diff.y());

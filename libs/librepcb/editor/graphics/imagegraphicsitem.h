@@ -88,6 +88,9 @@ public:
   QRectF boundingRect() const noexcept override { return mBoundingRect; }
   QPainterPath shape() const noexcept override { return mShape; }
 
+  // Inherited from LpcbGraphicsItem
+  QPainterPath getOriginCrossShape() const noexcept override;
+
   // Operator Overloadings
   ImageGraphicsItem& operator=(const ImageGraphicsItem& rhs) = delete;
 

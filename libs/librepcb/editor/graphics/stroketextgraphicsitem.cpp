@@ -88,8 +88,12 @@ void StrokeTextGraphicsItem::setTextOverride(
  ******************************************************************************/
 
 QPainterPath StrokeTextGraphicsItem::shape() const noexcept {
-  Q_ASSERT(mPathGraphicsItem && mOriginCrossGraphicsItem);
-  return mPathGraphicsItem->shape() | mOriginCrossGraphicsItem->shape();
+  Q_ASSERT(mPathGraphicsItem);
+  return mPathGraphicsItem->shape();
+}
+
+QPainterPath StrokeTextGraphicsItem::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant StrokeTextGraphicsItem::itemChange(GraphicsItemChange change,

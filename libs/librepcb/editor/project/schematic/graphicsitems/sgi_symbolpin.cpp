@@ -138,9 +138,10 @@ void SGI_SymbolPin::updateContext() noexcept {
  *  Inherited from LpcbGraphicsItem
  ******************************************************************************/
 
-void SGI_SymbolPin::selectIfHit(const QRectF&, RectSelectionMode) noexcept {
+void SGI_SymbolPin::selectIfHit(const QRectF& rectPx,
+                                RectSelectionMode mode) noexcept {
   auto symbol = mSymbolGraphicsItem.lock();
-  setSelected(symbol && symbol->isSelected());
+  setSelected((symbol && symbol->isSelected()) || isHit(rectPx, mode));
 }
 
 /*******************************************************************************

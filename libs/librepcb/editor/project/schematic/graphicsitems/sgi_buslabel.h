@@ -67,6 +67,9 @@ public:
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;
 
+  // Inherited from LpcbGraphicsItem
+  QPainterPath getOriginCrossShape() const noexcept override;
+
   // Operator Overloadings
   SGI_BusLabel& operator=(const SGI_BusLabel& rhs) = delete;
 

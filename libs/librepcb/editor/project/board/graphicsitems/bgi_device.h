@@ -103,6 +103,9 @@ public:
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;
 
+  // Inherited from LpcbGraphicsItem
+  QPainterPath getOriginCrossShape() const noexcept override;
+
   // Operator Overloadings
   BGI_Device& operator=(const BGI_Device& rhs) = delete;
 

@@ -70,6 +70,9 @@ public:
   // Inherited from QGraphicsItem
   QPainterPath shape() const noexcept override;
 
+  // Inherited from LpcbGraphicsItem
+  QPainterPath getOriginCrossShape() const noexcept override;
+
   // Operator Overloadings
   FootprintPadGraphicsItem& operator=(const FootprintPadGraphicsItem& rhs) =
       delete;

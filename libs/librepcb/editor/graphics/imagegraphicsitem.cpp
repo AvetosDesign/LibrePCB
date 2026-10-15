@@ -105,6 +105,10 @@ void ImageGraphicsItem::setEditable(bool editable) noexcept {
  *  Inherited from QGraphicsItem
  ******************************************************************************/
 
+QPainterPath ImageGraphicsItem::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
+}
+
 QVariant ImageGraphicsItem::itemChange(GraphicsItemChange change,
                                        const QVariant& value) noexcept {
   if ((change == ItemSelectedHasChanged) && mOriginCrossGraphicsItem) {
@@ -237,7 +241,6 @@ void ImageGraphicsItem::updateBoundingRectAndShape() noexcept {
   } else {
     mShape.addRect(mImageRectPx);
   }
-  mShape |= mOriginCrossGraphicsItem->shape();
 
   update();
 }

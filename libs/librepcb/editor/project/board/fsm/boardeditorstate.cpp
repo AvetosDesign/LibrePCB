@@ -24,6 +24,7 @@
 
 #include "../../../graphics/graphicslayer.h"
 #include "../../../graphics/graphicslayerlist.h"
+#include "../../../graphics/lpcbgraphicsitem.h"
 #include "../../../undostack.h"
 #include "../../../widgets/graphicsview.h"
 #include "../boardgraphicsscene.h"
@@ -244,7 +245,8 @@ QList<std::shared_ptr<QGraphicsItem>> BoardEditorState::findItemsAtPos(
     if (canSkip(prio)) {
       return;
     }
-    const QPainterPath grabArea = itemToCheck->mapToScene(itemToCheck->shape());
+    const QPainterPath grabArea =
+        itemToCheck->mapToScene(getClickShape(*itemToCheck));
     if (grabArea.isEmpty()) {
       return;
     }

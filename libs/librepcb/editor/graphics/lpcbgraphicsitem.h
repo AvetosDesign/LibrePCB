@@ -84,6 +84,17 @@ public:
     this->setSelected(isHit(rectPx, mode));
   }
 
+  /**
+   * @brief Get the shape of the item's origin cross
+   *
+   * The origin cross is not part of shape(), so rubber-band selection ignores
+   * it. It is added to the shape only when selecting by a click, see
+   * getClickShape(). The default implementation returns an empty path.
+   */
+  virtual QPainterPath getOriginCrossShape() const noexcept {
+    return QPainterPath();
+  }
+
 protected:  // Methods
   /**
    * @brief Check whether the item's shape is hit by a selection rectangle
@@ -144,6 +155,34 @@ protected:  // Methods
     return hasGeometry && (mode == RectSelectionMode::Window);
   }
 };
+
+/*******************************************************************************
+ *  Non-Member Functions
+ ******************************************************************************/
+
+/**
+ * @brief Get the shape of an item for selecting it by a click
+ *
+ * This is the item's shape() plus its origin cross, if it has one.
+ *
+ * @param item  Any graphics item.
+ * @return Shape in item coordinates.
+ */
+inline QPainterPath getClickShape(const QGraphicsItem& item) noexcept {
+  QPainterPath path = item.shape();
+  QPainterPath cross;
+  if (auto i = dynamic_cast<const LpcbGraphicsItem<QGraphicsItem>*>(&item)) {
+    cross = i->getOriginCrossShape();
+  } else if (auto g =
+                 dynamic_cast<const LpcbGraphicsItem<QGraphicsItemGroup>*>(
+                     &item)) {
+    cross = g->getOriginCrossShape();
+  }
+  if (!cross.isEmpty()) {
+    path |= cross;
+  }
+  return path;
+}
 
 /*******************************************************************************
  *  End of File

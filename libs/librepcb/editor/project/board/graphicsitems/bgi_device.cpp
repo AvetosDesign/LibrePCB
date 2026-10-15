@@ -181,11 +181,8 @@ void BGI_Device::selectIfHit(const QRectF& rectPx,
  ******************************************************************************/
 
 QPainterPath BGI_Device::shape() const noexcept {
-  QPainterPath p = mOriginCrossGraphicsItem->shape();
-  if (mGrabAreaLayer && mGrabAreaLayer->isVisible()) {
-    p |= mShape;
-  }
-  return p;
+  return (mGrabAreaLayer && mGrabAreaLayer->isVisible()) ? mShape
+                                                        : QPainterPath();
 }
 
 /*******************************************************************************
@@ -235,6 +232,10 @@ void BGI_Device::layerEdited(const GraphicsLayer& layer,
                  << static_cast<int>(event);
       break;
   }
+}
+
+QPainterPath BGI_Device::getOriginCrossShape() const noexcept {
+  return mOriginCrossGraphicsItem->shape();
 }
 
 QVariant BGI_Device::itemChange(GraphicsItemChange change,
