@@ -49,7 +49,8 @@ class PrimitiveTextGraphicsItem;
 /**
  * @brief The SymbolPinGraphicsItem class
  */
-class SymbolPinGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
+class SymbolPinGraphicsItem final
+  : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   SymbolPinGraphicsItem() = delete;

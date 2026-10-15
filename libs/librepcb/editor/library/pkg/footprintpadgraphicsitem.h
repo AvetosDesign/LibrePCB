@@ -49,7 +49,8 @@ class PrimitiveFootprintPadGraphicsItem;
 /**
  * @brief The FootprintPadGraphicsItem class
  */
-class FootprintPadGraphicsItem final : public LpcbGraphicsItem<QGraphicsItemGroup> {
+class FootprintPadGraphicsItem final
+  : public LpcbGraphicsItem<QGraphicsItemGroup> {
 public:
   // Constructors / Destructor
   FootprintPadGraphicsItem() = delete;

@@ -241,8 +241,7 @@ void SchematicGraphicsScene::selectAll() noexcept {
 void SchematicGraphicsScene::selectItemsInRect(
     const Point& p1, const Point& p2, RectSelectionMode mode) noexcept {
   setSelectionRect(p1, p2, mode);
-  const QRectF rectPx =
-      QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
+  const QRectF rectPx = QRectF(p1.toPxQPointF(), p2.toPxQPointF()).normalized();
 
   // Items depending on the selection state of their symbol come after it.
   foreach (auto item, mSymbols) {
