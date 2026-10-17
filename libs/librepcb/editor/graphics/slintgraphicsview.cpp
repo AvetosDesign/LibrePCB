@@ -234,8 +234,7 @@ slint::Image SlintGraphicsView::render(GraphicsScene& scene, float width,
       const QTransform sceneToCache =
           QTransform::fromScale(mMirror ? -scale : scale, scale);
       const QRect viewRect(
-          QPoint(mMirror ? (-pos.x() - size.width()) : pos.x(), pos.y()),
-          size);
+          QPoint(mMirror ? (-pos.x() - size.width()) : pos.x(), pos.y()), size);
       rendered = mRenderCache->render(scene, sceneToCache, viewRect,
                                       scene.getBackgroundColor(), out);
       if (rendered) {
@@ -243,8 +242,7 @@ slint::Image SlintGraphicsView::render(GraphicsScene& scene, float width,
       }
     }
     if (!rendered) {
-      const QTransform tf =
-          viewTransform(scale, offset, mMirror, size.width());
+      const QTransform tf = viewTransform(scale, offset, mMirror, size.width());
       QImage content = renderContentSurface(scene, tf, size, &error);
       if (content.isNull()) {
         content = QImage(size, QImage::Format_RGBA8888_Premultiplied);
@@ -486,9 +484,10 @@ QMarginsF SlintGraphicsView::defaultEditorMargins() noexcept {
  *  Private Methods
  ******************************************************************************/
 
-QImage SlintGraphicsView::renderContentSurface(
-    GraphicsScene& scene, const QTransform& sceneToDevice, const QSize& size,
-    QString* error) noexcept {
+QImage SlintGraphicsView::renderContentSurface(GraphicsScene& scene,
+                                               const QTransform& sceneToDevice,
+                                               const QSize& size,
+                                               QString* error) noexcept {
   if (mGlSurface && mGlContext) {
     QString glError = mGlError;
     if (glError.isEmpty() && (!mGlContext->makeCurrent(mGlSurface.get()))) {
@@ -526,7 +525,7 @@ std::shared_ptr<QOpenGLFramebufferObject> SlintGraphicsView::acquireFbo(
   std::shared_ptr<QOpenGLFramebufferObject> fbo = mFbos.value(key);
   if (!fbo) {
     qint64 pixels = static_cast<qint64>(size.width()) * size.height();
-    for (const auto& f : mFbos) {
+    for (const auto& f : std::as_const(mFbos)) {
       pixels += static_cast<qint64>(f->width()) * f->height();
     }
     if ((mFbos.count() >= sMaxFbos) || (pixels > sMaxFboPixels)) {

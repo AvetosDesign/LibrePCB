@@ -91,8 +91,8 @@ protected:
                 QColor::fromHsv((x * 7 + y * 3) % 360, 200, 220));
       }
     }
-    mCache.reset(
-        new RenderCache(mSurface.renderer(), [this]() { ++mRepaints; }));
+    mCache = std::make_unique<RenderCache>(mSurface.renderer(),
+                                           [this]() { ++mRepaints; });
     settleScene();
   }
 
@@ -435,7 +435,7 @@ TEST_F(RenderCacheTest, testZoomShowsPreviewUntilSettled) {
 
   // The preview is drawn from the cached pixels without rendering.
   bool ok = false;
-  const QImage preview = renderCached(QPoint(0, 0), 2, false, &ok);
+  renderCached(QPoint(0, 0), 2, false, &ok);
   EXPECT_TRUE(ok);
   EXPECT_EQ(calls, mSurface.calls);
   EXPECT_EQ(0, mRepaints);

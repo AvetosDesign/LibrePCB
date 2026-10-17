@@ -31,6 +31,8 @@
 #include <QtCore>
 #include <QtWidgets>
 
+#include <utility>
+
 /*******************************************************************************
  *  Namespace
  ******************************************************************************/
@@ -496,7 +498,7 @@ void GraphicsScene::handleChanged(const QList<QRectF>& region) noexcept {
   mDirtyRects += region;
   if (mDirtyRects.count() > 4096) {
     QRectF bounds;
-    for (const QRectF& r : mDirtyRects) {
+    for (const QRectF& r : std::as_const(mDirtyRects)) {
       bounds |= r;
     }
     mDirtyRects = {bounds};

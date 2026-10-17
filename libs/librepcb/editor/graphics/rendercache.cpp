@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 /*******************************************************************************
  *  Namespace
@@ -87,9 +88,11 @@ RenderCache::RenderCache(RegionRenderer renderer,
                          RepaintRequest repaint) noexcept
   : mRenderer(renderer), mRepaint(repaint), mZoomSettled(false) {
   mRefillTimer.setSingleShot(true);
-  QObject::connect(&mRefillTimer, &QTimer::timeout, [this]() { refill(); });
+  QObject::connect(&mRefillTimer, &QTimer::timeout, &mRefillTimer,
+                   [this]() { refill(); });
   mZoomSettleTimer.setSingleShot(true);
-  QObject::connect(&mZoomSettleTimer, &QTimer::timeout, [this]() { settle(); });
+  QObject::connect(&mZoomSettleTimer, &QTimer::timeout, &mZoomSettleTimer,
+                   [this]() { settle(); });
 }
 
 RenderCache::~RenderCache() noexcept {
@@ -160,7 +163,8 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
       mValid = view;
     } else {
       const QRect old = mValid;
-      for (const QRect& piece : subtractRect(view, old)) {
+      const QList<QRect> pieces = subtractRect(view, old);
+      for (const QRect& piece : pieces) {
         if (!renderAndStore(scene, piece)) {
           mValid = QRect();
           return false;
@@ -343,7 +347,7 @@ void RenderCache::applyDirtyRects(GraphicsScene& scene,
   if (rects.count() > 1) {
     // Collapse the longer list of rects into a region of unique rects
     QRegion region;
-    for (const QRect& r : rects) {
+    for (const QRect& r : std::as_const(rects)) {
       region += r;
     }
 
@@ -371,7 +375,7 @@ void RenderCache::applyDirtyRects(GraphicsScene& scene,
     return;
   }
 
-  for (const QRect& r : rects) {
+  for (const QRect& r : std::as_const(rects)) {
     if (!renderAndStore(scene, r)) {
       mValid = QRect();
       return;
