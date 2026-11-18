@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -76,7 +78,7 @@ static std::unique_ptr<QOpenGLFramebufferObject> createFbo(const QSize& size) {
 
 static qreal boundedScaleFactor(qreal scale) noexcept {
   // Limit zoom factor to avoid crashes due to numerical issues when zooming
-  // extensively (e.g. possible with free running scroll wheels).
+  // excessively (e.g. possible with free running scroll wheels).
   return qBound(qreal(0.001), scale, qreal(5000));
 }
 
@@ -93,6 +95,7 @@ SlintGraphicsView::SlintGraphicsView(const QRectF& defaultSceneRect,
     mEventHandler(nullptr),
     mRenderCacheEnabled(false),
     mRenderCache(new RenderCache(
+        // Region renderer, used for the pixels stored in the cache.
         [this](GraphicsScene& scene, const QTransform& sceneToDevice,
                const QSize& size) {
           return renderContentSurface(scene, sceneToDevice, size);
@@ -168,6 +171,8 @@ void SlintGraphicsView::setUseOpenGl(bool use) noexcept {
     invalidateRenderCache();
     emit transformChanged();
   } else if ((!use) && mGlSurface) {
+    // Cached pixels were drawn by OpenGL. Make the context current so the
+    // framebuffers can be destroyed.
     invalidateRenderCache();
     mGlContext->makeCurrent(mGlSurface.get());
     mFbos.clear();
@@ -188,6 +193,7 @@ void SlintGraphicsView::setRenderCacheEnabled(bool enable) noexcept {
 }
 
 void SlintGraphicsView::releaseResources() noexcept {
+  // Framebuffers are released below, which requires the context.
   if (mGlSurface && mGlContext && mGlError.isEmpty()) {
     mGlContext->makeCurrent(mGlSurface.get());
   }
@@ -231,6 +237,8 @@ slint::Image SlintGraphicsView::render(GraphicsScene& scene, float width,
     bool rendered = false;
     QPoint pos;
     if (mRenderCacheEnabled && RenderCache::snapPos(offset * scale, pos)) {
+      // Cache space is the scaled scene without panning. If mirrored, the x
+      // axis is flipped, so the view starts at the mirrored right edge.
       const QTransform sceneToCache =
           QTransform::fromScale(mMirror ? -scale : scale, scale);
       const QRect viewRect(
@@ -238,9 +246,11 @@ slint::Image SlintGraphicsView::render(GraphicsScene& scene, float width,
       rendered = mRenderCache->render(scene, sceneToCache, viewRect,
                                       scene.getBackgroundColor(), out);
       if (rendered) {
+        // Align the foreground with the content of the snapped position.
         offset = QPointF(pos) / scale;
       }
     }
+    // Render the whole view if the cache is disabled or failed.
     if (!rendered) {
       const QTransform tf = viewTransform(scale, offset, mMirror, size.width());
       QImage content = renderContentSurface(scene, tf, size, &error);
@@ -488,6 +498,7 @@ QImage SlintGraphicsView::renderContentSurface(GraphicsScene& scene,
                                                const QTransform& sceneToDevice,
                                                const QSize& size,
                                                QString* error) noexcept {
+  // Render with OpenGL into a pooled framebuffer if available.
   if (mGlSurface && mGlContext) {
     QString glError = mGlError;
     if (glError.isEmpty() && (!mGlContext->makeCurrent(mGlSurface.get()))) {
@@ -507,6 +518,7 @@ QImage SlintGraphicsView::renderContentSurface(GraphicsScene& scene,
       return QImage();
     }
     {
+      // The paint device must be destroyed before releasing the framebuffer.
       QOpenGLPaintDevice device(size);
       paintContent(&device, scene, size, sceneToDevice);
     }
@@ -514,6 +526,7 @@ QImage SlintGraphicsView::renderContentSurface(GraphicsScene& scene,
     return fbo->toImage();
   }
 
+  // Software rendering.
   QImage img(size, QImage::Format_RGBA8888_Premultiplied);
   paintContent(&img, scene, size, sceneToDevice);
   return img;
@@ -528,6 +541,7 @@ std::shared_ptr<QOpenGLFramebufferObject> SlintGraphicsView::acquireFbo(
     for (const auto& f : std::as_const(mFbos)) {
       pixels += static_cast<qint64>(f->width()) * f->height();
     }
+    // Drop all framebuffers if the pool grows too large.
     if ((mFbos.count() >= sMaxFbos) || (pixels > sMaxFboPixels)) {
       mFbos.clear();  // Release memory first.
     }

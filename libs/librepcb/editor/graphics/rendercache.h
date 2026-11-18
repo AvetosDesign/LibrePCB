@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 #ifndef LIBREPCB_EDITOR_RENDERCACHE_H
 #define LIBREPCB_EDITOR_RENDERCACHE_H
 
@@ -167,15 +169,31 @@ public:
   RenderCache& operator=(const RenderCache& rhs) = delete;
 
 private:  // Methods
+  /// Render a region of the cache space and store it in the ring.
   bool renderAndStore(GraphicsScene& scene, const QRect& region) noexcept;
+
+  /// Render a region of the cache space; null image on failure.
   QImage renderRegion(GraphicsScene& scene, const QRect& region) noexcept;
+
+  /// Write an image of a cache space region into the ring.
   void storeRegion(const QRect& region, QImage img) noexcept;
+
+  /// Copy a cache space region out of the ring.
   void cropRegion(const QRect& region, QImage& out) const noexcept;
+
+  /// Re-render the valid area affected by dirty scene regions, or drop the
+  /// valid area if re-rendering is not worth it.
   void applyDirtyRects(GraphicsScene& scene,
                        const QList<QRectF>& dirty) noexcept;
+
+  /// Draw cached pixels scaled to the current zoom level.
   void drawZoomPreview(const QColor& backdrop, const QRect& view, qreal scale,
                        const QRectF& src, QImage& out) const noexcept;
+
+  /// Idle step which extends the valid area towards the margin.
   void refill() noexcept;
+
+  /// Zoom operation ended, request a repaint to render at the new scale.
   void settle() noexcept;
 
 private:  // Data
@@ -185,10 +203,10 @@ private:  // Data
   QRect mValid;  ///< Rendered device rect, always inside ::mView plus margins.
   QRect mView;  ///< Device rect of the view at the last frame.
   QTransform mTransform;  ///< Maps pixels from scene- to cache-space.
-  QPointer<GraphicsScene> mScene;
-  QTimer mRefillTimer;
-  QTimer mZoomSettleTimer;
-  bool mZoomSettled;
+  QPointer<GraphicsScene> mScene;  ///< Scene the cached pixels belong to.
+  QTimer mRefillTimer;  ///< Triggers ::refill().
+  QTimer mZoomSettleTimer;  ///< Triggers ::settle().
+  bool mZoomSettled;  ///< No preview until the next change of the transform.
 };
 
 /*******************************************************************************

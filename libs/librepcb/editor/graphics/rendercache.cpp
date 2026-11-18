@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -34,8 +36,13 @@
 namespace librepcb {
 namespace editor {
 
+// Extra pixels kept around the view on each side.
 static constexpr int sCacheMargin = 256;
+
+// Maximum thickness of a margin strip rendered per idle step.
 static constexpr int sCacheQuantum = 64;
+
+// Delay between idle steps.
 static constexpr int sRefillIntervalMs = 1;
 
 // Limit of the view position, keeps all ring coordinates within int range.
@@ -71,6 +78,7 @@ static void forEachRingSegment(const QRect& rect, const QSize& ring, F&& f) {
   }
 }
 
+// Copies a rect of RGBA8888 pixels row by row.
 static void copyRows(const QImage& src, const QRect& srcRect, QImage& dst,
                      const QPoint& dstPos) noexcept {
   for (int row = 0; row < srcRect.height(); ++row) {
@@ -118,6 +126,8 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
   const QSize ringSize(view.width() + 2 * margin, view.height() + 2 * margin);
   const QRect window = view.adjusted(-margin, -margin, margin, margin);
 
+  // The ring content is only reusable for the same ring size, mirror state and
+  // scene.
   const bool sameLayout = (mRing.size() == ringSize) &&
       ((mTransform.m11() < 0) == mirror) && (mScene == &scene);
 
@@ -130,6 +140,7 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
                         view.width() * ratio, view.height() * ratio)
                      .intersected(QRectF(mValid));
   }
+  // The preview source is the view mapped to the cached zoom level.
   const bool preview = (previewSrc.width() >= 1) && (previewSrc.height() >= 1);
 
   if (preview) {
@@ -141,6 +152,8 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
 
   mZoomSettled = false;
   mZoomSettleTimer.stop();
+
+  // Start over if the cached pixels cannot be reused.
   const bool match = sameLayout && (mTransform == sceneToCache);
   if (!match) {
     if (mRing.size() != ringSize) {
@@ -151,9 +164,12 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
     mScene = &scene;
   }
 
+  // Pixels outside of the window are overwritten by the wrapped ring.
   mValid = mValid.intersected(window);
   mView = view;
   applyDirtyRects(scene, dirty);
+
+  // Render the part of the view which is not valid yet.
   if (!mValid.contains(view)) {
     if (!mValid.intersects(view)) {
       if (!renderAndStore(scene, view)) {
@@ -175,6 +191,7 @@ bool RenderCache::render(GraphicsScene& scene, const QTransform& sceneToCache,
   }
   cropRegion(view, out);
 
+  // Fill the margin when idle.
   if ((mValid != window) && (!mRefillTimer.isActive())) {
     mRefillTimer.start(sRefillIntervalMs);
   }
@@ -296,6 +313,7 @@ void RenderCache::applyDirtyRects(GraphicsScene& scene,
     return;
   }
 
+  // Maps a scene rect to a padded, grid-aligned rect inside the valid area.
   const qreal limit = 1e8;
   const int pad = 2;
   const int align = 32;
@@ -386,6 +404,7 @@ void RenderCache::applyDirtyRects(GraphicsScene& scene,
 void RenderCache::drawZoomPreview(const QColor& backdrop, const QRect& view,
                                   qreal scale, const QRectF& src,
                                   QImage& out) const noexcept {
+  // Ratio of cached to current scale.
   const qreal ratio = mTransform.m22() / scale;
   const QRect srcPx = src.toAlignedRect();
   QImage tmp(srcPx.size(), QImage::Format_RGBA8888_Premultiplied);
@@ -413,6 +432,7 @@ void RenderCache::refill() noexcept {
 
   const int margin = sCacheMargin;
   const QRect window = mView.adjusted(-margin, -margin, margin, margin);
+  // Extend the side with the largest remaining gap.
   const QRect v = mValid;
   const int gaps[4] = {
       v.left() - window.left(),  // Left.
@@ -451,6 +471,7 @@ void RenderCache::refill() noexcept {
 }
 
 void RenderCache::settle() noexcept {
+  // The next render() call renders at the new scale instead of a preview.
   mZoomSettled = true;
   if (mRepaint) {
     mRepaint();

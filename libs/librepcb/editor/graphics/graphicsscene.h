@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 #ifndef LIBREPCB_EDITOR_GRAPHICSSCENE_H
 #define LIBREPCB_EDITOR_GRAPHICSSCENE_H
 
@@ -152,14 +154,20 @@ protected:
   void drawForeground(QPainter* painter, const QRectF& rect) noexcept override;
 
 private:
+  /// Accumulate changed regions for ::takeDirtyRects().
   void handleChanged(const QList<QRectF>& region) noexcept;
+
+  /// Report a change of the foreground layer, which is not part of the dirty
+  /// rects.
   void notifyForegroundChanged() noexcept;
+
+  /// Report a change of the background, which affects the whole plane.
   void notifyBackgroundChanged() noexcept;
 
 private:
-  QList<QRectF> mDirtyRects;
-  bool mSkipForeground;
-  bool mForegroundChangePending;
+  QList<QRectF> mDirtyRects;  ///< Changed regions not yet taken.
+  bool mSkipForeground;  ///< Whether ::drawForeground() draws nothing.
+  bool mForegroundChangePending;  ///< Foreground notification is queued.
   GridStyle mGridStyle;
   PositiveLength mGridInterval;
   QColor mBackgroundColor;

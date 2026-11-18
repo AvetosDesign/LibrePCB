@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 /*******************************************************************************
  *  Includes
  ******************************************************************************/
@@ -197,13 +199,17 @@ QPixmap GraphicsScene::toPixmap(const QSize& size,
 
 void GraphicsScene::renderContent(QPainter* painter, const QSize& size,
                                   const QTransform& sceneToDevice) noexcept {
+  // Source rect is the area of the scene visible in the target.
   const QRectF target(QPointF(0, 0), size);
   const QRectF source = sceneToDevice.inverted().mapRect(target);
   painter->save();
+
+  // QGraphicsScene::render() cannot flip, so mirror the painter instead.
   if (sceneToDevice.m11() < 0) {
     painter->translate(size.width(), 0);
     painter->scale(-1, 1);
   }
+  // The foreground is drawn by renderForeground().
   mSkipForeground = true;
   render(painter, target, source, Qt::KeepAspectRatio);
   mSkipForeground = false;
@@ -212,6 +218,7 @@ void GraphicsScene::renderContent(QPainter* painter, const QSize& size,
 
 void GraphicsScene::renderForeground(QPainter* painter, const QSize& size,
                                      const QTransform& sceneToDevice) noexcept {
+  // Draw with the transform applied by the caller, as QGraphicsView would.
   const QRectF target(QPointF(0, 0), size);
   painter->save();
   painter->setClipRect(target, Qt::IntersectClip);
@@ -492,10 +499,13 @@ void GraphicsScene::notifyBackgroundChanged() noexcept {
 }
 
 void GraphicsScene::handleChanged(const QList<QRectF>& region) noexcept {
+  // Ignore the marker of foreground changes.
   if ((region.count() == 1) && (region.first() == sForegroundRegion)) {
     return;
   }
   mDirtyRects += region;
+
+  // Bound the memory used if changes are not taken.
   if (mDirtyRects.count() > 4096) {
     QRectF bounds;
     for (const QRectF& r : std::as_const(mDirtyRects)) {
@@ -509,6 +519,7 @@ void GraphicsScene::notifyForegroundChanged() noexcept {
   if (mForegroundChangePending) {
     return;
   }
+  // Queue a single notification for any number of changes.
   mForegroundChangePending = true;
   QMetaObject::invokeMethod(
       this,

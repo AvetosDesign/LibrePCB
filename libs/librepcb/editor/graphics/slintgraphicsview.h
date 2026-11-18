@@ -17,6 +17,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// AI DISCLAIMER: Claude AI assisted in the creation/modification of this file.
+
 #ifndef LIBREPCB_EDITOR_SLINTGRAPHICSVIEW_H
 #define LIBREPCB_EDITOR_SLINTGRAPHICSVIEW_H
 
@@ -155,13 +157,22 @@ signals:
   void transformChanged();
 
 private:  // Methods
+  /// Render scene content (without foreground) into a new image, using
+  /// OpenGL if enabled. Returns a null image and sets `error` if OpenGL is
+  /// unusable.
   QImage renderContentSurface(GraphicsScene& scene,
                               const QTransform& sceneToDevice,
                               const QSize& size,
                               QString* error = nullptr) noexcept;
+
+  /// Get a pooled OpenGL framebuffer of the given size. The OpenGL context
+  /// must be current.
   std::shared_ptr<QOpenGLFramebufferObject> acquireFbo(
       const QSize& size) noexcept;
+
+  /// Drop all cached pixels, e.g. if the rendering backend changes.
   void invalidateRenderCache() noexcept;
+
   void fitProjection(GraphicsScene& scene, const QSize& size) noexcept;
   void scroll(const QPointF& delta) noexcept;
   void zoom(QPointF center, qreal factor) noexcept;
